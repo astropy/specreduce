@@ -11,12 +11,12 @@ __pycache__
 *.c
 
 # Other generated files
+*/version.py
+*/cython_version.py
+htmlcov
+.coverage
 MANIFEST
-astropy/version.py
-astropy/cython_version.py
-astropy/wcs/include/wcsconfig.h
-astropy/_erfa/core.py
-astropy/_erfa/core.pyx
+.ipynb_checkpoints
 
 # Sphinx
 _build
