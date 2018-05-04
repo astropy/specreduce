@@ -4,8 +4,9 @@
 Spectroscopic data reduction outline
 ************************************
 
-Here are some examples of how complete DR processes might be structured,
-currently to help guide development.
+Here are some examples of complete DR processes, to help guide development
+(including basic image reduction steps, provided by other packages). These are
+not a summary of functionality actually implemented in `specreduce` today.
 
 
 .. _specreduce-nir-mos:
@@ -13,12 +14,15 @@ currently to help guide development.
 Near-IR, multi-slit spectroscopy
 ================================
 
-This example is based on plans for the reduction of near-infrared, multi-slit
-spectra, also considering future use with optical data to a lesser
-extent. There may be some room for improvement based on experience.
+This example, from Gemini, is based on plans for the reduction of
+near-infrared, multi-slit spectra (considering future use with optical data to
+a lesser extent). Some adjustments might be needed as the functionality takes
+form.
 
 .. toctree::
    :maxdepth: 1
 
    NIR_science_data
+   NIR_flats
+   NIR_arcs
 

@@ -3,9 +3,7 @@ Near-IR, multi-slit science data
 ********************************
 
 This example is based on plans for reduction of near-infrared, multi-slit
-spectra, but also shows where some alternative steps might be inserted for
-optical data. Detector mosaicking is not shown here, since it is not applicable
-for this instrument (to do: add this?).
+spectra with a single detector array.
 
 
 .. figure:: NIR_MOS_science.svg
