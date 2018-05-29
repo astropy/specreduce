@@ -1,11 +1,11 @@
 Specreduce
 =========
 
-.. image:: https://travis-ci.org/astropy/specutils.svg?branch=master
-    :target: https://travis-ci.org/astropy/specutils
+.. image:: https://travis-ci.org/astropy/specreduce.svg?branch=master
+    :target: https://travis-ci.org/astropy/specreduce
 
-.. image:: https://readthedocs.org/projects/specutils/badge/?version=latest
-    :target: http://specutils.readthedocs.io/en/latest/?badge=latest
+.. image:: https://readthedocs.org/projects/specreduce/badge/?version=latest
+    :target: http://specreduce.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 
 .. image:: http://img.shields.io/badge/powered%20by-AstroPy-orange.svg?style=flat
