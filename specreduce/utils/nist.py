@@ -12,43 +12,18 @@ import numpy as np
 import pandas as pd
 import requests
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 
 __author__ = 'Bruno Quint'
 
 
-def get_nist_data(element, blue_limit, red_limit):
-    """
-    Retrieve data from NIST using a GET request and parsing the results into
-    two NumPy arrays: one for the wavelengths and other for the intensities.
-
-    Parameters
-    ----------
-        element : str
-            A string that matches a element (e.g.: "Th", "Cu", "Na").
-
-        blue_limit : float
-            Blue wavelength in Angstrom.
-
-        red_limit : float
-            Red wavelength in Angstrom.
-
-    Returns
-    -------
-        wavelengths : numpy.ndarray
-            A 1D array with the wavelengths.
-
-        intensities : numpy.ndarray
-            A 1D array with the corresponding intensities.
-    """
-
-    URL = 'https://physics.nist.gov/cgi-bin/ASD/lines1.pl'
-    payload = {
-        'spectra': element,
+NIST_URL = 'https://physics.nist.gov/cgi-bin/ASD/lines1.pl'
+NIST_PAYLOAD = {
+        'spectra': None,
         'limits_type': 0,
-        'low_w': blue_limit,
-        'upp_w': red_limit,
+        'low_w': None,
+        'upp_w': None,
         'unit': 0,
         'submit': 'Retrieve Data',
         'de': 0,
@@ -80,15 +55,47 @@ def get_nist_data(element, blue_limit, red_limit):
         'J_out': 'on',
     }
 
-    r = requests.get(URL, params=payload)
+
+def get_nist_data(element, blue_limit, red_limit):
+    """
+    Retrieve data from NIST using a GET request and parsing the results into
+    two NumPy arrays: one for the wavelengths and other for the intensities.
+
+    Parameters
+    ----------
+        element : str
+            A string that matches a element (e.g.: "Th", "Cu", "Na").
+
+        blue_limit : float
+            Blue wavelength in Angstrom.
+
+        red_limit : float
+            Red wavelength in Angstrom.
+
+    Returns
+    -------
+        wavelengths : numpy.ndarray
+            A 1D array with the wavelengths.
+
+        intensities : numpy.ndarray
+            A 1D array with the corresponding intensities.
+    """
+    NIST_PAYLOAD['spectra'] = element
+    NIST_PAYLOAD['low_w'] = blue_limit
+    NIST_PAYLOAD['upp_w'] = red_limit
+
+    r = requests.get(NIST_URL, params=NIST_PAYLOAD)
     soup = BeautifulSoup(r.content, 'lxml')
 
-    _ = [s.extract() for s in soup.find_all('table', attrs={'width': ['75%', '100%']})]
+    _ = [s.extract() for s in soup.find_all('table',
+                                            attrs={'width': ['75%', '100%']})]
+
     _ = [s.extract() for s in soup(['script', 'span'])]
 
     table = soup.find('table', attrs={'rules': 'groups'})
     header, body = table.find_all('tbody')
     header.name = 'theader'
+
     _ = [s.extract() for s in table('theader')]
 
     _df = pd.read_html(str(table))[0]
@@ -99,7 +106,6 @@ def get_nist_data(element, blue_limit, red_limit):
     _df['Wavelength'] = _df['Wavelength'].astype(float)
 
     _df = _df[_df['Intensity'].apply(lambda x: str(x).isnumeric())]
-
     _df = _df.dropna()
 
     wavelengths = np.array(_df['Wavelength'], dtype=float)
