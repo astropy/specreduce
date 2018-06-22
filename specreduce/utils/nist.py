@@ -8,7 +8,6 @@
 
 from __future__ import print_function, absolute_import, division
 
-import numpy as np
 import pandas as pd
 import requests
 
@@ -74,11 +73,18 @@ def get_nist_data(element, blue_limit, red_limit):
 
     Returns
     -------
-        wavelengths : numpy.ndarray
-            A 1D array with the wavelengths.
+        df : DataFrame
+            A Pandas DataFrame containing four columns
+            [spectrum, wavelength, rel_int, reference].
 
-        intensities : numpy.ndarray
-            A 1D array with the corresponding intensities.
+    References
+    ----------
+
+        - Kramida, A., Ralchenko, Yu., Reader, J., and NIST ASD Team (2018).
+          NIST Atomic Spectra Database (ver. 5.5.6), [Online].
+          Available: https://physics.nist.gov/asd [2018, June 22].
+          National Institute of Standards and Technology, Gaithersburg, MD.
+
     """
     NIST_PAYLOAD['spectra'] = element
     NIST_PAYLOAD['low_w'] = blue_limit
@@ -99,18 +105,16 @@ def get_nist_data(element, blue_limit, red_limit):
     _ = [s.extract() for s in table('theader')]
 
     _df = pd.read_html(str(table))[0]
-    _df = _df[[0, 1, 5]]
-    _df.columns = ['Element', 'Wavelength', 'Intensity']
+    _df = _df[[0, 1, 5, 13]]
 
-    _df['Wavelength'] = _df['Wavelength'].str.replace(" ", "")
-    _df['Wavelength'] = _df['Wavelength'].astype(float)
+    _df.columns = ['spectrum', 'wavelength', 'rel_int', 'reference']
 
-    _df = _df[_df['Intensity'].apply(lambda x: str(x).isnumeric())]
-    _df['Intensity'] = _df['Intensity'].astype(float)
+    _df['wavelength'] = _df['wavelength'].str.replace(" ", "")
+    _df['wavelength'] = _df['wavelength'].astype(float)
+
+    _df = _df[_df['rel_int'].apply(lambda x: str(x).isnumeric())]
+    _df['rel_int'] = _df['rel_int'].astype(float)
 
     _df = _df.dropna()
 
-    wavelengths = np.array(_df['Wavelength'], dtype=float)
-    intensities = np.array(_df['Intensity'], dtype=float)
-
-    return wavelengths, intensities
+    return _df
