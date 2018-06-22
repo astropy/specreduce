@@ -1,4 +1,4 @@
-name: dummy
+name: specreduce
 
 channels:
     - astropy
