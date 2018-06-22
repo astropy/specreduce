@@ -106,6 +106,8 @@ def get_nist_data(element, blue_limit, red_limit):
     _df['Wavelength'] = _df['Wavelength'].astype(float)
 
     _df = _df[_df['Intensity'].apply(lambda x: str(x).isnumeric())]
+    _df['Intensity'] = _df['Intensity'].astype(float)
+
     _df = _df.dropna()
 
     wavelengths = np.array(_df['Wavelength'], dtype=float)
