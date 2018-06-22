@@ -1,4 +1,4 @@
-name: packagename
+name: specreduce
 
 channels:
     - astropy
@@ -8,5 +8,7 @@ dependencies:
     - Cython
     - matplotlib
     - numpy
+    - pandas
+    - beautifulsoup4
 #   - pip:
 #       - dependency_from_pip
