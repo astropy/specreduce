@@ -1,0 +1,90 @@
+  600    P      2058.1323         Si I       KRA66
+   20           2072.016          Si II      S61b
+   30           2072.701          Si II      S61b
+  400    P      2207.978          Si I       RA65
+  500    P      2210.894          Si I       RA65
+  300    P      2211.744          Si I       RA65
+  500    P      2216.669          Si I       RA65
+  400    P      2218.057          Si I       RA65
+  300           2435.154          Si I       RA65
+  400    P      2506.897          Si I       RA65
+  400    P      2514.316          Si I       RA65
+  500    P      2516.112          Si I       RA65
+  400    P      2519.202          Si I       RA65
+  400    P      2524.108          Si I       RA65
+  400    P      2528.509          Si I       RA65
+  200           2631.282          Si I       RA65
+ 1000    P      2881.5771         Si I       BE93
+   50           2904.283          Si II      S61b
+   80           2905.692          Si II      S61b
+  150           2987.645          Si I       RA65
+   15    h      3053.184          Si II      S61b
+   15           3188.97           Si II      S61b
+   15           3193.09           Si II      S61b
+    7           3199.514          Si II      S61b
+   20    h      3203.872          Si II      S61b
+   30    h      3210.020          Si II      RA65
+   20           3333.139          Si II      S61b
+   30           3339.819          Si II      S61b
+  100    P,h    3856.017          Si II      S61b
+   40    h      3862.595          Si II      S61b
+  200           3905.523          Si I       RA65
+   50    P,h    4128.067          Si II      S61b
+   70    P,h    4130.893          Si II      S61b
+   20           4621.721          Si II      S61b
+  130    P      5041.026          Si II      S61b
+  130    P      5055.981          Si II      S61b
+   25    h      5192.86           Si II      S61b
+   70    h      5202.41           Si II      S61b
+   70    h      5466.432          Si II      S61b
+   70    h      5466.868          Si II      S61b
+   25    h      5496.45           Si II      S61b
+   20    h      5576.66           Si II      S61b
+   25    h      5639.48           Si II      S61b
+   20    h      5660.66           Si II      S61b
+  130    P,h    5669.562          Si II      S61b
+   60           5684.484          Si I       RA65
+   40    h      5688.81           Si II      S61b
+   25    h      5701.37           Si II      S61b
+   80           5708.397          Si I       RA65
+   25    h      5800.47           Si II      S61b
+   30           5806.74           Si II      S61b
+   50    h      5868.40           Si II      S61b
+   25           5915.22           Si II      S61b
+   50    P      5948.545          Si I       RA65
+   80           5957.561          Si II      S61b
+   80           5978.929          Si II      S61b
+   40           6155.134          Si I       RA65
+   40           6237.320          Si I       RA65
+   30           6243.813          Si I       RA65
+   30           6244.468          Si I       RA65
+   40           6254.188          Si I       RA65
+  130    P      6347.103          Si II      S61b
+  100    P      6371.359          Si II      S61b
+   40           7003.567          Si I       RA65
+   40           7005.883          Si I       RA65
+   60           7034.903          Si I       RA65
+   50           7165.545          Si I       RA65
+   40           7250.625          Si I       RA65
+   40           7275.294          Si I       RA65
+  100    P      7289.1730         Si I       MKMD94
+   90    P      7405.7740         Si I       MKMD94
+   50           7409.082          Si I       RA65
+   60           7415.946          Si I       RA65
+  100    P      7423.497          Si I       RA65
+   50           7848.80           Si II      S61b
+   70           7849.72           Si II      S61b
+   25           7932.349          Si I       RA65
+   30           7944.001          Si I       RA65
+   25           8556.7803         Si I       BE93
+   20          10585.140          Si I       BE93
+   20          10603.427          Si I       BE93
+   20          10660.970          Si I       BE93
+   20          10827.088          Si I       BE93
+   20          10869.539          Si I       BE93
+   50    P     11984.201          Si I       BE93
+   30          11991.562          Si I       BE93
+   60    P     12031.503          Si I       BE93
+   20          12103.535          Si I       BE93
+   15          12270.692          Si I       BE93
+   25          15888.431          Si I       BE93
