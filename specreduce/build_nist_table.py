@@ -10,14 +10,38 @@ import re
 
 
 def build_table():
+    """Build master table from NIST txt files
 
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    master_table: astropy table
+        Table with all of the NIST line from the txt files
+    """
     names = ['Intensity', 'Wavelength', 'Element', 'Reference']
-
     # Use packaging directory instead of relative path in the future.
     line_lists = glob.glob('data/line_lists/NIST/*.txt')
 
-    master_table = vstack([Table.read(line_list, format='ascii', names=names) for line_list in line_lists])
+    tabs_to_stack = []
+    for line_list in line_lists:
+        try:
+            t = Table.read(line_list, format='ascii', names=names)
+            tabs_to_stack.append(t)
+        except:
+            # Use numpy to parse table that arent comma delimited.
+            data = np.genfromtxt(line_list, 
+                                delimiter=(13, 14, 13, 16),
+                                dtype=str)
+            t = Table(data, names=names,
+                    dtype=('S10', 'f8', 'S15' , 'S15'))
+            tabs_to_stack.append(t)
 
+    # Stack all of the tables.
+    master_table = vstack(tabs_to_stack)
+    
     # Add on switch for users. Use line if True, don't if False
     # Set to True by default.
     on_off_column = Column([True] * len(master_table))
