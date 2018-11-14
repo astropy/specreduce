@@ -1,0 +1,29 @@
+   20            729.40           Kr II      MSP69
+   70            761.18           Kr II      MSP69
+   30            763.98           Kr II      MSP69
+   20            766.20           Kr II      MSP69
+   70            771.03           Kr II      MSP69
+   20            773.69           Kr II      MSP69
+   70            782.10           Kr II      MSP69
+   30            783.72           Kr II      MSP69
+   20            818.15           Kr II      MSP69
+   20            830.38           Kr II      MSP69
+   30    P       844.06           Kr II      MSP69
+   20            864.82           Kr II      MSP69
+   20            868.87           Kr II      MSP69
+   70            884.14           Kr II      MSP69
+  300    P       886.30           Kr II      MSP69
+  130            891.01           Kr II      MSP69
+   70            911.39           Kr II      MSP69
+  700    P       917.43           Kr II      MSP69
+  100            945.4414         Kr I       K93
+   80            946.5443         Kr I       K93
+   30            951.056          Kr I       K93
+   80            953.4041         Kr I       K93
+   80            963.3745         Kr I       K93
+  700    P       964.97           Kr II      MSP69
+  150           1001.0606         Kr I       K93
+  150           1003.5504         Kr I       K93
+  150           1030.0232         Kr I       K93
+  300    P      1164.8671         Kr I       K93
+ 1000    P      1235.8378         Kr I       K93
