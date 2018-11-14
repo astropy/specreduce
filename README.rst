@@ -1,5 +1,5 @@
 Specreduce
-=========
+==========
 
 .. image:: https://travis-ci.org/astropy/specreduce.svg?branch=master
     :target: https://travis-ci.org/astropy/specreduce
