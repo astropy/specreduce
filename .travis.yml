@@ -70,6 +70,8 @@ matrix:
         # may run for a long time
         - os: linux
           env: SETUP_CMD='build_docs -w'
+               PIP_DEPENDENCIES='sphinx-astropy'
+               EVENT_TYPE='push pull_request cron'
 
     allow_failures:
         # Do a PEP8 test with pycodestyle
