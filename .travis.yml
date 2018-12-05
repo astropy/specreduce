@@ -71,10 +71,6 @@ matrix:
         - os: linux
           env: SETUP_CMD='build_docs -w'
 
-        # Do a PEP8 test with pycodestyle
-        - os: linux
-          env: MAIN_CMD='pycodestyle specreduce --count' SETUP_CMD=''
-
     allow_failures:
         # Do a PEP8 test with pycodestyle
         # (allow to fail unless your code completely compliant)
