@@ -133,6 +133,17 @@ package_info['package_data'][PACKAGENAME].extend(c_files)
 # ``setup``, since these are now deprecated. See this link for more details:
 # https://groups.google.com/forum/#!topic/astropy-dev/urYO8ckB2uM
 
+package_info['package_data'].setdefault(PACKAGENAME, [])
+data_files = []
+for root, dirs, files in os.walk(PACKAGENAME):
+    for filename in files:
+        if filename.endswith('.txt') or filename.endswith('.dat'):
+           data_files.append(
+               os.path.join(
+                    os.path.relpath(root, PACKAGENAME), filename))
+package_info['package_data'][PACKAGENAME].extend(data_files)
+
+
 setup(name=PACKAGENAME,
       version=VERSION,
       description=DESCRIPTION,

@@ -26,7 +26,7 @@ def build_table(line_lists=None):
     # Use packaging directory instead of relative path in the future.
     if line_lists is None:
        code_dir = os.path.dirname(os.path.realpath(__file__))
-       line_lists = glob.glob(code_dir + '/data/line_lists/NIST/*.txt')
+       line_lists = glob.glob(code_dir + '/datasets/line_lists/NIST/*.txt')
 
     tabs_to_stack = []
     for line_list in line_lists:
