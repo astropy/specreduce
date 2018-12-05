@@ -66,6 +66,11 @@ matrix:
         - os: linux
           env: SETUP_CMD='test --coverage'
 
+        # test against astropy dev as well
+        - os: linux
+          env: ASTROPY_VERSION=development
+               EVENT_TYPE='pull_request push cron'
+
         # Check for sphinx doc build warnings - we do this first because it
         # may run for a long time
         - os: linux
