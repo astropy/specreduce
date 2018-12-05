@@ -90,8 +90,8 @@ install:
     # in how to install a package, in which case you can have additional
     # commands in the install: section below.
 
-    - git clone git://github.com/astropy/ci-helpers.git
-    - source ci-helpers/travis/setup_conda_$TRAVIS_OS_NAME.sh
+    - git clone --depth 1 git://github.com/astropy/ci-helpers.git
+    - source ci-helpers/travis/setup_conda.sh
 
     # As described above, using ci-helpers, you should be able to set up an
     # environment with dependencies installed using conda and pip, but in some
@@ -109,4 +109,4 @@ after_success:
     # If coveralls.io is set up for this package, uncomment the line
     # below and replace "packagename" with the name of your package.
     # The coveragerc file may be customized as needed for your package.
-    # - if [[ $SETUP_CMD == *coverage* ]]; then coveralls --rcfile='packagename/tests/coveragerc'; fi
+    # - if [[ $SETUP_CMD == *coverage* ]]; then coveralls --rcfile='specreduce/tests/coveragerc'; fi
