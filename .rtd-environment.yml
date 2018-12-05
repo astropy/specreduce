@@ -1,4 +1,4 @@
-name: packagename
+name: specreduce
 
 channels:
     - astropy
