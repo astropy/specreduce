@@ -69,7 +69,7 @@ matrix:
         # Check for sphinx doc build warnings - we do this first because it
         # may run for a long time
         - os: linux
-          env: SETUP_CMD='build_docs -w'
+          env: PYTHON_VERSION=3.6 SETUP_CMD='build_docs -w'
                PIP_DEPENDENCIES='sphinx-astropy'
                EVENT_TYPE='push pull_request cron'
 
