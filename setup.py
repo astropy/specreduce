@@ -43,7 +43,7 @@ metadata = dict(conf.items('metadata'))
 
 PACKAGENAME = metadata.get('package_name', 'specreduce')
 DESCRIPTION = metadata.get('description', 'Spectroscopic reduction utilities')
-AUTHOR = metadata.get('author', 'Astropy-pecreduce Developers')
+AUTHOR = metadata.get('author', 'Astropy-specreduce Developers')
 AUTHOR_EMAIL = metadata.get('author_email', '')
 LICENSE = metadata.get('license', 'BSD-3')
 URL = metadata.get('url', 'http://astropy.org')
