@@ -1,0 +1,232 @@
+  30    h      2464.77           Kr II      RCWM80
+   20           2492.48           Kr II      DHM33
+   25    h      2712.40           Kr II      DHM33
+   30           2833.00           Kr II      DHM33
+   30    h      3607.88           Kr II      DHM33
+   70           3631.889          Kr II      HP70a
+   80           3653.928          Kr II      HP70a
+   13           3665.324          Kr I       KH69
+   50           3669.01           Kr II      DHM33
+   15    d      3679.58           Kr I       KH69
+   25           3686.182          Kr II      HP70a
+  100    h      3718.02           Kr II      DHM33
+   70           3718.595          Kr II      HP70a
+   50           3721.350          Kr II      HP70a
+   70           3741.638          Kr II      HP70a
+   50           3744.80           Kr II      DHM33
+   25           3754.245          Kr II      HP70a
+  150           3778.046          Kr II      HP70a
+  150           3783.095          Kr II      HP70a
+   50    h      3875.44           Kr II      DHM33
+   50           3906.177          Kr II      HP70a
+   70           3920.081          Kr II      HP70a
+   30           3994.840          Kr II      HP70a
+   30    h      3997.793          Kr II      HP70a
+  100           4057.037          Kr II      HP70a
+  100           4065.128          Kr II      HP70a
+  150           4088.337          Kr II      HP70a
+   80           4098.729          Kr II      HP70a
+   30           4109.248          Kr II      HP70a
+   80           4145.122          Kr II      HP70a
+   50           4250.580          Kr II      HP70a
+  150           4273.9694         Kr I       K93
+   15           4282.9674         Kr I       K93
+  200           4292.923          Kr II      HP70a
+   70           4300.49           Kr II      DHM33
+  150    h      4317.81           Kr II      DHM33
+   70           4318.5513         Kr I       K93
+  150           4319.5794         Kr I       K93
+   50    h      4322.98           Kr II      DHM33
+   15           4351.3597         Kr I       K93
+ 1000    P      4355.477          Kr II      HP70a
+   80           4362.6416         Kr I       K93
+   70           4369.69           Kr II      DHM33
+  130           4376.1216         Kr I       K93
+  100    h      4386.54           Kr II      DHM33
+   30           4399.9663         Kr I       K93
+   15           4425.1901         Kr I       K93
+  150           4431.685          Kr II      HP70a
+  200           4436.812          Kr II      HP70a
+  100           4453.9175         Kr I       K93
+  130           4463.6900         Kr I       K93
+  250           4475.014          Kr II      HP70a
+  130    h      4489.88           Kr II      DHM33
+  100           4502.3543         Kr I       K93
+  130    h      4523.14           Kr II      DHM33
+   70    h      4556.61           Kr II      DHM33
+  250           4577.209          Kr II      HP70a
+  100           4582.978          Kr II      HP70a
+   50    h      4592.80           Kr II      DHM33
+  150           4615.292          Kr II      HP70a
+  300    P      4619.166          Kr II      HP70a
+  250           4633.885          Kr II      HP70a
+  700    P      4658.876          Kr II      HP70a
+  150           4680.406          Kr II      HP70a
+   30           4691.301          Kr II      HP70a
+   70           4694.360          Kr II      HP70a
+ 1000    P      4739.002          Kr II      HP70a
+  100           4762.435          Kr II      HP70a
+  300    P      4765.744          Kr II      HP70a
+  100           4811.76           Kr II      DHM33
+  100           4825.18           Kr II      DHM33
+  250    P      4832.077          Kr II      HP70a
+  250    P      4846.612          Kr II      HP70a
+   50           4857.20           Kr II      DHM33
+  100           4945.59           Kr II      DHM33
+   70           5022.40           Kr II      DHM33
+   80           5086.52           Kr II      DHM33
+  130    h      5125.73           Kr II      DHM33
+  150           5208.32           Kr II      DHM33
+   70           5308.66           Kr II      DHM33
+  150           5333.41           Kr II      DHM33
+   70           5468.17           Kr II      DHM33
+   80           5562.2253         Kr I       K93
+  300    P      5570.2894         Kr I       K93
+   13           5580.3873         Kr I       K93
+   15           5649.5618         Kr I       K93
+  130           5681.89           Kr II      DHM33
+   70    h      5690.35           Kr II      DHM33
+   15           5832.8566         Kr I       K93
+  500    P      5870.9160         Kr I       K93
+   70           5992.22           Kr II      DHM33
+   10           5993.8502         Kr I       K93
+   10           6056.1263         Kr I       K93
+  100           6420.18           Kr II      DHM33
+   15           6421.0270         Kr I       K93
+   30           6456.2889         Kr I       K93
+   50           6570.07           Kr II      DHM33
+   10           6699.2296         Kr I       K93
+   15           6904.6788         Kr I       K93
+   80           7213.13           Kr II      DHM33
+   15           7224.104          Kr I       KH69
+   13           7287.258          Kr I       KH69
+  130           7289.78           Kr II      DHM33
+  130           7407.02           Kr II      DHM33
+   10           7425.541          Kr I       KH69
+   70           7435.78           Kr II      DHM33
+   15           7486.862          Kr I       KH69
+  100           7524.46           Kr II      DHM33
+  150           7587.4136         Kr I       K93
+  300           7601.5457         Kr I       K93
+   50           7641.16           Kr II      DHM33
+  150           7685.2459         Kr I       K93
+  200           7694.5401         Kr I       K93
+   80           7735.69           Kr II      DHM33
+   25           7746.827          Kr I       KH69
+  130           7854.8234         Kr I       K93
+   30           7913.4251         Kr I       K93
+   30           7928.5988         Kr I       K93
+   70           7933.22           Kr II      DHM33
+   40           7973.62           Kr II      DHM33
+   15           7982.401          Kr I       KH69
+  250           8059.5048         Kr I       K93
+  700    P      8104.3655         Kr I       K93
+ 1000    P      8112.9012         Kr I       K93
+   10           8132.967          Kr I       KH69
+  500    P      8190.0566         Kr I       K93
+   70           8202.72           Kr II      DHM33
+   13           8218.365          Kr I       KH69
+  500    P      8263.2426         Kr I       K93
+   15           8272.353          Kr I       KH69
+  250           8281.0522         Kr I       K93
+  800    P      8298.1099         Kr I       K93
+   15           8412.430          Kr I       KH69
+  500    P      8508.8728         Kr I       K93
+   25           8764.110          Kr I       KH69
+ 1000    P      8776.7505         Kr I       K93
+  300           8928.6934         Kr I       K93
+  150           9238.48           Kr II      DHM33
+  150    h,l    9293.82           Kr II      DHM33
+   70    h      9320.99           Kr II      DHM33
+  100           9361.95           Kr II      DHM33
+   15           9362.082          Kr I       KH69
+   70    h      9402.82           Kr II      DHM33
+   70    h      9470.93           Kr II      DHM33
+  150    P      9577.52           Kr II      DHM33
+  150    h      9605.80           Kr II      DHM33
+  130    h      9619.61           Kr II      DHM33
+   70           9663.34           Kr II      DHM33
+   70    h      9711.60           Kr II      DHM33
+  300           9751.7610         Kr I       K93
+  150           9803.14           Kr II      DHM33
+   80           9856.314          Kr I       KH69
+  300    P     10221.46           Kr II      DHM33
+   15          11187.108          Kr I       KH69
+   30          11257.711          Kr I       KH69
+   25          11259.126          Kr I       KH69
+   80          11457.481          Kr I       KH69
+   25          11792.425          Kr I       KH69
+  250          11819.377          Kr I       KH69
+  100          11997.105          Kr I       KH69
+   25          12077.224          Kr I       KH69
+   15          12861.892          Kr I       KH69
+  200          13177.412          Kr I       KH69
+  150          13622.415          Kr I       KH69
+  400    P     13634.220          Kr I       KH69
+  130          13658.394          Kr I       KH69
+   30          13711.036          Kr I       KH69
+  100          13738.851          Kr I       KH69
+   25          13974.027          Kr I       KH69
+   90          14045.657          Kr I       KH69
+   25          14104.298          Kr I       KH69
+   30          14402.22           Kr I       KH69
+  300    P     14426.793          Kr I       KH69
+   15          14517.84           Kr I       KH69
+  250          14734.436          Kr I       KH69
+   90          14762.672          Kr I       KH69
+   80          14765.472          Kr I       KH69
+   70          14961.894          Kr I       KH69
+   20          15005.307          Kr I       KH69
+   25          15209.526          Kr I       KH69
+  300          15239.615          Kr I       KH69
+   20          15326.480          Kr I       KH69
+  250          15334.958          Kr I       KH69
+  120          15372.037          Kr I       KH69
+   30          15474.026          Kr I       KH69
+   30          15681.02           Kr I       KH69
+   20          15820.09           Kr I       KH69
+   30          16726.513          Kr I       KH69
+  300          16785.128          Kr I       KH69
+  150          16853.488          Kr I       KH69
+  400    P     16890.441          Kr I       KH69
+  250          16896.753          Kr I       KH69
+  300          16935.806          Kr I       KH69
+  100          17098.771          Kr I       KH69
+  120          17367.606          Kr I       KH69
+   20          17404.443          Kr I       KH69
+   25          17616.854          Kr I       KH69
+  110          17842.737          Kr I       KH69
+  120          18002.229          Kr I       KH69
+  400    P     18167.315          Kr I       KH69
+   15          18399.786          Kr I       KH69
+   25          18580.896          Kr I       KH69
+   50          18696.294          Kr I       KH69
+   30          18785.460          Kr I       KH69
+   30          18797.703          Kr I       KH69
+   25          20209.878          Kr I       KH69
+   50          20423.964          Kr I       KH69
+   25          20446.971          Kr I       KH69
+  100          21165.471          Kr I       KH69
+  300          21902.513          Kr I       KH69
+   20          22485.775          Kr I       KH69
+   30          23340.416          Kr I       KH69
+   20          24260.506          Kr I       KH69
+   30          24292.221          Kr I       KH69
+  100          25233.820          Kr I       KH69
+   30          28610.55           Kr I       KH69
+  150          28655.72           Kr I       KH69
+   25          28769.71           Kr I       KH69
+   25          28822.49           Kr I       KH69
+   50          29236.69           Kr I       KH69
+   50          30663.54           Kr I       KH69
+   50          30979.16           Kr I       KH69
+   80          39300.6            Kr I       HPCA67
+  200          39486.52           Kr I       KH69
+   40          39557.25           Kr I       KH69
+   15          39572.60           Kr I       KH69
+  250          39588.4            Kr I       HPCA67
+  200          39589.6            Kr I       HPCA67
+   80          39954.8            Kr I       HPCA67
+   50          39966.6            Kr I       HPCA67
+  200          40306.1            Kr I       HPCA67
+   40          40685.16           Kr I       KH69

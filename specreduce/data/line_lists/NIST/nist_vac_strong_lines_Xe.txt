@@ -1,0 +1,24 @@
+  120           740.41           Xe II      B36
+  120           803.07           Xe II      B36
+  200           880.80           Xe II      B36
+  120           885.54           Xe II      B36
+  200           925.87           Xe II      B36
+   80           935.40           Xe II      B36
+  250    P      972.77           Xe II      B36
+  250           976.68           Xe II      B36
+  150          1032.44           Xe II      B36
+  250          1037.68           Xe II      B36
+  400    P     1041.31           Xe II      B36
+  300    P     1048.27           Xe II      B36
+  400    P     1051.92           Xe II      B36
+  700    P     1074.48           Xe II      B36
+  200          1083.86           Xe II      B36
+  400    P     1100.43           Xe II      B36
+  200          1158.47           Xe II      B36
+   80          1169.63           Xe II      B36
+  250    P     1183.05           Xe II      B36
+   25    P     1192.0376         Xe I       BVHU01
+  200    P     1244.76           Xe II      B36
+   25    P     1250.2091         Xe I       BVHU01
+  100    P     1295.5878         Xe I       BVHU01
+   60    P     1469.6123         Xe I       BVHU01
