@@ -7,6 +7,8 @@ spectra with a single detector array.
 
 
 .. figure:: NIR_MOS_science.svg
+   :height: 1200
+   :width: 600
    :scale: 50 %
    :alt: DR flowchart for MOS science data.
 
