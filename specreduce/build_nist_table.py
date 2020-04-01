@@ -4,8 +4,8 @@ Build combined NIST table from txt files included in package
 
 import os
 import re
-import glob
 import pkg_resources
+import warnings
 
 import numpy as np
 
@@ -44,13 +44,22 @@ def build_table(line_lists=None):
         try:
             t = Table.read(line_list, format='ascii', names=names)
             tabs_to_stack.append(t)
-        except:
+        except Exception as e:
+            warnings.warn(
+                f"Astropy Table reading failed. Attempting to use raw numpy reader... {e}",
+                UserWarning
+            )
             # Use numpy to parse table that arent comma delimited.
-            data = np.genfromtxt(line_list,
-                                delimiter=(13, 14, 13, 16),
-                                dtype=str)
-            t = Table(data, names=names,
-                    dtype=('S10', 'f8', 'S15' , 'S15'))
+            data = np.genfromtxt(
+                line_list,
+                delimiter=(13, 14, 13, 16),
+                dtype=str
+            )
+            t = Table(
+                data,
+                names=names,
+                dtype=('S10', 'f8', 'S15', 'S15')
+            )
             tabs_to_stack.append(t)
 
     # Stack all of the tables.
@@ -68,7 +77,7 @@ def build_table(line_lists=None):
     master_table.add_column(Column(strength), name='Strength')
 
     # Find and strip all alphabetic + special characters
-    intensity_wo_strength = [re.sub('[a-zA-Z!@#$%^&*]', '', value).strip() \
+    intensity_wo_strength = [re.sub('[a-zA-Z!@#$%^&*]', '', value).strip()
                              for value in intensity]
 
     # Delete old column
@@ -80,7 +89,7 @@ def build_table(line_lists=None):
                                    name='Intensity'))
 
     # Reorder table columns
-    neworder = ('Element','Wavelength','Intensity', 'Strength', 'On', 'Reference')
+    neworder = ('Element', 'Wavelength', 'Intensity', 'Strength', 'On', 'Reference')
     master_table = master_table[neworder]
 
     return master_table
