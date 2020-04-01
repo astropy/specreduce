@@ -1,12 +1,16 @@
-"""Build combined NIST table from txt files included in package
+"""
+Build combined NIST table from txt files included in package
 """
 
-import glob
 import os
-import numpy as np
 import re
+import glob
+import pkg_resources
+
+import numpy as np
 
 from astropy.table import Column, Table, vstack
+
 
 def build_table(line_lists=None):
     """Build master table from NIST txt files
@@ -25,8 +29,15 @@ def build_table(line_lists=None):
     names = ['Intensity', 'Wavelength', 'Element', 'Reference']
     # Use packaging directory instead of relative path in the future.
     if line_lists is None:
-       code_dir = os.path.dirname(os.path.realpath(__file__))
-       line_lists = glob.glob(code_dir + '/datasets/line_lists/NIST/*.txt')
+        nist_dir = os.path.join("datasets", "line_lists", "NIST")
+        line_lists = []
+        for list_file in pkg_resources.resource_listdir("specreduce", nist_dir):
+            if ".txt" in list_file:
+                list_path = pkg_resources.resource_filename(
+                    "specreduce",
+                    os.path.join(nist_dir, list_file)
+                )
+                line_lists.append(list_path)
 
     tabs_to_stack = []
     for line_list in line_lists:
@@ -64,7 +75,7 @@ def build_table(line_lists=None):
     master_table.remove_column('Intensity')
 
     # Add new Intensity column that only has intensity as an integer.
-    master_table.add_column(Column(intensity_wo_strength, 
+    master_table.add_column(Column(intensity_wo_strength,
                                    dtype=int,
                                    name='Intensity'))
 
@@ -73,4 +84,3 @@ def build_table(line_lists=None):
     master_table = master_table[neworder]
 
     return master_table
-
