@@ -5,6 +5,7 @@ include LICENSE.rst
 include pyproject.toml
 
 recursive-include specreduce *.pyx *.c *.pxd
+recursive-include specreduce/datasets *
 recursive-include docs *
 recursive-include licenses *
 recursive-include scripts *
