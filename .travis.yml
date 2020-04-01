@@ -53,8 +53,8 @@ env:
 
     matrix:
         # Make sure that egg_info works without dependencies
-        - PYTHON_VERSION=3.6 SETUP_CMD='egg_info'
         - PYTHON_VERSION=3.7 SETUP_CMD='egg_info'
+        - PYTHON_VERSION=3.8 SETUP_CMD='egg_info'
 
 matrix:
 
@@ -74,7 +74,7 @@ matrix:
         # Check for sphinx doc build warnings - we do this first because it
         # may run for a long time
         - os: linux
-          env: PYTHON_VERSION=3.6 SETUP_CMD='build_docs -w'
+          env: PYTHON_VERSION=3.7 SETUP_CMD='build_docs -w'
                PIP_DEPENDENCIES='sphinx-astropy'
                EVENT_TYPE='push pull_request cron'
 
