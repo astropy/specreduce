@@ -1,0 +1,87 @@
+# GitHub Actions workflow for testing and continuous integration.
+#
+# This file performs testing using tox and tox.ini to define and configure the test environments.
+
+name: Python Tests
+
+on: [push, pull_request]
+
+jobs:
+
+  # Set up matrix to run tox tests across lists of os, python version, and tox environment
+  matrix_tests:
+    runs-on: ${{ matrix.os }}
+    if: "!contains(github.event.head_commit.message, '[ci skip]')"  # github actions doesn't yet support this natively so add here
+    strategy:
+      matrix:
+        # Github actions supports ubuntu, windows, and macos virtual environments:
+        # https://help.github.com/en/actions/reference/virtual-environments-for-github-hosted-runners
+        #
+        # Only run on ubuntu by default, but can add other os's to the test matrix here.
+        # For example -- os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
+
+        # Test python 3.7, and 3.8 by default.
+        python-ver: [7, 8]
+
+        # Specify which tox environments to test in this list.
+        tox-env: [cov, alldeps, devdeps, astropylts]
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up python 3.${{ matrix.python-ver }} with tox environment py3${{ matrix.python-ver }}-${{ matrix.tox-env }} on ${{ matrix.os }}
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.${{ matrix.python-ver }}
+    - name: Install base dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install tox
+    - name: Test with tox
+      run: |
+        tox -e py3${{ matrix.python-ver }}-${{ matrix.tox-env }}
+    #
+    # # This is an example of how to upload coverage to codecov
+    # - name: Upload coverage to codecov
+    #   if: matrix.tox-env == 'cov' && matrix.python-ver == '8'
+    #   uses: codecov/codecov-action@v1
+    #   with:
+    #     token: ${{ secrets.CODECOV }}
+    #     file: ./coverage.xml
+    #     fail_ci_if_error: true
+
+  # Test building of docs and check the links
+  doc_test:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[ci skip]')"
+    steps:
+    - uses: actions/checkout@v1
+    - name: Set up Python to build docs with sphinx
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.8
+    - name: Install base dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install tox
+    - name: Build and check docs using tox
+      run: |
+        tox -e build_docs
+        tox -e linkcheck
+
+  # Perform codestyle check
+  codestyle:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[ci skip]')"
+    steps:
+    - uses: actions/checkout@v1
+    - name: Python codestyle check
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.8
+    - name: Install base dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install tox
+    - name: Check codestyle using tox
+      run: |
+        tox -e codestyle
