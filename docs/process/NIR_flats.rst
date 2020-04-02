@@ -3,6 +3,8 @@ Near-IR, multi-slit flats
 *************************
 
 .. figure:: NIR_MOS_trace.svg
+   :height: 1200
+   :width: 600
    :scale: 50 %
    :alt: DR flowchart for MOS slit traces.
 
@@ -11,6 +13,8 @@ Near-IR, multi-slit flats
 
 
 .. figure:: NIR_MOS_flat.svg
+   :height: 1200
+   :width: 600
    :scale: 50 %
    :alt: DR flowchart for multi-slit lamp flat processing.
 
