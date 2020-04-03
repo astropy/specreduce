@@ -46,7 +46,7 @@ def build_table(line_lists=None):
             tabs_to_stack.append(t)
         except Exception as e:
             warnings.warn(
-                f"Astropy Table reading failed. Attempting to use raw numpy reader... {e}",
+                f"Astropy Table reading failed for {line_list}. Using raw numpy reader... {e}",
                 UserWarning
             )
             # Use numpy to parse table that arent comma delimited.
