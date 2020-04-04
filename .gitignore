@@ -3,7 +3,6 @@
 *.a
 *.o
 *.so
-*.pyd
 __pycache__
 
 # Ignore .c files by default to avoid including generated code. If you want to
@@ -19,10 +18,21 @@ MANIFEST
 .ipynb_checkpoints
 
 # Sphinx
-_build
-_generated
 docs/api
-docs/generated
+docs/_build
+
+# Eclipse editor project files
+.project
+.pydevproject
+.settings
+.vscode/
+
+# Pycharm editor project files
+.idea
+
+# Floobits project files
+.floo
+.flooignore
 
 # Packages/installer info
 *.egg
@@ -30,7 +40,6 @@ docs/generated
 dist
 build
 eggs
-.eggs
 parts
 bin
 var
@@ -42,18 +51,12 @@ distribute-*.tar.gz
 # Other
 .cache
 .tox
-.*.swp
-.*.swo
+.*.sw[op]
 *~
 .project
 .pydevproject
 .settings
-.coverage
-cover
-htmlcov
+pip-wheel-metadata/
 
 # Mac OSX
 .DS_Store
-
-# PyCharm
-.idea

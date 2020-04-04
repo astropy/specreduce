@@ -1,9 +1,9 @@
 """Utility functions to parse master NIST table.
 """
 
-from astropy.table import Column, Table, vstack
-import glob
+from astropy.table import Table, vstack
 import numpy as np
+
 
 def sort_table_by_element(table, elem_list):
     """Build table based on list of elements
@@ -43,12 +43,15 @@ def sort_table_by_wavelength(table, min_wave, max_wave):
         Filtered table based on inputs
     """
 
-    assert min_wave < max_wave,"Minimum wavelength greater than maximum wavelength."
-    wave_filtered_table = table[np.where((table['Wavelength'] >= min_wave) &
-                                         (table['Wavelength'] <= max_wave)
-                                        )]
+    assert min_wave < max_wave, "Minimum wavelength greater than maximum wavelength."
+    wave_filtered_table = table[
+        np.where(
+            (table['Wavelength'] >= min_wave) & (table['Wavelength'] <= max_wave)
+        )
+    ]
 
     return wave_filtered_table
+
 
 def main():
     """A little example.
@@ -60,6 +63,7 @@ def main():
 
     print(sorted_by_wave)
     print(sorted_by_elem)
+
 
 if __name__ == "__main__":
     main()
