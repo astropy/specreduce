@@ -20,7 +20,7 @@ else:
 
 t = Table.read(infile, format='ascii')
 diff = np.diff(t['col1'].data)
-diff = np.append(diff, diff[-1])  # hack to add the extra binwidth at the end to make all arrays the same length
+diff = np.append(diff, diff[-1])  # hack to add the extra binwidth at the end
 
 t['diff'] = diff.round(3)
 
