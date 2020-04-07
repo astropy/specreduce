@@ -102,6 +102,12 @@ Factory project (https://ui.adsabs.harvard.edu/abs/2002SPIE.4836...61A/abstract)
 Data compiled from https://snfactory.lbl.gov/snf/snf-specstars.html. See notes
 there for details and references.
 
+* eso - Directories of spectrophotometric standards copied from ftp://ftp.eso.org/pub/stecf/standards/.
+See https://www.eso.org/sci/observing/tools/standards/spectra/stanlis.html for links, notes, and details.
+
+* gemini - Directory of spectrophotometric standards used by Gemini. Originally copied from
+https://github.com/GeminiDRSoftware/DRAGONS/tree/master/geminidr/gemini/lookups/spectrophotometric_standards.
+
 
 Standard Star Menus
 ----------------------

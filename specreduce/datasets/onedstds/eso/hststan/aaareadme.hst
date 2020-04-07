@@ -7,13 +7,13 @@ http://www.stsci.edu/hst/observatory/cdbs/astronomical_catalogs.html )
 NOTE that the following data files have optical fluxes derived from
 models and should be used with caution for flux calibration of
 observational spectra in the optical wavelength range:
-fhr153.dat and mhr153.dat for star HR153
-fbpm16274.dat and mbpm16274.dat for star BPM 16274
-fhr1996.dat and mhr1996.dat for star HR1996
-fhd49798.dat and mhd49798.dat for star HD 49798
-fhd60753.dat and mhd60753.dat for star HD 60753
-fhr4554.dat and mhr4554.dat for star HR4554
-fhr5191.dat and mhr5191.dat for star HR5191
+hr153.dat for star HR153
+bpm16274.dat for star BPM 16274
+hr1996.dat for star HR1996
+hd49798.dat for star HD 49798
+hd60753.dat for star HD 60753
+hr4554.dat for star HR4554
+hr5191.dat for star HR5191
 
 The '.dat' files list wavelength (A), AB magnitude and bin (A). The file
 name consists of the star name.
