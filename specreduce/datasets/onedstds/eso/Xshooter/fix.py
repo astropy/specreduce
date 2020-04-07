@@ -12,16 +12,17 @@ import numpy as np
 from astropy.table import Table
 
 
-infile = sys.argv[1]
-if infile[0] == 'm':
-    outfile = infile[1:]  # trim the leading 'm'
-else:
-    outfile = infile
+if __name__ == "__main__":
+    infile = sys.argv[1]
+    if infile[0] == 'm':
+        outfile = infile[1:]  # trim the leading 'm'
+    else:
+        outfile = infile
 
-t = Table.read(infile, format='ascii')
-diff = np.diff(t['col1'].data)
-diff = np.append(diff, diff[-1])  # hack to add the extra binwidth at the end
+    t = Table.read(infile, format='ascii')
+    diff = np.diff(t['col1'].data)
+    diff = np.append(diff, diff[-1])  # hack to add the extra binwidth at the end
 
-t['diff'] = diff.round(3)
+    t['diff'] = diff.round(3)
 
-t.write(outfile, format='ascii.fixed_width_no_header', delimiter='', overwrite=True)
+    t.write(outfile, format='ascii.fixed_width_no_header', delimiter='', overwrite=True)
