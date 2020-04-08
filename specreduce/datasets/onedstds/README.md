@@ -1,11 +1,11 @@
 # README for specreduce/datasets/onedstds
 
-This directory contains standard calibration data for extinction and sensitivity 
-calibration as used in 1D spectroscopy, 2D spectroscopy, as well as various 
-image reduction tasks. 
+This directory contains standard calibration data for extinction and sensitivity
+calibration as used in 1D spectroscopy, 2D spectroscopy, as well as various
+image reduction tasks.
 
 Currently we focus on both extinction tables and flux standard directories inherited
-from `IRAF`'s `noao` package. 
+from `IRAF`'s `noao` package.
 
 Extinction Tables
 -----------------
@@ -19,7 +19,7 @@ derived extinction curve was not given in the paper.  The IRAF table
 follows SB83 out to 6436, the redder points presumably come from BS84
 with averages used in the overlap region.
 
-    More recent CTIO extinction curves are shown as Figures in Hamuy 
+    More recent CTIO extinction curves are shown as Figures in Hamuy
 et al (92, PASP 104, 533 ; 94 PASP 106, 566). -- Steve Heathcote, Mon, 19 Jul 1999
 
 
@@ -31,7 +31,7 @@ Flux Standard Directories
  * blackbody - Directory for using blackbody flux distributions in
 various magnitude bands.
 
- * bstdscal - Directory of the brighter KPNO IRS standards (i.e. those 
+ * bstdscal - Directory of the brighter KPNO IRS standards (i.e. those
 with HR numbers) at 29 bandpasses, data from various
 sources transformed to the Hayes and Latham system,
 unpublished.
@@ -54,17 +54,17 @@ fluxes may be selected by following the star name with
 "red" or "blue"; i.e. CD 32 blue.
 
 * iidscal - Directory of the KPNO IIDS standards at 29 bandpasses,
-data from various sources transformed to the Hayes and 
+data from various sources transformed to the Hayes and
 Latham system, unpublished.
 
 * irscal - Directory of the KPNO IRS standards at 78 bandpasses,
-data from various sources transformed to the Hayes and  
-Latham system, unpublished (note that in this directory the 
+data from various sources transformed to the Hayes and
+Latham system, unpublished (note that in this directory the
 brighter standards have no values - the `bstdscal' directory
 must be used for these standards at this time).
 
-* oke1990 - Directory of spectrophotometric standards observed for use 
-with the HST, Table VII, Oke 1990, AJ, 99. 1621 (no 
+* oke1990 - Directory of spectrophotometric standards observed for use
+with the HST, Table VII, Oke 1990, AJ, 99. 1621 (no
 correction was applied).  An arbitrary 1A bandpass
 is specified for these smoothed and interpolated
 flux "points".  Users may copy and modify these files
@@ -73,7 +73,7 @@ for other bandpasses.
 * redcal - Directory of standard stars with flux data beyond 8370A.
 These stars are from the IRS or the IIDS directory but
 have data extending as far out into the red as the
-literature permits.  Data from various sources.   
+literature permits.  Data from various sources.
 
 * spechayescal - The KPNO spectrophotometric standards at the Hayes flux
 points, Table IV, Spectrophotometric Standards, Massey
@@ -96,6 +96,17 @@ The data are from (1) Table V, Spectrophotometric Standards,
 Massey et al., 1988, ApJ 328, p. 315 and (2) Table 3, The
 Kitt Peak Spectrophotometric Standards: Extension to 1
 micron, Massey and Gronwall, 1990, ApJ 358, p. 344.
+
+* snfactory - Preferred standard stars from the LBL Nearby Supernova
+Factory project (https://ui.adsabs.harvard.edu/abs/2002SPIE.4836...61A/abstract).
+Data compiled from https://snfactory.lbl.gov/snf/snf-specstars.html. See notes
+there for details and references.
+
+* eso - Directories of spectrophotometric standards copied from ftp://ftp.eso.org/pub/stecf/standards/.
+See https://www.eso.org/sci/observing/tools/standards/spectra/stanlis.html for links, notes, and details.
+
+* gemini - Directory of spectrophotometric standards used by Gemini. Originally copied from
+https://github.com/GeminiDRSoftware/DRAGONS/tree/master/geminidr/gemini/lookups/spectrophotometric_standards.
 
 
 Standard Star Menus
@@ -238,7 +249,7 @@ Combined red and blue 3300A-10300A:
 |------------|------------|------------|------------|------------|
 | hd15318    | hd74280    | hd114330   | hd188350   | hd214923   |
 | hd30739    | hd100889   | hd129956   | hd198001   | hd224926   |
-| hr1544     | hr4468     | hr5501     | hr7596     | hr8634     | 
+| hr1544     | hr4468     | hr5501     | hr7596     | hr8634     |
 | hr3454     | hr4963     | hr718      | hr7950     | hr9087     |
 
 Blue 3300A-7550A:
@@ -313,5 +324,5 @@ NOAO DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL
 IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO EVENT SHALL NOAO
 BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
-OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN 
+OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
