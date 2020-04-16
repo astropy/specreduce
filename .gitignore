@@ -35,6 +35,7 @@ docs/_build
 .flooignore
 
 # Packages/installer info
+.eggs/
 *.egg
 *.egg-info
 dist
