@@ -6,10 +6,13 @@ import os
 import pkg_resources
 import warnings
 
+__all__ = ['get_reference_file_path']
+
 
 """
 Make specreduce_data optional. If it's available, great and we can access its data via
-pkg_resources. If not, we'll fall back to downloading and caching it using astropy.utils.data.
+pkg_resources. If not, we'll fall back to downloading and optionally caching it using
+astropy.utils.data.
 """
 LOCAL_DATA = True
 try:
@@ -24,6 +27,29 @@ def get_reference_file_path(path=None, cache=False, show_progress=False):
     """
     Basic function to take a path to a file and load it via pkg_resources if the specreduce_data
     package is available and load it via ghithub raw user content if not.
+
+    Parameters
+    ----------
+    path : str or None (default: None)
+        Filename of reference file relative to the reference_data directory within
+        specreduce_data package.
+
+    cache : bool (default: False)
+        Set whether file is cached if file is downloaded.
+
+    show_progress : bool (default: False)
+        Set whether download progress bar is shown if file is downloaded.
+
+    Returns
+    -------
+    file_path : str or None
+        Path to reference data file or None if the path cannot be constructed or if the file
+        itself is not valid.
+
+    Examples
+    --------
+    >>> from specreduce.calibration_data import get_reference_file_path
+    >>> kpno_extinction_file = get_reference_file_path("extinction/kpnoextinct.dat")
     """
     if path is None:
         return None
