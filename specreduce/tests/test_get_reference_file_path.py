@@ -1,5 +1,3 @@
-import os
-
 from ..calibration_data import get_reference_file_path
 
 
