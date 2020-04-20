@@ -1,8 +1,9 @@
 Specreduce
 ==========
 
-.. image:: https://travis-ci.org/astropy/specreduce.svg?branch=master
-    :target: https://travis-ci.org/astropy/specreduce
+.. image:: https://github.com/astropy/specreduce/workflows/Python%20Tests/badge.svg
+    :target: https://github.com/astropy/specreduce/actions
+    :alt: Python Integration Test Status
 
 .. image:: https://readthedocs.org/projects/specreduce/badge/?version=latest
     :target: http://specreduce.readthedocs.io/en/latest/?badge=latest
