@@ -50,6 +50,7 @@ def query_nist(elem_list, wavelength_range_angstrom=[4000 * u.AA, 7000 * u.AA], 
 
     return final_table
 
+
 def sort_table_by_element(table, elem_list):
     """Build table based on list of elements
 

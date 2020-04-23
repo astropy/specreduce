@@ -1,7 +1,6 @@
 import line_list_utils as lu
 import numpy as np
-
-#TODO: test that the parameter wavelength_range_angstrom works
+import astropy.units as u
 
 def test_query_nist_one_elem():
     table = lu.query_nist(['H I'])
@@ -15,6 +14,12 @@ def test_query_nist_sort_by_wvl():
     table = lu.query_nist(['H I', 'He I'], sort_by_wavelength=True)
     assert np.isclose(table['wavelength(A)'][-1], 6679.995)
 
+def test_query_nist_wavelength_range():
+    table = lu.query_nist(['H I'], wavelength_range_angstrom=[2000*u.AA, 10000*u.AA ])
+    assert np.isclose(table['wavelength(A)'][0], 3657.69)
+    assert np.isclose(table['wavelength(A)'][-1], 9548.8)
+
 test_query_nist_one_elem()
 test_query_nist_two_elem()
 test_query_nist_two_elem()
+test_query_nist_wavelength_range()
