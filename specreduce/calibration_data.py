@@ -148,3 +148,8 @@ class AtmosphericExtinction(Spectrum1D):
             flux=extinction,
             spectral_axis=spectral_axis, **kwargs
         )
+
+    # make self.extinction equal to self.flux
+    @property
+    def extinction(self):
+        return self.flux
