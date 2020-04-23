@@ -25,7 +25,7 @@ jobs:
         python-ver: [7, 8]
 
         # Specify which tox environments to test in this list.
-        tox-env: [cov, alldeps, devdeps, astropylts, datadeps]
+        tox-env: [cov, devdeps, astropylts, datadeps]
     steps:
     - uses: actions/checkout@v1
     - name: Set up python 3.${{ matrix.python-ver }} with tox environment py3${{ matrix.python-ver }}-${{ matrix.tox-env }} on ${{ matrix.os }}
