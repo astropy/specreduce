@@ -98,7 +98,7 @@ def get_reference_file_path(path=None, cache=False, show_progress=False):
 
 class AtmosphericExtinction(Spectrum1D):
     """
-    Spectrum container for atmospheric extinction as a function of wavelength. If flux
+    Spectrum container for atmospheric extinction as a function of wavelength. If extinction
     and spectral_axis are provided, this will them to build a custom model. If they are not,
     the model parameter will be used to lookup and load a pre-defined atmospheric extinction
     model from the specreduce_data package.
@@ -116,8 +116,8 @@ class AtmosphericExtinction(Spectrum1D):
             mtham - Lick Observatory, Mt. Hamilton station
             paranal - European Southern Observatory, Cerro Paranal station
 
-    flux : `astropy.units.Quantity` or astropy.nddata.NDData`-like or None
-        Optionally provided flux data for this spectrum. Used along with spectral_axis
+    extinction : `astropy.units.Quantity` or astropy.nddata.NDData`-like or None
+        Optionally provided extinction data for this spectrum. Used along with spectral_axis
         to build custom atmospheric extinction model.
 
     spectral_axis : `astropy.units.Quantity` or `specutils.SpectralCoord` or None
@@ -126,8 +126,8 @@ class AtmosphericExtinction(Spectrum1D):
         if specifying bin edges. Used along with flux to build custom atmospheric
         extinction model.
     """
-    def __init__(self, model="kpno", flux=None, spectral_axis=None, **kwargs):
-        if flux is None and spectral_axis is None:
+    def __init__(self, model="kpno", extinction=None, spectral_axis=None, **kwargs):
+        if extinction is None and spectral_axis is None:
             if model not in SUPPORTED_EXTINCTION_MODELS:
                 msg = (
                     f"Requested extinction model, {model}, not in list "
@@ -142,9 +142,9 @@ class AtmosphericExtinction(Spectrum1D):
             spectral_axis = t['wavelength'].data * u.angstrom
 
             # the specreduce_data models all provide extinction in magnitudes at an airmass of 1
-            flux = t['extinction'].data * u.mag
+            extinction = t['extinction'].data * u.mag
 
         super(AtmosphericExtinction, self).__init__(
-            flux=flux,
+            flux=extinction,
             spectral_axis=spectral_axis, **kwargs
         )
