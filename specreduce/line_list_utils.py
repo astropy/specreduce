@@ -33,11 +33,17 @@ def query_nist(elem_list, wavelength_range_angstrom=[4000 * u.AA, 7000 * u.AA], 
         # TODO: need to check is temp_table empty. When that happens vstack will fail. Can happen if elem isn't/
         #  a recognised string
 
-        temp_table = Nist.query(wavelength_range_angstrom[0],
-                                wavelength_range_angstrom[1],
-                                linename=elem)
+        try:
+            temp_table = Nist.query(wavelength_range_angstrom[0],
+                                    wavelength_range_angstrom[1],
+                                    linename=elem)
+        except Exception as e:
+            print("Exception: ", e, "TROUBLESHOOTING: Maybe no data in ", wavelength_range_angstrom, "for ", elem,
+                  "\nNOTE: ",elem," will be ignored.")
+            continue
 
-        temp_wavelength_col = [wvl for wvl in temp_table['Observed'] if wvl != '--']
+        # problem: He II doens't work because no "observed" lines??
+        temp_wavelength_col = [wvl for wvl in temp_table['Ritz'] if wvl != '--']
         temp_line_col = [elem]*len(temp_wavelength_col)
         tables.append(Table({'wavelength(A)': temp_wavelength_col, 'line': temp_line_col}))
 
