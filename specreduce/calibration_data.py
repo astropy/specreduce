@@ -102,10 +102,10 @@ def get_reference_file_path(path=None, cache=False, show_progress=False):
 
 class AtmosphericExtinction(Spectrum1D):
     """
-    Spectrum container for atmospheric extinction as a function of wavelength. If extinction
-    and spectral_axis are provided, this will them to build a custom model. If they are not,
-    the model parameter will be used to lookup and load a pre-defined atmospheric extinction
-    model from the specreduce_data package.
+    Spectrum container for atmospheric extinction in magnitudes as a function of wavelength.
+    If extinction and spectral_axis are provided, this will use them to build a custom model.
+    If they are not, the 'model' parameter will be used to lookup and load a pre-defined
+    atmospheric extinction model from the specreduce_data package.
 
     Parameters
     ----------
@@ -120,17 +120,50 @@ class AtmosphericExtinction(Spectrum1D):
             mtham - Lick Observatory, Mt. Hamilton station
             paranal - European Southern Observatory, Cerro Paranal station
 
-    extinction : `astropy.units.Quantity` or astropy.nddata.NDData`-like or None
+    extinction : `astropy.units.LogUnit`, `astropy.units.Magnitude`,
+    `astropy.units.dimensionless_unscaled`, 1D list-like, or None
         Optionally provided extinction data for this spectrum. Used along with spectral_axis
-        to build custom atmospheric extinction model.
+        to build custom atmospheric extinction model. If no units are provided, assumed to
+        be given in magnitudes.
 
     spectral_axis : `astropy.units.Quantity` or `specutils.SpectralCoord` or None
         Optional Dispersion information with the same shape as the last (or only)
         dimension of flux, or one greater than the last dimension of flux
         if specifying bin edges. Used along with flux to build custom atmospheric
         extinction model.
+
+    Properties
+    ----------
+    extinction_mag : `astropy.units.Magnitude`
+        Extinction expressed in dimensionless magnitudes
+
+    transmission : `astropy.units.dimensionless_unscaled`
+        Extinction expressed as fractional transmission
+
     """
     def __init__(self, model="kpno", extinction=None, spectral_axis=None, **kwargs):
+        if extinction is not None:
+            if not isinstance(extinction, u.Quantity):
+                warnings.warn(
+                    "Input extinction is not a Quanitity. Assuming it is given in magnitudes...",
+                    AstropyUserWarning
+                )
+                extinction = u.Magnitude(
+                    extinction,
+                    u.MagUnit(u.dimensionless_unscaled)
+                ).to(u.dimensionless_unscaled)  # Spectrum1D wants this to be linear
+            if isinstance(extinction, (u.LogUnit, u.Magnitude)) or extinction.unit == u.mag:
+                # if in log or magnitudes, recast into Magnitude with dimensionless physical units
+                extinction = u.Magnitude(
+                    extinction.value,
+                    u.MagUnit(u.dimensionless_unscaled)
+                ).to(u.dimensionless_unscaled)
+            if extinction.unit != u.dimensionless_unscaled:
+                # if we're given something linear that's not dimensionless_unscaled,
+                # it's an error
+                msg = "Input extinction must have unscaled dimensionless units."
+                raise ValueError(msg)
+
         if extinction is None and spectral_axis is None:
             if model not in SUPPORTED_EXTINCTION_MODELS:
                 msg = (
@@ -146,20 +179,10 @@ class AtmosphericExtinction(Spectrum1D):
             spectral_axis = t['wavelength'].data * u.angstrom
 
             # the specreduce_data models all provide extinction in magnitudes at an airmass of 1
-            extinction_mag = u.Magnitude(
+            extinction = u.Magnitude(
                 t['extinction'].data,
                 u.MagUnit(u.dimensionless_unscaled)
-            )
-            # Spectrum1D wants this to be linear
-            extinction = extinction_mag.to(u.dimensionless_unscaled)
-
-        if extinction is not None:
-            if not isinstance(extinction, u.Quantity):
-                warnings.warn(
-                    "Input extinction is not a Quanitity. Assuming linear and dimensionless...",
-                    AstropyUserWarning
-                )
-                extinction *= u.dimensionless_unscaled
+            ).to(u.dimensionless_unscaled)
 
         if spectral_axis is None:
             msg = "Missing spectral axis for input extinction data."
@@ -180,24 +203,33 @@ class AtmosphericExtinction(Spectrum1D):
         return self.flux.to(u.mag(u.dimensionless_unscaled))
 
     @property
-    def extinction_frac(self):
+    def transmission(self):
         """
-        This property returns the linear extinction as a fraction between 0 and 1
+        This property returns the transmission as a fraction between 0 and 1
         """
         return self.flux
 
 
-class AtmosphericIRExtinction(AtmosphericExtinction):
+class AtmosphericTransmission(AtmosphericExtinction):
     """
-    Spectrum container for atmospheric extinction in the IR as a function of wavelength.
-    It is built from a pre-calculated table of values from 0.9 to 5.6 microns. The values
-    were generated by the ATRAN model, https://atran.arc.nasa.gov/cgi-bin/atran/atran.cgi
-    (Lord, S. D., 1992, NASA Technical Memorandum 103957). The extinction is given as a
-    linear transmission fraction at an airmass of 1.
+    Spectrum container for atmospheric transmission as a function of wavelength.
+
+    Parameters
+    ----------
+    data_path : str or `pathlib.Path` or None
+        Path to file containing atmospheric transmission data. Data is assumed to have
+        two columns, wavelength (microns) and transmission (unscaled dimensionless). If
+        this isn't provided, a model is built from a pre-calculated table of values
+        from 0.9 to 5.6 microns. The values were generated by the ATRAN model,
+        https://atran.arc.nasa.gov/cgi-bin/atran/atran.cgi (Lord, S. D., 1992, NASA
+        Technical Memorandum 103957). The extinction is given as a linear transmission
+        fraction at an airmass of 1 and 1 mm of precipitable water.
     """
-    def __init__(self, **kwargs):
-        data_file = os.path.join("extinction", "atm_trans_am1.0.dat")
-        data_path = get_reference_file_path(path=data_file)
+    def __init__(self, data_path=None, **kwargs):
+        if data_path is None:
+            data_file = os.path.join("extinction", "atm_trans_am1.0.dat")
+            data_path = get_reference_file_path(path=data_file)
+
         t = Table.read(data_path, format="ascii", names=['wavelength', 'extinction'])
 
         # spectral axis is given in microns
@@ -206,7 +238,7 @@ class AtmosphericIRExtinction(AtmosphericExtinction):
         # extinction is given in a dimensionless transmission fraction
         extinction = t['extinction'].data * u.dimensionless_unscaled
 
-        super(AtmosphericIRExtinction, self).__init__(
+        super(AtmosphericTransmission, self).__init__(
             extinction=extinction,
             spectral_axis=spectral_axis,
             **kwargs
