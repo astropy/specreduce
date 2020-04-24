@@ -1,4 +1,4 @@
-import ../line_list_utils as lu
+import ..line_list_utils as lu
 #import line_list_utils as lu
 import numpy as np
 
