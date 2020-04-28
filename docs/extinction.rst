@@ -25,6 +25,7 @@ Supported Optical Extinction Models
     "apo", "Apache Point Observatory", "32.780", "105.82", "2788", "7"
 
 
+
 1. The CTIO extinction curve was originally distributed with IRAF and comes from the work of
 Stone & Baldwin (1983 MN 204, 347) plus Baldwin & Stone (1984 MN 206,
 241).  The first of these papers lists the points from 3200-8370A while
@@ -48,8 +49,7 @@ Newer data is available from https://www.aanda.org/articles/aa/pdf/2013/01/aa198
 5. Extinction table for Lick Observatory on Mt. Hamilton constructed from
 https://mthamilton.ucolick.org/techdocs/standards/lick_mean_extinct.html.
 
-6. Extinction table for ESO-Paranal taken from http://www.eso.org/sci/facilities/eelt/science/drm/tech_data/data/atm_scat/paranal.dat.
-See also https://www.aanda.org/articles/aa/pdf/2011/03/aa15537-10.pdf for updated version.
+6. Updated xtinction table for ESO-Paranal taken from https://www.aanda.org/articles/aa/pdf/2011/03/aa15537-10.pdf.
 
 7. Extinction table for Apache Point Observatory. Based on the extinction table used for SDSS and
 available at https://www.apo.nmsu.edu/arc35m/Instruments/DIS/ (https://www.apo.nmsu.edu/arc35m/Instruments/DIS/images/apoextinct.dat).
