@@ -26,7 +26,7 @@ Data reduction process
 .. toctree::
     :maxdepth: 1
 
-   process/index
+    process/index
 
 ***********
 Calibration
