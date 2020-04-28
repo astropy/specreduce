@@ -54,23 +54,44 @@ https://www.aanda.org/articles/aa/pdf/2011/03/aa15537-10.pdf.
 7. Extinction table for Apache Point Observatory. Based on the extinction table used for SDSS and
 available at https://www.apo.nmsu.edu/arc35m/Instruments/DIS/ (https://www.apo.nmsu.edu/arc35m/Instruments/DIS/images/apoextinct.dat).
 
-In each case, the extinction is given in magnitudes at an airmass of 0 and the wavelengths are in Angstroms. Here is an example that
-loads each model and plots the extinction in magnitudes as well as fractional transmission as a function of wavelength.
+In each case, the extinction is given in magnitudes per airmass and the wavelengths are in Angstroms. Here is an example that
+uses the `AtmosphericExtinction` class to load each model and plots the extinction in magnitudes as well as fractional transmission
+as a function of wavelength:
 
 .. plot::
     :include-source:
 
     import matplotlib.pyplot as plt
-    from specreduce.calibration_data import AtmosphericExtinction, AtmosphericTransmission, SUPPORTED_EXTINCTION_MODELS
+    from specreduce.calibration_data import AtmosphericExtinction, SUPPORTED_EXTINCTION_MODELS
 
     fig, ax = plt.subplots(2, 1, sharex=True)
     for model in SUPPORTED_EXTINCTION_MODELS:
         ext = AtmosphericExtinction(model=model)
         ax[0].plot(ext.spectral_axis, ext.extinction_mag, label=model)
         ax[1].plot(ext.spectral_axis, ext.transmission)
-    ax[0].legend()
+    ax[0].legend(fancybox=True, shadow=True)
     ax[1].set_xlabel("Wavelength ($\AA$)")
     ax[0].set_ylabel("Extinction (mag)")
     ax[1].set_ylabel("Transmission")
     plt.tight_layout()
+    fig.show()
+
+A convenience class, `AtmosphericTransmission`, is provided for loading data files containing atmospheric transmission versus wavelength.
+The common use case for this would be loading the output of telluric models. By default it loads a telluric model for an airmass of 1 and
+1 mm of precipitable water.
+
+.. plot::
+    :include-source:
+
+    import matplotlib.pyplot as plt
+    from specreduce.calibration_data import AtmosphericTransmission, SUPPORTED_EXTINCTION_MODELS
+
+    fig, ax = plt.subplots()
+    ext_default = AtmosphericTransmission()
+    ext_custom = AtmosphericTransmission(data_file="atm_transmission_secz1.5_1.6mm.dat")
+    ax.plot(ext_default.spectral_axis, ext_default.transmission, label=r"sec $z$ = 1; 1 mm H$_{2}$O", linewidth=1)
+    ax.plot(ext_custom.spectral_axis, ext_custom.transmission, label=r"sec $z$ = 1.5; 1.6 mm H$_{2}$O", linewidth=1)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, 1.12), ncol=2, fancybox=True, shadow=True)
+    ax.set_xlabel("Wavelength (microns)")
+    ax.set_ylabel("Transmission")
     fig.show()
