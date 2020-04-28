@@ -53,3 +53,24 @@ See also https://www.aanda.org/articles/aa/pdf/2011/03/aa15537-10.pdf for update
 
 7. Extinction table for Apache Point Observatory. Based on the extinction table used for SDSS and
 available at https://www.apo.nmsu.edu/arc35m/Instruments/DIS/ (https://www.apo.nmsu.edu/arc35m/Instruments/DIS/images/apoextinct.dat).
+
+In each case, the extinction is given in magnitudes at an airmass of 0 and the wavelengths are in Angstroms. Here is an example that
+loads each model and plots the extinction in magnitudes as well as fractional transmission as a function of wavelength.
+
+.. plot::
+    :include-source:
+
+    import matplotlib.pyplot as plt
+    from specreduce.calibration_data import AtmosphericExtinction, AtmosphericTransmission, SUPPORTED_EXTINCTION_MODELS
+
+    fig, ax = plt.subplots(2, 1, sharex=True)
+    for model in SUPPORTED_EXTINCTION_MODELS:
+        ext = AtmosphericExtinction(model=model)
+        ax[0].plot(ext.spectral_axis, ext.extinction_mag, label=model)
+        ax[1].plot(ext.spectral_axis, ext.transmission)
+    ax[0].legend()
+    ax[1].set_xlabel("Wavelength ($\AA$)")
+    ax[0].set_ylabel("Extinction (mag)")
+    ax[1].set_ylabel("Transmission")
+    plt.tight_layout()
+    fig.show()
