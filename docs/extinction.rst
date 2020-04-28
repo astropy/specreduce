@@ -42,14 +42,14 @@ but it has been used as-is in this form for over 30 years.
 3. Extinction table for Roque de Los Muchachos Observatory, La Palma.
 Described in https://www.ing.iac.es/Astronomy/observing/manuals/ps/tech_notes/tn031.pdf.
 
-4. Extinction table for Mauna Kea Observatory constructed from
-https://www.gemini.edu/sciops/telescopes-and-sites/observing-condition-constraints/extinction.
-Newer data is available from https://www.aanda.org/articles/aa/pdf/2013/01/aa19834-12.pdf.
+4. Median atmospheric extinction data for Mauna Kea Observatory measured by the Nearby SuperNova
+Factory: https://www.aanda.org/articles/aa/pdf/2013/01/aa19834-12.pdf.
 
 5. Extinction table for Lick Observatory on Mt. Hamilton constructed from
 https://mthamilton.ucolick.org/techdocs/standards/lick_mean_extinct.html.
 
-6. Updated xtinction table for ESO-Paranal taken from https://www.aanda.org/articles/aa/pdf/2011/03/aa15537-10.pdf.
+6. Updated extinction table for ESO-Paranal taken from
+https://www.aanda.org/articles/aa/pdf/2011/03/aa15537-10.pdf.
 
 7. Extinction table for Apache Point Observatory. Based on the extinction table used for SDSS and
 available at https://www.apo.nmsu.edu/arc35m/Instruments/DIS/ (https://www.apo.nmsu.edu/arc35m/Instruments/DIS/images/apoextinct.dat).
