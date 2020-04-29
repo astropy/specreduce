@@ -78,7 +78,8 @@ as a function of wavelength:
 
 A convenience class, `AtmosphericTransmission`, is provided for loading data files containing atmospheric transmission versus wavelength.
 The common use case for this would be loading the output of telluric models. By default it loads a telluric model for an airmass of 1 and
-1 mm of precipitable water.
+1 mm of precipitable water. Some resources for generating model atmospheric transmission spectra include
+https://mwvgroup.github.io/pwv_kpno/1.0.0/documentation/html/index.html and http://www.eso.org/sci/software/pipelines/skytools/molecfit.
 
 .. plot::
     :include-source:
