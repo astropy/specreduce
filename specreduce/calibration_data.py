@@ -157,7 +157,7 @@ def load_MAST_calspec(filename, remote=True, cache=True, show_progress=True):
         hdr, wave, flux = synphot.specio.read_fits_spec(file_path)
 
         # the calspec data stores flux in synphot's FLAM units. convert to flux units
-        # supported directly by astropy.units. mJy is chosen here since it's the JWST
+        # supported directly by astropy.units. mJy is chosen since it's the JWST
         # standard and can easily be converted to/from AB magnitudes.
         flux_mjy = synphot.units.convert_flux(wave, flux, u.mJy)
         spectrum = Spectrum1D(spectral_axis=wave, flux=flux_mjy)
