@@ -8,8 +8,10 @@ import warnings
 
 import astropy.units as u
 from astropy.table import Table
+from astropy.utils.data import download_file
 from astropy.utils.exceptions import AstropyUserWarning
 
+import synphot
 from specutils import Spectrum1D
 
 __all__ = ['get_reference_file_path']
@@ -17,7 +19,7 @@ __all__ = ['get_reference_file_path']
 """
 Make specreduce_data optional. If it's available, great and we can access its data via
 pkg_resources. If not, we'll fall back to downloading and optionally caching it using
-astropy.utils.data.
+`~astropy.utils.data`.
 """
 LOCAL_DATA = True
 try:
@@ -28,7 +30,6 @@ except ModuleNotFoundError:
         AstropyUserWarning
     )
     LOCAL_DATA = False
-    from astropy.utils.data import download_file
 
 SUPPORTED_EXTINCTION_MODELS = [
     "kpno",
@@ -100,6 +101,69 @@ def get_reference_file_path(path=None, cache=False, show_progress=False):
         return None
 
 
+def load_MAST_calspec(filename, remote=True, cache=True, show_progress=True):
+    """
+    Load a standard star spectrum from the `calspec` database at MAST. These spectra are provided in
+    FITS format and are described in detail at:
+
+    https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec  # noqa
+
+    If `remote` is True, the spectrum will be downloaded from MAST. Set `remote` to False to load
+    a local file.
+
+    Parameters
+    ----------
+    filename : str
+        FITS filename of the standard star spectrum, e.g. g191b2b_005.fits.
+
+    remote : bool (default = True)
+        If True, download the spectrum from MAST. If False, check if `filename` exists and load
+        it.
+    cache : bool (default = True)
+        Toggle whether downloaded data is cached or not.
+    show_progress : bool (default = True)
+        Toggle whether download progress bar is shown.
+
+    Returns
+    -------
+    spectrum : None or `~specutils.Spectrum1D`
+        If the spectrum can be loaded, return it as a `~specutils.Spectrum1D`.
+        Otherwise return None.
+    """
+    if remote:
+        url = f"https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/{filename}"
+        try:
+            file_path = download_file(
+                url,
+                cache=cache,
+                show_progress=show_progress,
+                pkgname='specreduce'
+            )
+        except Exception as e:
+            msg = f"Downloading of {filename} failed: {e}"
+            warnings.warn(msg, AstropyUserWarning)
+            file_path = None
+    else:
+        if os.path.isfile(filename):
+            file_path = filename
+        else:
+            msg = f"Provided filename, {filename}, does not exist or is not a valid file."
+            warnings.warn(msg, AstropyUserWarning)
+            file_path = None
+
+    if file_path is None:
+        return None
+    else:
+        hdr, wave, flux = synphot.specio.read_fits_spec(file_path)
+
+        # the calspec data stores flux in synphot's FLAM units. convert to flux units
+        # supported directly by astropy.units. mJy is chosen here since it's the JWST
+        # standard and can easily be converted to/from AB magnitudes.
+        flux_mjy = synphot.units.convert_flux(wave, flux, u.mJy)
+        spectrum = Spectrum1D(spectral_axis=wave, flux=flux_mjy)
+        return spectrum
+
+
 class AtmosphericExtinction(Spectrum1D):
     """
     Spectrum container for atmospheric extinction in magnitudes as a function of wavelength.
@@ -120,13 +184,13 @@ class AtmosphericExtinction(Spectrum1D):
             mtham - Lick Observatory, Mt. Hamilton station
             paranal - European Southern Observatory, Cerro Paranal station
 
-    extinction : `astropy.units.LogUnit`, `astropy.units.Magnitude`,
-    `astropy.units.dimensionless_unscaled`, 1D list-like, or None
+    extinction : `~astropy.units.LogUnit`, `~astropy.units.Magnitude`,
+    `~astropy.units.dimensionless_unscaled`, 1D list-like, or None
         Optionally provided extinction data for this spectrum. Used along with spectral_axis
         to build custom atmospheric extinction model. If no units are provided, assumed to
         be given in magnitudes.
 
-    spectral_axis : `astropy.units.Quantity` or `specutils.SpectralCoord` or None
+    spectral_axis : `~astropy.units.Quantity` or `~specutils.SpectralCoord` or None
         Optional Dispersion information with the same shape as the last (or only)
         dimension of flux, or one greater than the last dimension of flux
         if specifying bin edges. Used along with flux to build custom atmospheric
@@ -134,10 +198,10 @@ class AtmosphericExtinction(Spectrum1D):
 
     Properties
     ----------
-    extinction_mag : `astropy.units.Magnitude`
+    extinction_mag : `~astropy.units.Magnitude`
         Extinction expressed in dimensionless magnitudes
 
-    transmission : `astropy.units.dimensionless_unscaled`
+    transmission : `~astropy.units.dimensionless_unscaled`
         Extinction expressed as fractional transmission
 
     """
@@ -216,7 +280,7 @@ class AtmosphericTransmission(AtmosphericExtinction):
 
     Parameters
     ----------
-    data_file : str or `pathlib.Path` or None
+    data_file : str or `~pathlib.Path` or None
         Name to file containing atmospheric transmission data. Data is assumed to have
         two columns, wavelength and transmission (unscaled dimensionless). If
         this isn't provided, a model is built from a pre-calculated table of values
@@ -225,7 +289,7 @@ class AtmosphericTransmission(AtmosphericExtinction):
         Technical Memorandum 103957). The extinction is given as a linear transmission
         fraction at an airmass of 1 and 1 mm of precipitable water.
 
-    wave_unit : `astropy.units.Unit` (default = u.um)
+    wave_unit : `~astropy.units.Unit` (default = u.um)
         Units for spectral axis.
     """
     def __init__(self, data_file=None, wave_unit=u.um, **kwargs):
