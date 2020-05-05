@@ -41,6 +41,22 @@ SUPPORTED_EXTINCTION_MODELS = [
     "paranal"
 ]
 
+SPECPHOT_DATASETS = [
+    "bstdscal",
+    "ctiocal",
+    "ctionewcal",
+    "eso",
+    "gemini",
+    "iidscal",
+    "irscal",
+    "oke1990",
+    "redcal",
+    "snfactory",
+    "spec16cal",
+    "spec50cal",
+    "spechayescal"
+]
+
 
 def get_reference_file_path(path=None, cache=False, show_progress=False):
     """
@@ -101,7 +117,7 @@ def get_reference_file_path(path=None, cache=False, show_progress=False):
         return None
 
 
-def load_MAST_calspec(filename, remote=True, cache=True, show_progress=True):
+def load_MAST_calspec(filename, remote=True, cache=True, show_progress=False):
     """
     Load a standard star spectrum from the `calspec` database at MAST. These spectra are provided in
     FITS format and are described in detail at:
@@ -164,19 +180,141 @@ def load_MAST_calspec(filename, remote=True, cache=True, show_progress=True):
         return spectrum
 
 
+def load_onedstds(dataset="snfactory", specfile="EG131.dat", cache=True, show_progress=False):
+    """
+    This is a convenience function for loading a standard star spectrum from the 'onedstds'
+    dataset in the `specreduce_data` package. If that package is installed, `~pkg_resources`
+    will be used to locate the data files locally. Otherwise they will be downloaded from the
+    repository on github.
+
+    Parameters
+    ----------
+    dataset : str  (default = "snfactory")
+        Standard star spectrum database. Valid options are:
+            bstdscal -      Directory of the brighter KPNO IRS standards (i.e. those
+                            with HR numbers) at 29 bandpasses, data from various
+                            sources transformed to the Hayes and Latham system,
+                            unpublished.
+            ctiocal -       Directory containing fluxes for the southern tertiary
+                            standards as published by Baldwin & Stone, 1984, MNRAS,
+                            206, 241 and Stone and Baldwin, 1983, MNRAS, 204, 347.
+            ctionewcal -    Directory containing fluxes at 50A steps in the blue range
+                            3300-7550A for the tertiary standards of Baldwin and
+                            Stone derived from the revised calibration of Hamuy et
+                            al., 1992, PASP, 104, 533.  This directory also contains
+                            the fluxes of the tertiaries in the red (6050-10000A) at
+                            50A steps as will be published in PASP (Hamuy et al
+                            1994).  The combined fluxes are obtained by gray
+                            shifting the blue fluxes to match the red fluxes in the
+                            overlap region of 6500A-7500A and averaging the red and
+                            blue fluxes in the overlap.  The separate red and blue
+                            fluxes may be selected by following the star name with
+                            "red" or "blue"; i.e. CD 32 blue.
+            iidscal -       Directory of the KPNO IIDS standards at 29 bandpasses,
+                            data from various sources transformed to the Hayes and
+                            Latham system, unpublished.
+            irscal -        Directory of the KPNO IRS standards at 78 bandpasses,
+                            data from various sources transformed to the Hayes and
+                            Latham system, unpublished (note that in this directory the
+                            brighter standards have no values - the `bstdscal' directory
+                            must be used for these standards at this time).
+            oke1990 -       Directory of spectrophotometric standards observed for use
+                            with the HST, Table VII, Oke 1990, AJ, 99. 1621 (no
+                            correction was applied).  An arbitrary 1A bandpass
+                            is specified for these smoothed and interpolated
+                            flux "points".
+            redcal -        Directory of standard stars with flux data beyond 8370A.
+                            These stars are from the IRS or the IIDS directory but
+                            have data extending as far out into the red as the
+                            literature permits.  Data from various sources.
+            spechayescal -  The KPNO spectrophotometric standards at the Hayes flux
+                            points, Table IV, Spectrophotometric Standards, Massey
+                            et al., 1988, ApJ 328, p. 315.
+            spec16cal -     Directory containing fluxes at 16A steps in the blue
+                            range 3300-7550A for the secondary standards, published
+                            in Hamuy et al., 1992, PASP, 104, 533.  This directory
+                            also contains the fluxes of the secondaries in the red
+                            (6020-10300A) at 16A steps as will be published in PASP
+                            (Hamuy et al 1994).  The combined fluxes are obtained by
+                            gray shifting the blue fluxes to match the red fluxes in
+                            the overlap region of 6500A-7500A and averaging the blue
+                            and red fluxes in the overlap. The separate red and
+                            blue fluxes may be selected by following the star name
+                            with "red" or "blue"; i.e. HR 1544 blue.
+            spec50cal -     The KPNO spectrophotometric standards at 50 A intervals.
+                            The data are from (1) Table V, Spectrophotometric Standards,
+                            Massey et al., 1988, ApJ 328, p. 315 and (2) Table 3, The
+                            Kitt Peak Spectrophotometric Standards: Extension to 1
+                            micron, Massey and Gronwall, 1990, ApJ 358, p. 344.
+            snfactory -     Preferred standard stars from the LBL Nearby Supernova
+                            Factory project:
+                            https://ui.adsabs.harvard.edu/abs/2002SPIE.4836...61A/abstract
+                            Data compiled from https://snfactory.lbl.gov/snf/snf-specstars.html.
+                            See notes there for details and references.
+            eso -           Directories of spectrophotometric standards copied from
+                            ftp://ftp.eso.org/pub/stecf/standards/. See
+                            https://www.eso.org/sci/observing/tools/standards/spectra/stanlis.html
+                            for links, notes, and details.
+            gemini -        Directory of spectrophotometric standards used by Gemini.
+                            Originally copied from
+                            https://github.com/GeminiDRSoftware/DRAGONS/tree/master/geminidr/gemini/lookups/spectrophotometric_standards.
+
+    specfile : str (default = "EG131.dat")
+        Filename of the standard star spectrum.
+
+    cache : bool (default = True)
+        Enable caching of downloaded data.
+
+    show_progress : bool (default = False)
+        Show download progress bar if data is downloaded.
+
+    Returns
+    -------
+    spectrum : None or `~specutils.Spectrum1D`
+        If the spectrum can be loaded, return it as a `~specutils.Spectrum1D`.
+        Otherwise return None.
+    """
+    if dataset not in SPECPHOT_DATASETS:
+        msg = (f"Specfied dataset, {dataset}, not in list of supported datasets of "
+               f"spectrophotometric standard stars: f{SPECPHOT_DATASETS}")
+        warnings.warn(msg, AstropyUserWarning)
+        return None
+
+    spec_path = get_reference_file_path(
+        path=os.path.join("onedstds", dataset, specfile),
+        cache=cache,
+        show_progress=show_progress
+    )
+    if spec_path is None:
+        msg = f"Can't load {specfile} from {dataset}."
+        warnings.warn(msg, AstropyUserWarning)
+        return None
+
+    t = Table.read(spec_path, format="ascii", names=['wavelength', 'ABmag', 'binsize'])
+
+    # the specreduce_data standard star spectra all provide wavelengths in angstroms
+    spectral_axis = t['wavelength'].data * u.angstrom
+
+    # the specreduce_data standard star spectra all provide fluxes in AB mag
+    flux = t['ABmag'].data * u.ABmag
+    flux = flux.to(u.mJy)  # convert to linear flux units
+    spectrum = Spectrum1D(spectral_axis=spectral_axis, flux=flux)
+    return spectrum
+
+
 class AtmosphericExtinction(Spectrum1D):
     """
     Spectrum container for atmospheric extinction in magnitudes as a function of wavelength.
     If extinction and spectral_axis are provided, this will use them to build a custom model.
     If they are not, the 'model' parameter will be used to lookup and load a pre-defined
-    atmospheric extinction model from the specreduce_data package.
+    atmospheric extinction model from the `specreduce_data` package.
 
     Parameters
     ----------
     model : str
-        Name of atmospheric extinction model provided by specreduce_data package. Valid
+        Name of atmospheric extinction model provided by `specreduce_data`. Valid
         options are:
-            kpno - Kitt Peak National Observatory
+            kpno - Kitt Peak National Observatory (default)
             ctio - Cerro Tololo International Observatory
             apo - Apache Point Observatory
             lapalma - Roque de los Muchachos Observatory, La Palma, Canary Islands
@@ -205,7 +343,8 @@ class AtmosphericExtinction(Spectrum1D):
         Extinction expressed as fractional transmission
 
     """
-    def __init__(self, model="kpno", extinction=None, spectral_axis=None, **kwargs):
+    def __init__(self, model="kpno", extinction=None, spectral_axis=None,
+                 cache=True, show_progress=False, **kwargs):
         if extinction is not None:
             if not isinstance(extinction, u.Quantity):
                 warnings.warn(
@@ -236,7 +375,11 @@ class AtmosphericExtinction(Spectrum1D):
                 )
                 raise ValueError(msg)
             model_file = os.path.join("extinction", f"{model}extinct.dat")
-            model_path = get_reference_file_path(path=model_file)
+            model_path = get_reference_file_path(
+                path=model_file,
+                cache=cache,
+                show_progress=show_progress
+            )
             t = Table.read(model_path, format="ascii", names=['wavelength', 'extinction'])
 
             # the specreduce_data models all provide wavelengths in angstroms
