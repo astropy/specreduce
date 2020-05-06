@@ -24,9 +24,18 @@ Data reduction process
 **********************
 
 .. toctree::
-   :maxdepth: 1
+    :maxdepth: 1
 
-   process/index
+    process/index
+
+***********
+Calibration
+***********
+
+.. toctree::
+    :maxdepth: 1
+
+    extinction.rst
 
 *************
 Reference/API
@@ -42,4 +51,3 @@ Index
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
