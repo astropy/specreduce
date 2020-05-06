@@ -14,7 +14,13 @@ from astropy.utils.exceptions import AstropyUserWarning
 import synphot
 from specutils import Spectrum1D
 
-__all__ = ['get_reference_file_path']
+__all__ = [
+    'get_reference_file_path',
+    'load_MAST_calspec',
+    'load_onedstds',
+    'AtmosphericExtinction',
+    'AtmosphericTransmission'
+]
 
 """
 Make specreduce_data optional. If it's available, great and we can access its data via
