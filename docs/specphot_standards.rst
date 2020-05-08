@@ -16,8 +16,8 @@ Supported Databases
 
 Probably the best curated database of spectrophotometric calibration data is the
 `CALSPEC <https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec>`_
-database at `MAST <https://archive.stsci.edu/>`_ (Ref.: Bohlin, Gordon, & Tremblay 2014). It also
-has the advantage of including data that extends both well into the UV and the IR. The `~specreduce.calibration_data.load_MAST_calspec`
+database at `MAST <https://archive.stsci.edu/>`_ (Ref.: `Bohlin, Gordon, & Tremblay 2014 <https://iopscience.iop.org/article/10.1086/677655>`).
+It also has the advantage of including data that extends both well into the UV and the IR. The `~specreduce.calibration_data.load_MAST_calspec`
 function provides a way to easily load CALSPEC data either directly from MAST (https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/)
 or from a previously downloaded local file. Here is an example of how to use it and of a CALSPEC standard that has both UV and IR coverage:
 
