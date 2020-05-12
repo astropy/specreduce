@@ -3,7 +3,7 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 import inspect
-from dataclass import dataclass
+from dataclasses import dataclass
 
 __all__ = ['SpecreduceOperation']
 
