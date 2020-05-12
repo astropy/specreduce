@@ -36,13 +36,18 @@ Calibration
     :maxdepth: 1
 
     extinction.rst
+    specphot_standards.rst
 
 *************
 Reference/API
 *************
 
 .. automodapi:: specreduce
+    :no-inheritance-diagram:
 
+.. automodapi:: specreduce.calibration_data
+    :no-inheritance-diagram:
+    :include-all-objects:
 
 *****
 Index
