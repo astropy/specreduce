@@ -75,7 +75,7 @@ class BoxcarExtract(SpecreduceOperation):
 
             # simply add up the total flux around the trace_line +/- width
             onedspec[i] = np.nansum(
-                img[int(trace_line[i] - widthdn):int(trace_line[i] + widthup+ 1 ), i]
+                img[int(trace_line[i] - widthdn):int(trace_line[i] + widthup + 1), i]
             )
 
             # now do the sky fit
