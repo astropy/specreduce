@@ -74,11 +74,13 @@ class BoxcarExtract(SpecreduceOperation):
                 widthdn = trace_line[i] - 1
 
             # simply add up the total flux around the trace_line +/- width
-            onedspec[i] = np.nansum(img[int(trace_line[i]-widthdn):int(trace_line[i]+widthup+1), i])
+            onedspec[i] = np.nansum(
+                img[int(trace_line[i] - widthdn):int(trace_line[i] + widthup+ 1 ), i]
+            )
 
             # now do the sky fit
             itrace_line = int(trace_line[i])
-            y = np.append(
+            sky_y = np.append(
                 np.arange(
                     itrace_line - self.apwidth - self.skysep - self.skywidth,
                     itrace_line - self.apwidth - self.skysep
@@ -89,10 +91,10 @@ class BoxcarExtract(SpecreduceOperation):
                 )
             )
 
-            z = img[y, i]
+            sky_flux = img[sky_y, i]
             if (self.skydeg > 0):
                 # fit a polynomial to the sky in this column
-                pfit = np.polyfit(y, z, self.skydeg)
+                pfit = np.polyfit(sky_y, sky_flux, self.skydeg)
                 # define the aperture in this column
                 ap = np.arange(
                     trace_line[i] - self.apwidth,
@@ -101,23 +103,28 @@ class BoxcarExtract(SpecreduceOperation):
                 # evaluate the polynomial across the aperture, and sum
                 skysubflux[i] = np.nansum(np.polyval(pfit, ap))
             elif (self.skydeg == 0):
-                skysubflux[i] = np.nanmean(z) * (self.apwidth * 2.0 + 1)
+                skysubflux[i] = np.nanmean(sky_flux) * (self.apwidth * 2.0 + 1)
 
             # finally, compute the error in this pixel
-            sigB = np.nanstd(z)  # stddev in the background data
-            N_B = np.float(len(y))  # number of bkgd pixels
-            N_A = self. apwidth * 2. + 1  # number of aperture pixels
+            sigma_bkg = np.nanstd(sky_flux)  # stddev in the background data
+            n_bkg = np.float(len(sky_y))  # number of bkgd pixels
+            n_ap = self.apwidth * 2. + 1  # number of aperture pixels
 
             # based on aperture phot err description by F. Masci, Caltech:
             # http://wise2.ipac.caltech.edu/staff/fmasci/ApPhotUncert.pdf
-            fluxerr[i] = np.sqrt(np.nansum((onedspec[i]-skysubflux[i])) +
-                                 (N_A + N_A**2. / N_B) * (sigB**2.))
+            fluxerr[i] = np.sqrt(
+                np.nansum(onedspec[i] - skysubflux[i]) + (n_ap + n_ap**22 / n_bkg) * (sigma_bkg**2)
+            )
 
-        spec = Spectrum1D(spectral_axis=np.arange(len(onedspec)) * u.pixel,
-                          flux=onedspec * img.unit,
-                          uncertainty=StdDevUncertainty(fluxerr))
-        skyspec = Spectrum1D(spectral_axis=np.arange(len(onedspec)) * u.pixel,
-                             flux=skysubflux * img.unit)
+        spec = Spectrum1D(
+            spectral_axis=np.arange(len(onedspec)) * u.pixel,
+            flux=onedspec * img.unit,
+            uncertainty=StdDevUncertainty(fluxerr)
+        )
+        skyspec = Spectrum1D(
+            spectral_axis=np.arange(len(onedspec)) * u.pixel,
+            flux=skysubflux * img.unit
+        )
 
         return spec, skyspec
 
