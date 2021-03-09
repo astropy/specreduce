@@ -41,7 +41,7 @@ The `specreduce_data <https://github.com/astropy/specreduce-data/>`_ package pro
 The bulk of them are inherited from IRAF's `onedstds` datasets, but some more recently curated datasets from `ESO
 <https://www.eso.org/sci/observing/tools/standards/spectra/stanlis.html>`_, the
 `Nearby Supernova Factory <https://snfactory.lbl.gov/>`_, and `Gemini
-<https://github.com/GeminiDRSoftware/DRAGONS/tree/main/geminidr/gemini/lookups/spectrophotometric_standards>`_ are included as well. The
+<https://github.com/GeminiDRSoftware/DRAGONS/tree/master/geminidr/gemini/lookups/spectrophotometric_standards>`_ are included as well. The
 `~specreduce.calibration_data.load_onedstds` function is provided to load these data into `~specutils.Spectrum1D`
 instances. If `specreduce_data` is not installed, the data will be downloaded from the GitHub
 `repository <https://github.com/astropy/specreduce-data/tree/main/specreduce_data/reference_data/onedstds>`_. The available
@@ -123,7 +123,7 @@ specific data files that are available:
 
 - `gemini`: Directory of spectrophotometric standards used by Gemini.
   Originally copied from
-  https://github.com/GeminiDRSoftware/DRAGONS/tree/main/geminidr/gemini/lookups/spectrophotometric_standards.
+  https://github.com/GeminiDRSoftware/DRAGONS/tree/master/geminidr/gemini/lookups/spectrophotometric_standards.
 
 
 Selecting Spectrophotometric Standard Stars
