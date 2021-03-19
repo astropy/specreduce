@@ -102,7 +102,7 @@ def get_reference_file_path(path=None, cache=False, show_progress=False):
         )
     else:
         repo_url = "https://raw.githubusercontent.com/astropy/specreduce-data"
-        remote_url = f"{repo_url}/master/specreduce_data/reference_data/{path}"
+        remote_url = f"{repo_url}/main/specreduce_data/reference_data/{path}"
         try:
             file_path = download_file(
                 remote_url,

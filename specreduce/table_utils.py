@@ -1,4 +1,4 @@
-"""Utility functions to parse master NIST table.
+"""Utility functions to parse main NIST table.
 """
 
 from astropy.table import Table, vstack

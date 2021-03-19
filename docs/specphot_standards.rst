@@ -44,9 +44,9 @@ The bulk of them are inherited from IRAF's `onedstds` datasets, but some more re
 <https://github.com/GeminiDRSoftware/DRAGONS/tree/master/geminidr/gemini/lookups/spectrophotometric_standards>`_ are included as well. The
 `~specreduce.calibration_data.load_onedstds` function is provided to load these data into `~specutils.Spectrum1D`
 instances. If `specreduce_data` is not installed, the data will be downloaded from the GitHub
-`repository <https://github.com/astropy/specreduce-data/tree/master/specreduce_data/reference_data/onedstds>`_. The available
+`repository <https://github.com/astropy/specreduce-data/tree/main/specreduce_data/reference_data/onedstds>`_. The available
 database names and their descriptions are listed here. Please refer to the `specreduce-data repository
-<https://github.com/astropy/specreduce-data/tree/master/specreduce_data/reference_data/onedstds>`_ for details on the
+<https://github.com/astropy/specreduce-data/tree/main/specreduce_data/reference_data/onedstds>`_ for details on the
 specific data files that are available:
 
 - `bstdscal`: Directory of the brighter KPNO IRS standards (i.e. those with HR numbers) at 29 bandpasses,
