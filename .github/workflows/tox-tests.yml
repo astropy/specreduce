@@ -66,7 +66,6 @@ jobs:
     - name: Build and check docs using tox
       run: |
         tox -e build_docs
-        tox -e linkcheck
 
   # Perform codestyle check
   codestyle:
