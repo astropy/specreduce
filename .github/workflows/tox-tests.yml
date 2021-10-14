@@ -43,7 +43,7 @@ jobs:
     # # This is an example of how to upload coverage to codecov
     # - name: Upload coverage to codecov
     #   if: matrix.tox-env == 'cov' && matrix.python-ver == '8'
-    #   uses: codecov/codecov-action@v1
+    #   uses: codecov/codecov-action@v2
     #   with:
     #     token: ${{ secrets.CODECOV }}
     #     file: ./coverage.xml
