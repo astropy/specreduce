@@ -82,14 +82,18 @@ class BoxcarExtract(SpecreduceOperation):
             itrace_line = int(trace_line[i])
             sky_y = np.append(
                 np.arange(
-                    itrace_line - self.apwidth - self.skysep - self.skywidth,
-                    itrace_line - self.apwidth - self.skysep
+                    int(itrace_line - self.apwidth/2 - self.skysep - self.skywidth/2),
+                    int(itrace_line - self.apwidth/2 - self.skysep)
                 ),
                 np.arange(
-                    itrace_line + self.apwidth + self.skysep + 1,
-                    itrace_line + self.apwidth + self.skysep + self.skywidth + 1
+                    int(itrace_line + self.apwidth/2 + self.skysep + 1),
+                    int(itrace_line + self.apwidth/2 + self.skysep + self.skywidth/2 + 1)
                 )
             )
+
+            # sky can't be outside image
+            np_indices = np.indices(img[::, i].shape) # put this outside loop
+            sky_y = np.intersect1d(sky_y, np_indices)
 
             sky_flux = img[sky_y, i]
             if (self.skydeg > 0):
@@ -116,14 +120,18 @@ class BoxcarExtract(SpecreduceOperation):
                 np.nansum(onedspec[i] - skysubflux[i]) + (n_ap + n_ap**22 / n_bkg) * (sigma_bkg**2)
             )
 
+        img_unit = u.DN
+        if hasattr(img, 'unit'):
+            img_unit = img.unit
+
         spec = Spectrum1D(
             spectral_axis=np.arange(len(onedspec)) * u.pixel,
-            flux=onedspec * img.unit,
+            flux=onedspec * img_unit,
             uncertainty=StdDevUncertainty(fluxerr)
         )
         skyspec = Spectrum1D(
             spectral_axis=np.arange(len(onedspec)) * u.pixel,
-            flux=skysubflux * img.unit
+            flux=skysubflux * img_unit
         )
 
         return spec, skyspec
