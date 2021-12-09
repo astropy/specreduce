@@ -1,11 +1,10 @@
 import unittest
 import numpy as np
 
-from extract import BoxcarExtract
+from ..extract import BoxcarExtract
 
 
-# Mock a Trace that consists of a straight line
-# placed exactly at row 15.
+# Mock a Trace that consists of a straight line placed exactly at row 15.
 class Trace:
     def __init__(self):
         self.line = np.ones(shape=(10,)) * 15
@@ -13,8 +12,9 @@ class Trace:
 
 class TestBoxcarExtract(unittest.TestCase):
 
-    # test image is comprised of 30 rows with 10
-    # columns each. Row content is row index itself.
+    # Test image is comprised of 30 rows with 10 columns each. Row content
+    # is row index itself. This makes it easy to predict what should be the
+    # value extracted from a region centered at any arbitrary row.
     def setUp(self):
         self.image = np.ones(shape=(30,10))
         for j in range(self.image.shape[0]):
@@ -38,12 +38,13 @@ class TestBoxcarExtract(unittest.TestCase):
 
         spectrum, bkg_spectrum = boxcar(self.image, self.trace)
 
-        # the source extraction should result in a total flux of 75:
+        # Source extraction should result in a total flux of 75:
         # 13+14+15+16+17. Integer truncation/rounding issues create a
         # non-symmetrical extraction region around the trace.
         print(spectrum.flux.value[0])
         # assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75))
 
-        # the source extraction should result in a total flux of 45+123=168
+        # Sky extraction should result in a total flux of 45+123=168
+        # Here, both positioning and sizing seem to be wrong.
         print(bkg_spectrum.flux.value[0])
         # assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 168))
