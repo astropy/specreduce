@@ -4,7 +4,7 @@ import numpy as np
 from ..extract import BoxcarExtract
 
 
-# Mock a Trace that consists of a straight line placed exactly at row 15.
+# Mock a Trace class that represents a line parallel to the image rows.
 class Trace:
     def __init__(self, position):
         self.line = np.ones(shape=(10,)) * position
@@ -14,7 +14,7 @@ class TestBoxcarExtract(unittest.TestCase):
 
     # Test image is comprised of 30 rows with 10 columns each. Row content
     # is row index itself. This makes it easy to predict what should be the
-    # value extracted from a region centered at any arbitrary row.
+    # value extracted from a region centered at any arbitrary Y position.
     def setUp(self):
         self.image = np.ones(shape=(30,10))
         for j in range(self.image.shape[0]):

@@ -120,6 +120,7 @@ class BoxcarExtract(SpecreduceOperation):
             np_indices = np.indices(img[::, i].shape) # put this outside loop
             sky_y = np.intersect1d(sky_y, np_indices)
 
+            # TODO add fractional pixel handling
             sky_flux = img[sky_y, i]
             if (self.skydeg > 0):
                 # fit a polynomial to the sky in this column
