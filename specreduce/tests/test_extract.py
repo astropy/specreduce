@@ -6,8 +6,8 @@ from ..extract import BoxcarExtract
 
 # Mock a Trace that consists of a straight line placed exactly at row 15.
 class Trace:
-    def __init__(self):
-        self.line = np.ones(shape=(10,)) * 15
+    def __init__(self, position):
+        self.line = np.ones(shape=(10,)) * position
 
 
 class TestBoxcarExtract(unittest.TestCase):
@@ -27,23 +27,35 @@ class TestBoxcarExtract(unittest.TestCase):
         assert self.image[29,0] == 29
         assert self.image[29,9] == 29
 
-        self.trace = Trace()
-
-    def test_boxcar_apertures(self):
+    def test_boxcar_extraction(self):
+        #
+        # Try combinations of extraction center, and even/odd
+        # extraction aperture sizes.
+        #
         boxcar = BoxcarExtract()
 
         boxcar.apwidth = 5
-        boxcar.skysep = 1
-        boxcar.skywidth = 5
 
-        spectrum, bkg_spectrum = boxcar(self.image, self.trace)
+        trace = Trace(15.0)
+        spectrum, bkg_spectrum = boxcar(self.image, trace)
+        assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
 
-        # Source extraction should result in a total flux of 75:
-        # 13+14+15+16+17. Integer truncation/rounding issues create a
-        # non-symmetrical extraction region around the trace.
-        print(spectrum.flux.value[0])
-        # assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75))
+        trace = Trace(14.5)
+        spectrum, bkg_spectrum = boxcar(self.image, trace)
+        assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 72.5))
 
+        boxcar.apwidth = 6
+
+        trace = Trace(15.0)
+        spectrum, bkg_spectrum = boxcar(self.image, trace)
+        assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 90.))
+
+        boxcar.apwidth = 6
+        trace = Trace(14.5)
+        spectrum, bkg_spectrum = boxcar(self.image, trace)
+        assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 87.))
+
+        # TODO
         # Sky extraction should result in a total flux of 45+123=168
         # Here, both positioning and sizing seem to be wrong.
         print(bkg_spectrum.flux.value[0])

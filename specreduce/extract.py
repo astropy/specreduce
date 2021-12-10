@@ -66,17 +66,42 @@ class BoxcarExtract(SpecreduceOperation):
         for i in range(0, len(trace_line)):
             # first do the aperture flux
             # juuuust in case the trace gets too close to an edge
-            widthup = self.apwidth / 2
-            widthdn = self.apwidth / 2
+            widthup = self.apwidth / 2.
+            widthdn = self.apwidth / 2.
             if (trace_line[i] + widthup > img.shape[0]):
-                widthup = img.shape[0] - trace_line[i] - 1
+                widthup = img.shape[0] - trace_line[i] - 1.
             if (trace_line[i] - widthdn < 0):
-                widthdn = trace_line[i] - 1
+                widthdn = trace_line[i] - 1.
+
+            # compute nearest integer endpoints defining an internal interval,
+            # and fractional pixel areas that remain outside this interval.
+            # This is how the HST STIS pipeline extraction code does it:
+            # https://github.com/spacetelescope/hstcal/blob/master/pkg/stis/calstis/cs6/x1dspec.c
+            #
+            # This assumes that the pixel coordinates represent the center of the pixel.
+            # E.g. pixel with y=15.0 covers the image from y=14.5 to y=15.5
+
+            ilow_end = trace_line[i] - widthdn
+            if (ilow_end - int(ilow_end)) < 0.5:
+                j1 = int(ilow_end)
+            else:
+                j1 = int(ilow_end + 1)
+
+            ihigh_end = trace_line[i] + widthdn
+            if (ihigh_end - int(ihigh_end)) < 0.5:
+                j2 = int(ihigh_end)
+            else:
+                j2 = int(ihigh_end + 1)
+
+            s1 = 0.5 - (ilow_end - j1)
+            s2 = 0.5 + ihigh_end - j2
+
+            # print("@@@@  extract.py-99: ", ilow_end, j1, s1, "  ", ihigh_end, j2, s2)
 
             # simply add up the total flux around the trace_line +/- width
-            onedspec[i] = np.nansum(
-                img[int(trace_line[i] - widthdn):int(trace_line[i] + widthup + 1), i]
-            )
+            onedspec[i] = np.nansum(img[j1+1:j2, i])
+            onedspec[i] += np.nansum(img[j1, i]) * s1
+            onedspec[i] += np.nansum(img[j2, i]) * s2
 
             # now do the sky fit
             itrace_line = int(trace_line[i])
