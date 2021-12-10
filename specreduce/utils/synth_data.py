@@ -20,7 +20,9 @@ def make_2dspec_image(
     source_alpha=0.1
 ):
     """
-    Create synthetic 2D spectroscopic image with a single source.
+    Create synthetic 2D spectroscopic image with a single source. The spatial (y-axis) position
+    of the source along the dispersion (x-axis) direction is modeled using a Chebyshev polynomial.
+    The flux units are counts and the noise is modeled as Poisson.
 
     Parameters
     ----------
@@ -39,7 +41,7 @@ def make_2dspec_image(
     source_amplitude : int (default=10)
         Amplitude of modeled source in counts
     source_alpha : float (default=0.1)
-        Power index of the sources Moffat profile. Use small number here to emulate extended source.
+        Power index of the source's Moffat profile. Use small number here to emulate extended source.
 
     Returns
     -------
