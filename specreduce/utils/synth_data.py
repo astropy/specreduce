@@ -41,7 +41,8 @@ def make_2dspec_image(
     source_amplitude : int (default=10)
         Amplitude of modeled source in counts
     source_alpha : float (default=0.1)
-        Power index of the source's Moffat profile. Use small number here to emulate extended source.
+        Power index of the source's Moffat profile. Use small number here to emulate
+        extended source.
 
     Returns
     -------
