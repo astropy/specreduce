@@ -73,37 +73,14 @@ class BoxcarExtract(SpecreduceOperation):
             if (trace_line[i] - widthdn < 0):
                 widthdn = trace_line[i] - 1.
 
-            # compute nearest integer endpoints defining an internal interval,
-            # and fractional pixel areas that remain outside this interval.
-            # This is how the HST STIS pipeline extraction code does it:
-            # https://github.com/spacetelescope/hstcal/blob/master/pkg/stis/calstis/cs6/x1dspec.c
-            #
-            # This assumes that the pixel coordinates represent the center of the pixel.
-            # E.g. pixel with y=15.0 covers the image from y=14.5 to y=15.5
+            # extract from box around the trace line
+            low_end = trace_line[i] - widthdn
+            high_end = trace_line[i] + widthdn
 
-            ilow_end = trace_line[i] - widthdn
-            if (ilow_end - int(ilow_end)) < 0.5:
-                j1 = int(ilow_end)
-            else:
-                j1 = int(ilow_end + 1)
-
-            ihigh_end = trace_line[i] + widthdn
-            if (ihigh_end - int(ihigh_end)) < 0.5:
-                j2 = int(ihigh_end)
-            else:
-                j2 = int(ihigh_end + 1)
-
-            s1 = 0.5 - (ilow_end - j1)
-            s2 = 0.5 + ihigh_end - j2
-
-            # print("@@@@  extract.py-99: ", ilow_end, j1, s1, "  ", ihigh_end, j2, s2)
-
-            # simply add up the total flux around the trace_line +/- width
-            onedspec[i] = np.nansum(img[j1+1:j2, i])
-            onedspec[i] += np.nansum(img[j1, i]) * s1
-            onedspec[i] += np.nansum(img[j2, i]) * s2
+            self._extract_from_box(img, i, low_end, high_end, onedspec)
 
             # now do the sky fit
+            # TODO add fractional pixel handling
             itrace_line = int(trace_line[i])
             sky_y = np.append(
                 np.arange(
@@ -161,6 +138,35 @@ class BoxcarExtract(SpecreduceOperation):
         )
 
         return spec, skyspec
+
+    def _extract_from_box(self, image, wave_index, low_end, high_end, extracted_result):
+
+        # compute nearest integer endpoints defining an internal interval,
+        # and fractional pixel areas that remain outside this interval.
+        # This is how the HST STIS pipeline extraction code does it:
+        # https://github.com/spacetelescope/hstcal/blob/master/pkg/stis/calstis/cs6/x1dspec.c
+        #
+        # This assumes that the pixel coordinates represent the center of the pixel.
+        # E.g. pixel at y=15.0 covers the image from y=14.5 to y=15.5
+
+        j1 = self._find_nearest_int(low_end)
+        j2 = self._find_nearest_int(high_end)
+
+        s1 = 0.5 - (low_end - j1)
+        s2 = 0.5 + high_end - j2
+
+        # print("@@@@  extract.py-99: ", ilow_end, j1, s1, "  ", ihigh_end, j2, s2)
+
+        # add up the total flux around the trace_line
+        extracted_result[wave_index] = np.nansum(image[j1 + 1:j2, wave_index])
+        extracted_result[wave_index] += np.nansum(image[j1, wave_index]) * s1
+        extracted_result[wave_index] += np.nansum(image[j2, wave_index]) * s2
+
+    def _find_nearest_int(self, end_point):
+        if (end_point % 1) < 0.5:
+            return int(end_point)
+        else:
+            return int(end_point + 1)
 
     def get_checkplot(self):
         trace_line = self.last_trace.line
