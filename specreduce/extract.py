@@ -111,7 +111,7 @@ class BoxcarExtract(SpecreduceOperation):
             # finally, compute the error in this pixel
             sigma_bkg = np.nanstd(sky_flux)  # stddev in the background data
             n_bkg = np.float(len(sky_y))  # number of bkgd pixels
-            n_ap = self.apwidth * 2. + 1  # number of aperture pixels
+            n_ap = self.apwidth  # number of aperture pixels
 
             # based on aperture phot err description by F. Masci, Caltech:
             # http://wise2.ipac.caltech.edu/staff/fmasci/ApPhotUncert.pdf
