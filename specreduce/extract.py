@@ -80,37 +80,33 @@ class BoxcarExtract(SpecreduceOperation):
             self._extract_from_box(img, i, low_end, high_end, onedspec)
 
             # now do the sky fit
-            # TODO add fractional pixel handling
-            itrace_line = int(trace_line[i])
-            sky_y = np.append(
-                np.arange(
-                    int(itrace_line - self.apwidth/2 - self.skysep - self.skywidth/2),
-                    int(itrace_line - self.apwidth/2 - self.skysep)
-                ),
-                np.arange(
-                    int(itrace_line + self.apwidth/2 + self.skysep + 1),
-                    int(itrace_line + self.apwidth/2 + self.skysep + self.skywidth/2 + 1)
-                )
-            )
+            j1 = self._find_nearest_int(trace_line[i] - self.apwidth/2. - self.skysep - self.skywidth)
+            j2 = self._find_nearest_int(trace_line[i] - self.apwidth/2. - self.skysep)
+            sky_y_1 = np.arange(j1, j2)
+
+            j1 = self._find_nearest_int(trace_line[i] + self.apwidth/2. + self.skysep)
+            j2 = self._find_nearest_int(trace_line[i] + self.apwidth/2. + self.skysep + self.skywidth)
+            sky_y_2 = np.arange(j1, j2)
+
+            sky_y = np.append(sky_y_1, sky_y_2)
 
             # sky can't be outside image
             np_indices = np.indices(img[::, i].shape) # put this outside loop
             sky_y = np.intersect1d(sky_y, np_indices)
 
-            # TODO add fractional pixel handling
             sky_flux = img[sky_y, i]
             if (self.skydeg > 0):
                 # fit a polynomial to the sky in this column
                 pfit = np.polyfit(sky_y, sky_flux, self.skydeg)
                 # define the aperture in this column
                 ap = np.arange(
-                    trace_line[i] - self.apwidth,
-                    trace_line[i] + self.apwidth + 1
+                    self._find_nearest_int(trace_line[i] - self.apwidth/2.),
+                    self._find_nearest_int(trace_line[i] + self.apwidth/2.)
                 )
                 # evaluate the polynomial across the aperture, and sum
                 skysubflux[i] = np.nansum(np.polyval(pfit, ap))
             elif (self.skydeg == 0):
-                skysubflux[i] = np.nanmean(sky_flux) * (self.apwidth * 2.0 + 1)
+                skysubflux[i] = np.nanmean(sky_flux) * self.apwidth
 
             # finally, compute the error in this pixel
             sigma_bkg = np.nanstd(sky_flux)  # stddev in the background data
@@ -143,19 +139,19 @@ class BoxcarExtract(SpecreduceOperation):
 
         # compute nearest integer endpoints defining an internal interval,
         # and fractional pixel areas that remain outside this interval.
-        # This is how the HST STIS pipeline extraction code does it:
-        # https://github.com/spacetelescope/hstcal/blob/master/pkg/stis/calstis/cs6/x1dspec.c
+        # (taken from the HST STIS pipeline code:
+        # https://github.com/spacetelescope/hstcal/blob/master/pkg/stis/calstis/cs6/x1dspec.c)
         #
         # This assumes that the pixel coordinates represent the center of the pixel.
         # E.g. pixel at y=15.0 covers the image from y=14.5 to y=15.5
 
+        # nearest integer endpoints
         j1 = self._find_nearest_int(low_end)
         j2 = self._find_nearest_int(high_end)
 
+        # fractional pixel areas at the end points
         s1 = 0.5 - (low_end - j1)
         s2 = 0.5 + high_end - j2
-
-        # print("@@@@  extract.py-99: ", ilow_end, j1, s1, "  ", ihigh_end, j2, s2)
 
         # add up the total flux around the trace_line
         extracted_result[wave_index] = np.nansum(image[j1 + 1:j2, wave_index])
