@@ -80,6 +80,8 @@ class BoxcarExtract(SpecreduceOperation):
             self._extract_from_box(img, i, low_end, high_end, onedspec)
 
             # now do the sky fit
+            # Note that we are not including fractional pixels, since we are doing
+            # a polynomial fit over the sky values.
             j1 = self._find_nearest_int(trace_line[i] - self.apwidth/2. - self.skysep - self.skywidth)
             j2 = self._find_nearest_int(trace_line[i] - self.apwidth/2. - self.skysep)
             sky_y_1 = np.arange(j1, j2)
