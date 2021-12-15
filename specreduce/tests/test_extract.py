@@ -96,3 +96,17 @@ def test_sky_extraction():
     spectrum, bkg_spectrum = boxcar(image, trace)
     assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 98.))
 
+
+def test_outside_image_condition():
+    #
+    # Trace is such that one of the sky regions lays partially outside the image
+    #
+    boxcar = BoxcarExtract()
+
+    boxcar.apwidth = 5.
+    boxcar.skysep: int = 2
+    boxcar.skywidth = 5.
+
+    trace = Trace(22.0)
+    spectrum, bkg_spectrum = boxcar(image, trace)
+    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 99.375))
