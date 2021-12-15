@@ -34,16 +34,25 @@ def test_extraction():
     spectrum, bkg_spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 72.5))
 
+    trace = Trace(14.7)
+    spectrum, bkg_spectrum = boxcar(image, trace)
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 73.5))
+
     boxcar.apwidth = 6
 
     trace = Trace(15.0)
     spectrum, bkg_spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 90.))
 
-    boxcar.apwidth = 6
     trace = Trace(14.5)
     spectrum, bkg_spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 87.))
+
+    boxcar.apwidth = 4.5
+
+    trace = Trace(15.0)
+    spectrum, bkg_spectrum = boxcar(image, trace)
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.5))
 
 
 def test_sky_extraction():
