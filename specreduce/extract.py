@@ -82,18 +82,20 @@ class BoxcarExtract(SpecreduceOperation):
             # now do the sky fit
             # Note that we are not including fractional pixels, since we are doing
             # a polynomial fit over the sky values.
-            j1 = self._find_nearest_int(trace_line[i] - self.apwidth/2. - self.skysep - self.skywidth)
+            j1 = self._find_nearest_int(trace_line[i] - self.apwidth/2. -
+                                        self.skysep - self.skywidth)
             j2 = self._find_nearest_int(trace_line[i] - self.apwidth/2. - self.skysep)
             sky_y_1 = np.arange(j1, j2)
 
             j1 = self._find_nearest_int(trace_line[i] + self.apwidth/2. + self.skysep)
-            j2 = self._find_nearest_int(trace_line[i] + self.apwidth/2. + self.skysep + self.skywidth)
+            j2 = self._find_nearest_int(trace_line[i] + self.apwidth/2. +
+                                        self.skysep + self.skywidth)
             sky_y_2 = np.arange(j1, j2)
 
             sky_y = np.append(sky_y_1, sky_y_2)
 
             # sky can't be outside image
-            np_indices = np.indices(img[::, i].shape) # put this outside loop
+            np_indices = np.indices(img[::, i].shape)
             sky_y = np.intersect1d(sky_y, np_indices)
 
             sky_flux = img[sky_y, i]
