@@ -18,19 +18,26 @@ class BasicTrace:
     image : `~astropy.nddata.CCDData`
         Image to be traced
     trace_pos : float
-        Position of trace along vertical axis
+        Position of trace along vertical axis. If not specified, set to middle of vertical axis
     """
     image: CCDData
-    trace_pos: float
+    trace_pos: float = None
 
     def __post_init__(self):
-        self.trace = np.ones_like(self.image[0]) * self.trace_pos
+        if self.trace_pos is None:
+            self.trace_pos = self.image.shape[0] / 2
+        self.__call__(self.trace_pos)
 
     def __getitem__(self, i):
         return self.trace[i]
 
-    def __call__(self, i):
-        return self.trace[i]
+    def __call__(self, trace_pos):
+        """
+        Set vertical position of the trace and calculate the trace
+        """
+        self.trace_pos = trace_pos
+        self.trace = np.ones_like(self.image[0]) * self.trace_pos
+        return self.trace
 
     @property
     def shape(self):
