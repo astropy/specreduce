@@ -1,5 +1,4 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
-# This module implements the base CCDPROC functions
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -41,7 +40,7 @@ class BoxcarExtract(SpecreduceOperation):
     """
     apwidth: int = 8
     skysep: int = 3
-    skywidth = 7
+    skywidth: int = 7
     skydeg: int = 0
 
     def __call__(self, img, trace_object):
