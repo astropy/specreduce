@@ -14,7 +14,7 @@ for j in range(image.shape[0]):
 # Mock a Trace class that represents a line parallel to the image rows.
 class Trace:
     def __init__(self, position):
-        self.line = np.ones(shape=(10,)) * position
+        self.trace = np.ones(shape=(10,)) * position
 
 
 def test_extraction():
@@ -62,7 +62,7 @@ def test_sky_extraction():
     boxcar = BoxcarExtract()
 
     boxcar.apwidth = 5.
-    boxcar.skysep: int = 2
+    boxcar.skysep = int(2)
     boxcar.skywidth = 5.
 
     trace = Trace(15.0)
@@ -94,7 +94,7 @@ def test_sky_extraction():
     assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 70.))
 
     boxcar.apwidth = 7.
-    boxcar.skysep: int = 3
+    boxcar.skysep = int(3)
     boxcar.skywidth = 8.
 
     trace = Trace(15.0)
@@ -113,7 +113,7 @@ def test_outside_image_condition():
     boxcar = BoxcarExtract()
 
     boxcar.apwidth = 5.
-    boxcar.skysep: int = 2
+    boxcar.skysep = int(2)
     boxcar.skywidth = 5.
 
     trace = Trace(22.0)

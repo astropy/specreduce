@@ -1,7 +1,5 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 # This module implements the base CCDPROC functions
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -57,7 +55,7 @@ class BoxcarExtract(SpecreduceOperation):
         if self.skywidth < 1:
             raise ValueError('skywidth must be >= 1')
 
-        trace_line = trace_object.line
+        trace_line = trace_object.trace
 
         onedspec = np.zeros_like(trace_line)
         skysubflux = np.zeros_like(trace_line)
