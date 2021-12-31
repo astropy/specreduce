@@ -12,3 +12,9 @@ def test_basictrace():
     assert(t[0] == t_pos)
     assert(t[0] == t[-1])
     assert(t.shape[0] == im.shape[1])
+
+    t2 = BasicTrace(im)
+    assert(t2.trace_pos == t_pos)
+
+    t2(600)
+    assert(t2.trace_pos == 600.)
