@@ -15,6 +15,7 @@ for j in range(image.shape[0]):
     image[j, ::] *= j
 image = CCDData(image, unit=u.count)
 
+
 def test_extraction():
     #
     # Try combinations of extraction center, and even/odd

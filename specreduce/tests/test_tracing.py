@@ -1,4 +1,3 @@
-from photutils.datasets import make
 from specreduce.utils.synth_data import make_2dspec_image
 from specreduce.tracing import BasicTrace
 
