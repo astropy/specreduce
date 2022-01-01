@@ -11,14 +11,16 @@ __all__ = ['Trace']
 @dataclass
 class Trace:
     """
-    Basic tracing class that by default traces a constant horizontal position, trace_pos, in the image.
+    Basic tracing class that by default traces a constant horizontal
+    position, trace_pos, in the image.
 
     Parameters
     ----------
     image : `~astropy.nddata.CCDData`
         Image to be traced
     trace_pos : float
-        Position of trace along vertical axis. If not specified, set to middle of vertical axis
+        Position of trace along vertical axis. If not specified, set to middle
+        of vertical axis
     """
     image: CCDData
     trace_pos: float = None
