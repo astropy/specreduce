@@ -5,13 +5,13 @@ from dataclasses import dataclass
 import numpy as np
 from astropy.nddata import CCDData
 
-__all__ = ['BasicTrace']
+__all__ = ['Trace']
 
 
 @dataclass
-class BasicTrace:
+class Trace:
     """
-    Basic tracing class that traces a constant horizontal position, trace_pos, in the image.
+    Basic tracing class that by default traces a constant horizontal position, trace_pos, in the image.
 
     Parameters
     ----------

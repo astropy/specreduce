@@ -4,7 +4,7 @@ import astropy.units as u
 from astropy.nddata import CCDData
 
 from specreduce.extract import BoxcarExtract
-from specreduce.tracing import BasicTrace
+from specreduce.tracing import Trace
 
 
 # Test image is comprised of 30 rows with 10 columns each. Row content
@@ -25,7 +25,7 @@ def test_extraction():
 
     boxcar.apwidth = 5
 
-    trace = BasicTrace(image, 15.0)
+    trace = Trace(image, 15.0)
     spectrum, bkg_spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
 
@@ -64,7 +64,7 @@ def test_sky_extraction():
     boxcar.skysep = int(2)
     boxcar.skywidth = 5.
 
-    trace = BasicTrace(image, 15.0)
+    trace = Trace(image, 15.0)
     spectrum, bkg_spectrum = boxcar(image, trace)
     assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 75.))
 
@@ -115,6 +115,6 @@ def test_outside_image_condition():
     boxcar.skysep = int(2)
     boxcar.skywidth = 5.
 
-    trace = BasicTrace(image, 22.0)
+    trace = Trace(image, 22.0)
     spectrum, bkg_spectrum = boxcar(image, trace)
     assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 99.375))
