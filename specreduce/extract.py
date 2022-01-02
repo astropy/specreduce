@@ -1,5 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
+from dataclasses import dataclass
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -12,6 +14,7 @@ from specutils import Spectrum1D
 __all__ = ['BoxcarExtract']
 
 
+@dataclass
 class BoxcarExtract(SpecreduceOperation):
     """
     Does a standard boxcar extraction
