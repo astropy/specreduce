@@ -1,19 +1,52 @@
+import numpy as np
+
 from specreduce.utils.synth_data import make_2dspec_image
-from specreduce.tracing import Trace
+from specreduce.tracing import Trace, FlatTrace, ArrayTrace
+
+IM = make_2dspec_image()
 
 
-# test basic tracing of row-parallel traces
-def test_basic_tracing():
-    im = make_2dspec_image()
-    t_pos = im.shape[0] / 2
-    t = Trace(im, t_pos)
+# test basic trace class
+def test_basic_trace():
+    t_pos = IM.shape[0] / 2
+    t = Trace(IM)
 
     assert(t[0] == t_pos)
     assert(t[0] == t[-1])
-    assert(t.shape[0] == im.shape[1])
+    assert(t.shape[0] == IM.shape[1])
 
-    t2 = Trace(im)
-    assert(t2.trace_pos == t_pos)
+    t.shift(100)
+    assert(t[0] == 600.)
 
-    t2(600)
-    assert(t2.trace_pos == 600.)
+    t.shift(-1000)
+    assert(np.ma.is_masked(t[0]))
+
+
+# test flat traces
+def test_flat_trace():
+    t = FlatTrace(IM, 550.)
+
+    assert(t.trace_pos == 550)
+    assert(t[0] == 550.)
+    assert(t[0] == t[-1])
+
+    t.set_position(400.)
+    assert(t[0] == 400.)
+
+    t.set_position(-100)
+    assert(np.ma.is_masked(t[0]))
+
+
+# test array traces
+def test_array_trace():
+    arr = np.ones_like(IM[0]) * 550.
+    t = ArrayTrace(IM, arr)
+
+    assert(t[0] == 550.)
+    assert(t[0] == t[-1])
+
+    t.shift(100)
+    assert(t[0] == 650.)
+
+    t.shift(-1000)
+    assert(np.ma.is_masked(t[0]))
