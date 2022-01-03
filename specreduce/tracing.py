@@ -50,11 +50,10 @@ class Trace:
 
     def _bound_trace(self):
         """
-        Set trace positions that are outside the bounds of the image to np.nan.
+        Mask trace positions that are outside the upper/lower bounds of the image.
         """
         ny = self.image.shape[0]
-        self.trace = np.ma.masked_where(self.trace >= ny, self.trace)
-        self.trace = np.ma.masked_where(self.trace < 0, self.trace)
+        self.trace = np.ma.masked_outside(self.trace, 0, ny-1)
 
 
 @dataclass
@@ -99,4 +98,15 @@ class ArrayTrace(Trace):
     trace: np.ndarray
 
     def __post_init__(self):
+        nx = self.image.shape[1]
+        nt = len(self.trace)
+        if nt != nx:
+            if nt > nx:
+                # truncate trace to fit image
+                self.trace = self.trace[0:nx]
+            else:
+                # assume trace starts at beginning of image and pad out trace to fit.
+                # padding will be the last value of the trace, but will be masked out.
+                padding = np.ma.MaskedArray(np.ones(nx - nt) * self.trace[-1], mask=True)
+                self.trace = np.ma.hstack([self.trace, padding])
         self._bound_trace()

@@ -50,3 +50,14 @@ def test_array_trace():
 
     t.shift(-1000)
     assert(np.ma.is_masked(t[0]))
+
+    arr_long = np.ones(5000) * 550.
+    t_long = ArrayTrace(IM, arr_long)
+
+    assert(t_long.shape[0] == IM.shape[1])
+
+    arr_short = np.ones(50) * 550.
+    t_short = ArrayTrace(IM, arr_short)
+
+    assert(t_short[0] == 550.)
+    assert(np.ma.is_masked(t_short[-1]))
