@@ -61,3 +61,4 @@ def test_array_trace():
 
     assert(t_short[0] == 550.)
     assert(np.ma.is_masked(t_short[-1]))
+    assert(t_short.shape[0] == IM.shape[1])
