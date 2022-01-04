@@ -62,8 +62,15 @@ class BoxcarExtract(SpecreduceOperation):
         onedspec = np.zeros_like(trace_line)
         skysubflux = np.zeros_like(trace_line)
         fluxerr = np.zeros_like(trace_line)
+        mask = np.zeros_like(trace_line, dtype=bool)
 
         for i in range(0, len(trace_line)):
+            # if the trace isn't defined at a position (e.g. if it is out of the image boundaries),
+            # it will be masked. so we propagate that into the output mask and move on.
+            if np.ma.is_masked(trace_line[i]):
+                mask[i] = True
+                continue
+
             # first do the aperture flux
             # juuuust in case the trace gets too close to an edge
             widthup = self.apwidth / 2.
@@ -120,7 +127,7 @@ class BoxcarExtract(SpecreduceOperation):
             # based on aperture phot err description by F. Masci, Caltech:
             # http://wise2.ipac.caltech.edu/staff/fmasci/ApPhotUncert.pdf
             fluxerr[i] = np.sqrt(
-                np.nansum(onedspec[i] - skysubflux[i]) + (n_ap + n_ap**22 / n_bkg) * (sigma_bkg**2)
+                np.nansum(onedspec[i] - skysubflux[i]) + (n_ap + n_ap**2 / n_bkg) * (sigma_bkg**2)
             )
 
         img_unit = u.DN
@@ -130,11 +137,13 @@ class BoxcarExtract(SpecreduceOperation):
         spec = Spectrum1D(
             spectral_axis=np.arange(len(onedspec)) * u.pixel,
             flux=onedspec * img_unit,
-            uncertainty=StdDevUncertainty(fluxerr)
+            uncertainty=StdDevUncertainty(fluxerr),
+            mask=mask
         )
         skyspec = Spectrum1D(
             spectral_axis=np.arange(len(onedspec)) * u.pixel,
-            flux=skysubflux * img_unit
+            flux=skysubflux * img_unit,
+            mask=mask
         )
 
         return spec, skyspec
