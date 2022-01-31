@@ -1,0 +1,11 @@
+astropy=5.0
+matplotlib==3.5.0
+numpy==1.21.4
+
+# remember the following:
+# git clone git@github.com:jradavenport/kosmos.git OR git clone https://github.com/jradavenport/kosmos
+# fix ".data" error in trace function
+# use location as argument to sys.path.insert()
+
+# will also need to clone specreduce
+# git clone git@github.com:astropy/specreduce.git OR git clone https://github.com/astropy/specreduce
