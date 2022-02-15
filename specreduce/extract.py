@@ -127,16 +127,19 @@ class BoxcarExtract(SpecreduceOperation):
     center: int = 10
     width: int = 8
 
-    #def __call__(self, image, trace_object):
-    def __call__(self, image, disp_axis, crossdisp_axis):
+    # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
+
+    def __call__(self, image, trace_object, disp_axis=1, crossdisp_axis=(0,)):
+    # def __call__(self, image, disp_axis, crossdisp_axis):
         """
         Extract the 1D spectrum using the boxcar method.
-        Does a background subtraction as part of the extraction.
 
         Parameters
         ----------
         image : ndarray
             array with 2-D spectral image data
+        trace_object : Trace
+            object with the trace
         disp_axis : int
             dispersion axis
         crossdisp_axis : int or tuple
@@ -151,6 +154,8 @@ class BoxcarExtract(SpecreduceOperation):
         """
 #        self.last_trace = trace_object
 #        self.last_image = image
+
+        self.center = trace_object.trace_pos
 
         for attr in ['center', 'width']:
             if getattr(self, attr) < 1:
