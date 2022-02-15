@@ -26,83 +26,32 @@ def test_extraction():
     boxcar.apwidth = 5
 
     trace = FlatTrace(image, 15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
 
     trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 72.5))
 
     trace.set_position(14.7)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 73.5))
 
     boxcar.apwidth = 6
 
     trace.set_position(15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 90.))
 
     trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 87.))
 
     boxcar.apwidth = 4.5
 
     trace.set_position(15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.5))
-
-
-def test_sky_extraction():
-    #
-    # Try combinations of sky extraction parameters
-    #
-    boxcar = BoxcarExtract()
-
-    boxcar.apwidth = 5.
-    boxcar.skysep = int(2)
-    boxcar.skywidth = 5.
-
-    trace = FlatTrace(image, 15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 75.))
-
-    trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 70.))
-
-    boxcar.skydeg = 1
-
-    trace.set_position(15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 75.))
-
-    trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 70.))
-
-    boxcar.skydeg = 2
-
-    trace.set_position(15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 75.))
-
-    trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 70.))
-
-    boxcar.apwidth = 7.
-    boxcar.skysep = int(3)
-    boxcar.skywidth = 8.
-
-    trace.set_position(15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 105.))
-
-    trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 98.))
 
 
 def test_outside_image_condition():
@@ -116,5 +65,5 @@ def test_outside_image_condition():
     boxcar.skywidth = 5.
 
     trace = FlatTrace(image, 22.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 99.375))
+    spectrum = boxcar(image, trace)
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 99.375))
