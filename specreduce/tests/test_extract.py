@@ -4,7 +4,7 @@ import astropy.units as u
 from astropy.nddata import CCDData
 
 from specreduce.extract import BoxcarExtract
-from specreduce.tracing import FlatTrace
+from specreduce.tracing import FlatTrace, ArrayTrace
 
 
 # Test image is comprised of 30 rows with 10 columns each. Row content
@@ -75,3 +75,16 @@ def test_outside_image_condition():
 
     spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 32.0))
+
+
+def test_array_trace():
+    boxcar = BoxcarExtract()
+
+    trace_array = np.ones_like(image[1]) * 15.
+
+    trace = ArrayTrace(image, trace_array)
+    boxcar.width = 5
+
+    spectrum = boxcar(image, trace)
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
+

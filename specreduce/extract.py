@@ -138,10 +138,12 @@ class BoxcarExtract(SpecreduceOperation):
         spec : `~specutils.Spectrum1D`
             The extracted 1d spectrum expressed in DN and pixel units
         """
-        self.center = trace_object.trace_pos
-        for attr in ['center', 'width']:
-            if getattr(self, attr) < 1:
-                raise ValueError(f'{attr} must be >= 1')
+        # this check only applies to FlatTrace instances
+        if hasattr(trace_object, 'trace_pos'):
+            self.center = trace_object.trace_pos
+            for attr in ['center', 'width']:
+                if getattr(self, attr) < 1:
+                    raise ValueError(f'{attr} must be >= 1')
 
         # images to use for extraction
         wimage = _ap_weight_image(
