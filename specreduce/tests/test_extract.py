@@ -87,4 +87,3 @@ def test_array_trace():
 
     spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
-
