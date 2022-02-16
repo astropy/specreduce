@@ -14,10 +14,8 @@ __all__ = ['BoxcarExtract']
 
 def _get_boxcar_weights(center, hwidth, npix):
     """
-    Compute the weights given an aperture center, half widths, and number of pixels
+    Compute weights given an aperture center, half width, and number of pixels
     """
-    # TODO: this code may fail when regions fall partially or entirely outside the image.
-
     weights = np.zeros((npix))
 
     # 2d
@@ -28,9 +26,13 @@ def _get_boxcar_weights(center, hwidth, npix):
 
         # pixels at the edges of the boxcar with partial weight
         if fullpixels[0] > 0:
-            weights[fullpixels[0] - 1] = hwidth - (center - fullpixels[0])
+            w = hwidth - (center - fullpixels[0] + 0.5)
+            if w >= 0:
+                weights[fullpixels[0] - 1] = w
+            else:
+                weights[fullpixels[0]] = 1. + w
         if fullpixels[1] < npix:
-            weights[fullpixels[1]] = hwidth - (fullpixels[1] - center)
+            weights[fullpixels[1]] = hwidth - (fullpixels[1] - center - 0.5)
     # 3d
     else:
         # pixels with full weight
@@ -43,31 +45,28 @@ def _get_boxcar_weights(center, hwidth, npix):
     return weights
 
 
-def _ap_weight_images(center, width, disp_axis, crossdisp_axis, image_shape):
+def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
 
     """
     Create a weight image that defines the desired extraction aperture.
 
     Parameters
     ----------
-    center : float
-        center of aperture in pixels
+    trace : Trace
+        trace object
     width : float
-        width of apeture in pixels
+        width of extraction aperture in pixels
     disp_axis : int
         dispersion axis
-    crossdisp_axis : int or tuple
+    crossdisp_axis : int (2D image) or tuple (3D image)
         cross-dispersion axis
     image_shape : tuple with 2 or 3 elements
         size (shape) of image
-    wavescale : float
-        scale the width with wavelength (default=None)
-        wavescale gives the reference wavelenth for the width value  NOT USED
 
     Returns
     -------
-    wimage : 2D image, 2D image
-        weight image defining the aperature
+    wimage : 2D image
+        weight image defining the aperture
     """
     wimage = np.zeros(image_shape)
     hwidth = 0.5 * width
@@ -82,19 +81,15 @@ def _ap_weight_images(center, width, disp_axis, crossdisp_axis, image_shape):
         image_sizes = image_shape_array[crossdisp_axis_array]
         image_sizes = tuple(image_sizes.tolist())
 
-    # loop in dispersion direction and compute weights
-    #
-    # This loop may be removed or highly cleaned up, replaced by
-    # vectorized operations, when the extraction parameters are the
-    # same in every image column. We leave it in place for now, so
-    # the code may be upgraded later to support height-variable and
-    # PSF-weighted extraction modes.
-
+    # loop in dispersion direction and compute weights.
     for i in range(image_shape[disp_axis]):
         if len(crossdisp_axis) == 1:
-            wimage[:, i] = _get_boxcar_weights(center, hwidth, image_sizes)
+            # 2d
+            # TODO trace must handle transposed data (disp_axis == 0)
+            wimage[:, i] = _get_boxcar_weights(trace[i], hwidth, image_sizes)
         else:
-            wimage[i, ::] = _get_boxcar_weights(center, hwidth, image_sizes)
+            # 3d
+            wimage[i, ::] = _get_boxcar_weights(trace[i], hwidth, image_sizes)
 
     return wimage
 
@@ -107,63 +102,50 @@ class BoxcarExtract(SpecreduceOperation):
     Parameters
     ----------
     image : nddata-compatible image
-        The input image
-    trace_object :
-        The trace of the spectrum to be extracted TODO: define
-    center : float
-        center of aperture in pixels
+        image with 2-D spectral image data
     width : float
-        width of aperture in pixels
+        width of extraction aperture in pixels
 
     Returns
     -------
     spec : `~specutils.Spectrum1D`
-        The extracted spectrum
-    skyspec : `~specutils.Spectrum1D`
-        The sky spectrum used in the extraction process
+        The extracted 1d spectrum expressed in DN and pixel units
     """
-    # TODO: what are reasonable defaults?
-    # TODO: ints or floats?
-    center: int = 10
-    width: int = 8
+    # TODO: what is a reasonable default?
+    # TODO: int or float?
+    width: int = 5
 
     # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
 
     def __call__(self, image, trace_object, disp_axis=1, crossdisp_axis=(0,)):
-    # def __call__(self, image, disp_axis, crossdisp_axis):
         """
         Extract the 1D spectrum using the boxcar method.
 
         Parameters
         ----------
-        image : ndarray
-            array with 2-D spectral image data
+        image : nddata-compatible image
+            image with 2-D spectral image data
         trace_object : Trace
             object with the trace
         disp_axis : int
             dispersion axis
-        crossdisp_axis : int or tuple
+        crossdisp_axis : tuple (to support both 2D and 3D data)
             cross-dispersion axis
 
 
         Returns
         -------
-        waves, ext1d : (ndarray, ndarray)
-            2D `float` array with wavelengths
-            1D `float` array with extracted 1d spectrum in Jy
+        spec : `~specutils.Spectrum1D`
+            The extracted 1d spectrum expressed in DN and pixel units
         """
-#        self.last_trace = trace_object
-#        self.last_image = image
-
         self.center = trace_object.trace_pos
-
         for attr in ['center', 'width']:
             if getattr(self, attr) < 1:
                 raise ValueError(f'{attr} must be >= 1')
 
         # images to use for extraction
-        wimage = _ap_weight_images(
-            self.center,
+        wimage = _ap_weight_image(
+            trace_object,
             self.width,
             disp_axis,
             crossdisp_axis,

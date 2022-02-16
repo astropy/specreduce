@@ -22,10 +22,9 @@ def test_extraction():
     # extraction aperture sizes.
     #
     boxcar = BoxcarExtract()
-
-    boxcar.apwidth = 5
-
     trace = FlatTrace(image, 15.0)
+    boxcar.width = 5
+
     spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
 
@@ -37,7 +36,7 @@ def test_extraction():
     spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 73.5))
 
-    boxcar.apwidth = 6
+    boxcar.width = 6
 
     trace.set_position(15.0)
     spectrum = boxcar(image, trace)
@@ -47,23 +46,32 @@ def test_extraction():
     spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 87.))
 
-    boxcar.apwidth = 4.5
+    boxcar.width = 4.5
 
     trace.set_position(15.0)
     spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.5))
 
+    boxcar.width = 4.7
+
+    trace.set_position(15.0)
+    spectrum = boxcar(image, trace)
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 70.5))
+
+    boxcar.width = 4.7
+
+    trace.set_position(14.3)
+    spectrum = boxcar(image, trace)
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.0))
+
 
 def test_outside_image_condition():
     #
-    # Trace is such that one of the sky regions lays partially outside the image
+    # Trace is such that extraction aperture lays partially outside the image
     #
     boxcar = BoxcarExtract()
+    trace = FlatTrace(image, 3.0)
+    boxcar.width = 10.
 
-    boxcar.apwidth = 5.
-    boxcar.skysep = int(2)
-    boxcar.skywidth = 5.
-
-    trace = FlatTrace(image, 22.0)
     spectrum = boxcar(image, trace)
-    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 99.375))
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 32.0))
