@@ -136,7 +136,8 @@ class BoxcarExtract(SpecreduceOperation):
         Returns
         -------
         spec : `~specutils.Spectrum1D`
-            The extracted 1d spectrum expressed in DN and pixel units
+            The extracted 1d spectrum with flux expressed in the same
+            units as the input image, or u.DN, and pixel units
         """
         # this check only applies to FlatTrace instances
         if hasattr(trace_object, 'trace_pos'):
