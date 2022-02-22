@@ -157,8 +157,13 @@ class BoxcarExtract(SpecreduceOperation):
         # spatial axis to collapse. This should be handled by the API somehow.
         ext1d = np.sum(image * wimage, axis=crossdisp_axis)
 
-        # TODO: add uncertainty and mask to spectrum1D object
+        # propagate image flux units into spectrum
+        unit = u.DN
+        if hasattr(image, 'unit') and image.unit is not None:
+            unit = image.unit
+
+        # TODO: add wavelenght units, uncertainty and mask to spectrum1D object
         spec = Spectrum1D(spectral_axis=np.arange(len(ext1d)) * u.pixel,
-                          flux=ext1d * getattr(image, 'unit', u.DN))
+                          flux=ext1d * getattr(image, 'unit', unit))
 
         return spec
