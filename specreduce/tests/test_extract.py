@@ -13,7 +13,7 @@ from specreduce.tracing import FlatTrace, ArrayTrace
 image = np.ones(shape=(30, 10))
 for j in range(image.shape[0]):
     image[j, ::] *= j
-image = CCDData(image, unit=u.AA)
+image = CCDData(image, unit=u.Jy)
 
 
 def test_extraction():
@@ -27,7 +27,7 @@ def test_extraction():
 
     spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
-    assert spectrum.unit is not None and spectrum.unit == u.AA
+    assert spectrum.unit is not None and spectrum.unit == u.Jy
 
     trace.set_position(14.5)
     spectrum = boxcar(image, trace)
