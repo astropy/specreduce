@@ -23,7 +23,6 @@ def test_extraction():
     #
     boxcar = BoxcarExtract()
     trace = FlatTrace(image, 15.0)
-    boxcar.width = 5
 
     spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
@@ -37,32 +36,24 @@ def test_extraction():
     spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 73.5))
 
-    boxcar.width = 6
-
     trace.set_position(15.0)
-    spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace, width=6)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 90.))
 
     trace.set_position(14.5)
-    spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace, width=6)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 87.))
 
-    boxcar.width = 4.5
-
     trace.set_position(15.0)
-    spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace, width=4.5)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.5))
 
-    boxcar.width = 4.7
-
     trace.set_position(15.0)
-    spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace, width=4.7)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 70.5))
 
-    boxcar.width = 4.7
-
     trace.set_position(14.3)
-    spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace, width=4.7)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.0))
 
 
@@ -72,9 +63,8 @@ def test_outside_image_condition():
     #
     boxcar = BoxcarExtract()
     trace = FlatTrace(image, 3.0)
-    boxcar.width = 10.
 
-    spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace, width=10.)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 32.0))
 
 
@@ -84,7 +74,6 @@ def test_array_trace():
     trace_array = np.ones_like(image[1]) * 15.
 
     trace = ArrayTrace(image, trace_array)
-    boxcar.width = 5
 
     spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))

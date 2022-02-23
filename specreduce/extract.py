@@ -14,12 +14,14 @@ __all__ = ['BoxcarExtract']
 
 def _get_boxcar_weights(center, hwidth, npix):
     """
-    Compute weights given an aperture center, half width, and number of pixels
+    Compute weights given an aperture center, half width,
+    and number of pixels
     """
     weights = np.zeros((npix))
 
     # pixels with full weight
-    fullpixels = [max(0, int(center - hwidth + 1)), min(int(center + hwidth), npix)]
+    fullpixels = [max(0, int(center - hwidth + 1)),
+                  min(int(center + hwidth), npix)]
     weights[fullpixels[0]:fullpixels[1]] = 1.0
 
     # pixels at the edges of the boxcar with partial weight
@@ -60,7 +62,7 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
     """
     wimage = np.zeros(image_shape)
     hwidth = 0.5 * width
-    image_sizes = image_shape[crossdisp_axis[0]]
+    image_sizes = image_shape[crossdisp_axis]
 
     # loop in dispersion direction and compute weights.
     for i in range(image_shape[disp_axis]):
@@ -79,20 +81,25 @@ class BoxcarExtract(SpecreduceOperation):
     ----------
     image : nddata-compatible image
         image with 2-D spectral image data
+    trace_object : Trace
+        trace object
     width : float
         width of extraction aperture in pixels
+    disp_axis : int
+        dispersion axis
+    crossdisp_axis : int
+        cross-dispersion axis
 
     Returns
     -------
     spec : `~specutils.Spectrum1D`
         The extracted 1d spectrum expressed in DN and pixel units
     """
-    # TODO: what is a reasonable default?
-    width: float = 5.
 
     # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
 
-    def __call__(self, image, trace_object, disp_axis=1, crossdisp_axis=(0,)):
+    def __call__(self, image, trace_object, width=5,
+                 disp_axis=1, crossdisp_axis=0):
         """
         Extract the 1D spectrum using the boxcar method.
 
@@ -101,7 +108,9 @@ class BoxcarExtract(SpecreduceOperation):
         image : nddata-compatible image
             image with 2-D spectral image data
         trace_object : Trace
-            object with the trace
+            trace object
+        width : float
+            width of extraction aperture in pixels
         disp_axis : int
             dispersion axis
         crossdisp_axis : int
@@ -116,15 +125,13 @@ class BoxcarExtract(SpecreduceOperation):
         """
         # this check only applies to FlatTrace instances
         if hasattr(trace_object, 'trace_pos'):
-            self.center = trace_object.trace_pos
-            for attr in ['center', 'width']:
-                if getattr(self, attr) < 1:
-                    raise ValueError(f'{attr} must be >= 1')
+            if trace_object.trace_pos < 1:
+                raise ValueError(f'{trace_object.trace_pos} must be >= 1')
 
         # weight image to use for extraction
         wimage = _ap_weight_image(
             trace_object,
-            self.width,
+            width,
             disp_axis,
             crossdisp_axis,
             image.shape)
