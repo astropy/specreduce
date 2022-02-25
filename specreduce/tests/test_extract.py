@@ -4,7 +4,7 @@ import astropy.units as u
 from astropy.nddata import CCDData
 
 from specreduce.extract import BoxcarExtract
-from specreduce.tracing import FlatTrace
+from specreduce.tracing import FlatTrace, ArrayTrace
 
 
 # Test image is comprised of 30 rows with 10 columns each. Row content
@@ -13,7 +13,7 @@ from specreduce.tracing import FlatTrace
 image = np.ones(shape=(30, 10))
 for j in range(image.shape[0]):
     image[j, ::] *= j
-image = CCDData(image, unit=u.count)
+image = CCDData(image, unit=u.Jy)
 
 
 def test_extraction():
@@ -22,99 +22,58 @@ def test_extraction():
     # extraction aperture sizes.
     #
     boxcar = BoxcarExtract()
-
-    boxcar.apwidth = 5
-
     trace = FlatTrace(image, 15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+
+    spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
+    assert spectrum.unit is not None and spectrum.unit == u.Jy
 
     trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 72.5))
 
     trace.set_position(14.7)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 73.5))
 
-    boxcar.apwidth = 6
-
     trace.set_position(15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace, width=6)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 90.))
 
     trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace, width=6)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 87.))
 
-    boxcar.apwidth = 4.5
-
     trace.set_position(15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
+    spectrum = boxcar(image, trace, width=4.5)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.5))
 
-
-def test_sky_extraction():
-    #
-    # Try combinations of sky extraction parameters
-    #
-    boxcar = BoxcarExtract()
-
-    boxcar.apwidth = 5.
-    boxcar.skysep = int(2)
-    boxcar.skywidth = 5.
-
-    trace = FlatTrace(image, 15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 75.))
-
-    trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 70.))
-
-    boxcar.skydeg = 1
-
     trace.set_position(15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 75.))
+    spectrum = boxcar(image, trace, width=4.7)
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 70.5))
 
-    trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 70.))
-
-    boxcar.skydeg = 2
-
-    trace.set_position(15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 75.))
-
-    trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 70.))
-
-    boxcar.apwidth = 7.
-    boxcar.skysep = int(3)
-    boxcar.skywidth = 8.
-
-    trace.set_position(15.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 105.))
-
-    trace.set_position(14.5)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 98.))
+    trace.set_position(14.3)
+    spectrum = boxcar(image, trace, width=4.7)
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.0))
 
 
 def test_outside_image_condition():
     #
-    # Trace is such that one of the sky regions lays partially outside the image
+    # Trace is such that extraction aperture lays partially outside the image
     #
     boxcar = BoxcarExtract()
+    trace = FlatTrace(image, 3.0)
 
-    boxcar.apwidth = 5.
-    boxcar.skysep = int(2)
-    boxcar.skywidth = 5.
+    spectrum = boxcar(image, trace, width=10.)
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 32.0))
 
-    trace = FlatTrace(image, 22.0)
-    spectrum, bkg_spectrum = boxcar(image, trace)
-    assert np.allclose(bkg_spectrum.flux.value, np.full_like(bkg_spectrum.flux.value, 99.375))
+
+def test_array_trace():
+    boxcar = BoxcarExtract()
+
+    trace_array = np.ones_like(image[1]) * 15.
+
+    trace = ArrayTrace(image, trace_array)
+
+    spectrum = boxcar(image, trace)
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
