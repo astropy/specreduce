@@ -154,8 +154,9 @@ class HorneExtract(SpecreduceOperation):
     two-dimensional spectrum.
     """
 
-    def __call__(self, image, weights, trace_object, width, column,
-                 disp_axis=1, crossdisp_axis=0):
+    def __call__(self, image, variance, trace_object,
+                 disp_axis=1, crossdisp_axis=0,
+                 bkgrd_prof=models.Polynomial1D(2)):
         """
         Run the Horne calculation on a region of an image and extract a
         1D spectrum.
@@ -163,23 +164,15 @@ class HorneExtract(SpecreduceOperation):
         Parameters
         ----------
 
-        image : `~astropy.nddata.CCDData` or array???, required
+        image : `~astropy.nddata.CCDData` or array-like, required
             The input 2D spectrum from which to extract a source.
 
-        weights : `~astropy.nddata.CCDData` or array???, required
-            The associated weights for each pixel of the image. Should
-            have the same dimensions.
+        variance : `~astropy.nddata.CCDData` or array-like, required
+            The associated variances for each pixel in the image.
+            Should have the same dimensions as `image`.
 
         trace_object : `~specreduce.tracing.Trace`, required
             The associated 1D trace object created for the 2D image.
-
-        width : int, required
-            The width of the kernel defining the extraction slice.
-            Measured in the dispersion direction.
-
-        column : int, required
-            The initial column of the extraction slice. The slice will
-            cover columns `column` to `column + width`.
 
         disp_axis : int, optional
             The index of the image's dispersion axis. [default: 1]
@@ -187,51 +180,46 @@ class HorneExtract(SpecreduceOperation):
         crossdisp_axis : int, optional
             The index of the image's cross-dispersion axis. [default: 0]
 
+        bkgrd_prof : `~astropy.modeling.Model`
+            A model for the image's background flux.
+            [default: models.Polynomial1D(2)]
+
         Returns
         -------
         spec_1d : `~specutils.Spectrum1D`
             The final, Horne extracted 1D spectrum.
         """
-        # isolate user-selected slice of image
-        kernel_slice = self._coadd_kernel_columns(image, width,
-                                                  column, disp_axis)
-        xd_pixels = np.arange(kernel_slice.shape[0]) # y plot dir / x spec dir
+        # co-add signal in each column
+        ncols = image.shape[crossdisp_axis]
+        xd_pixels = np.arange(ncols) # y plot dir / x spec dir
+        coadd = image.sum(axis=disp_axis) / ncols
 
         # fit source profile, using Gaussian model as a template
         # NOTE: could add argument for users to provide their own model
-        gauss_prof = models.Gaussian1D(amplitude=kernel_slice.max(),
-                                       mean=kernel_slice.argmax(),
-                                       stddev=2)
+        gauss_prof = models.Gaussian1D(amplitude=coadd.max(),
+                                       mean=coadd.argmax(), stddev=2)
 
-        # fit sky background, using polynomial model as a template
-        # NOTE: will this be deleted and go into a class of its own???
-        bkgrd_prof = models.Polynomial1D(2)
-
-        # Fit extraction kernel to slice using Levenberg-Marquardt template
+        # Fit extraction kernel to column with combined gaussian/bkgrd model
         ext_prof = gauss_prof + bkgrd_prof
         fitter = fitting.LevMarLSQFitter()
-        fit_ext_kernel = fitter(ext_prof, xd_pixels, kernel_slice)
+        fit_ext_kernel = fitter(ext_prof, xd_pixels, coadd)
 
-        # create variance image
-        # NOTE: this equation is specific to VLT; could be another argument?
-        good_pix = ((image > 0) * np.isfinite(image) * (weights != 0))
-        weights_masked = np.ma.array(weights, mask=~good_pix)
-
-        variance_image = np.ma.divide(1, weights_masked) # VLT
-
-        # generate 1D spectrum
-        extract = np.zeros(image.shape[-1]) # FILL IN A LIST?? RENAME??
-        for col_px in range(image.shape[-1]):
-            # set up this column's fit, using trace as mean
-            kernel_col = fit_ext_kernel.copy()
-            kernel_col.mean_0 = trace_object.trace[col_px]
+        # generate 1D spectrum, column by column
+        extracted = []
+        for col_pix in range(image.shape[disp_axis]):
+            # set gaussian model's mean as column's corresponding trace value
+            fit_ext_kernel.mean_0 = trace_object.trace[col_pix]
             # kernel_col.stddev_0 = self.fwhm_fit(x)
             # NOTE: support for variable FWHMs forthcoming
-            kernel_vals = kernel_col(xd_pixels)
+
+            # fit compound model to column
+            kernel_vals = fit_ext_kernel(xd_pixels)
+            # NOTE: support user-provided kernels? would require different handling
+            # NOTE: allow smoothing in x direction via boxcar/x axis collapse/etc?
 
             # fetch matching columns from original and variance images
-            image_col = image[:, col_px]
-            variance_col = variance_image[:, col_px]
+            image_col = image[:, col_pix]
+            variance_col = variance[:, col_pix]
 
             # calculate kernel normalization
             g_x = np.ma.sum(kernel_vals**2 / variance_col)
@@ -240,24 +228,19 @@ class HorneExtract(SpecreduceOperation):
 
             # sum by column weights
             weighted_col = np.ma.divide(image_col * kernel_vals, variance_col)
-            extract[col_px] = np.ma.sum(weighted_col) / g_x
+            result = np.ma.sum(weighted_col) / g_x
+
+            # multiply kernel normalization into the extracted signal
+            result *= (fit_ext_kernel.amplitude_0
+                       * fit_ext_kernel.stddev_0 * np.sqrt(2*np.pi))
+            extracted.append(result)
 
         # convert the extraction to a Spectrum1D object
         pixels = np.arange(image.shape[disp_axis]) * u.pix
-        spec_1d = Spectrum1D(spectral_axis= pixels,
-                             flux=extract * getattr(image, 'unit', u.DN))
+        spec_1d = Spectrum1D(spectral_axis=pixels,
+                             flux=extracted * getattr(image, 'unit', u.DN))
 
         return spec_1d
-
-    def _coadd_kernel_columns(self, image, width, column, disp_axis):
-        # x plot dir / lambda spec dir
-        border_left = max(0, column - width // 2)
-        border_right = min(column + width // 2, image.shape[-1])
-        coadd_region = np.arange(border_left, border_right)
-
-        signal = image[:, coadd_region].sum(axis=1) / width
-        #return border_left, border_right, signal
-        return signal
 
 
 @dataclass
