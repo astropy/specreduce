@@ -158,11 +158,12 @@ class KosmosTrace(Trace):
     4) add other interpolation modes besides spline, maybe via
         specutils.manipulation methods?
     """
-    image : CCDData
-    bins : int = 20
-    guess : float = None
-    window : int = None
+    image: CCDData
+    bins: int = 20
+    guess: float = None
+    window: int = None
     disp_axis = 1
+    
     def __post_init__(self,
                       # Saxis=0, Waxis=1, display=False
                       ):
@@ -253,7 +254,7 @@ class KosmosTrace(Trace):
                 # NOTE: would this happen? if not, pguess and try/except are unneeded
                 warnings.warn(f"TRACE: Fitting bin {i} caused RuntimeError; "
                               "reverting to initial guess")
-                popt_i = pguess_i
+                popt_i = pguess
 
         # recenter bin positions
         x_bins = (x_bins[:-1] + x_bins[1:]) / 2
