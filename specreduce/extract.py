@@ -6,7 +6,7 @@ import numpy as np
 
 from astropy import units as u
 from astropy.modeling import models, fitting
-from astropy.nddata import StdDevUncertainty
+from astropy.nddata import CCDData
 
 from specreduce.core import SpecreduceOperation
 from specreduce.tracing import FlatTrace
@@ -150,13 +150,14 @@ class BoxcarExtract(SpecreduceOperation):
 @dataclass
 class HorneExtract(SpecreduceOperation):
     """
-    Perform a Horne extraction (a.k.a. optimal) on a region in a
-    two-dimensional spectrum.
+    Perform a Horne (a.k.a. optimal) extraction on a two-dimensional
+    spectrum.
     """
 
-    def __call__(self, image, variance, trace_object,
+    def __call__(self, image, trace_object,
                  disp_axis=1, crossdisp_axis=0,
-                 bkgrd_prof=models.Polynomial1D(2)):
+                 bkgrd_prof=models.Polynomial1D(2),
+                 variance=None, mask=None, unit=None):
         """
         Run the Horne calculation on a region of an image and extract a
         1D spectrum.
@@ -165,11 +166,9 @@ class HorneExtract(SpecreduceOperation):
         ----------
 
         image : `~astropy.nddata.CCDData` or array-like, required
-            The input 2D spectrum from which to extract a source.
-
-        variance : `~astropy.nddata.CCDData` or array-like, required
-            The associated variances for each pixel in the image.
-            Should have the same dimensions as `image`.
+            The input 2D spectrum from which to extract a source. A
+            CCDData object must specify uncertainty and a mask. An array
+            requires use of the `variance`, `mask`, & `unit` arguments.
 
         trace_object : `~specreduce.tracing.Trace`, required
             The associated 1D trace object created for the 2D image.
@@ -180,19 +179,71 @@ class HorneExtract(SpecreduceOperation):
         crossdisp_axis : int, optional
             The index of the image's cross-dispersion axis. [default: 0]
 
-        bkgrd_prof : `~astropy.modeling.Model`
+        bkgrd_prof : `~astropy.modeling.Model`, optional
             A model for the image's background flux.
             [default: models.Polynomial1D(2)]
+
+        variance : `~numpy.ndarray`, optional
+            (Only use if `image` is not a CCDData object.)
+            The associated variances for each pixel in the image. Must
+            have the same dimensions as `image`. [default: None]
+
+        mask : `~numpy.ndarray`, optional
+            (Only use if `image` is not a CCDData object.)
+            Whether to mask each pixel in the image. Must have the same
+            dimensions as `image`. [default: None]
+
+        unit : `~astropy.units.core.Unit` or str, optional
+            (Only use if `image` is not a CCDData object.)
+            The associated unit for the data in `image`. [default: None]
+
 
         Returns
         -------
         spec_1d : `~specutils.Spectrum1D`
             The final, Horne extracted 1D spectrum.
         """
-        # co-add signal in each column
-        ncols = image.shape[crossdisp_axis]
-        xd_pixels = np.arange(ncols) # y plot dir / x spec dir
-        coadd = image.sum(axis=disp_axis) / ncols
+        # handle image and associated data based on image's type
+        if isinstance(image, CCDData):
+            img = np.ma.array(image.data, mask=image.mask)
+            unit = image.unit
+
+            if image.uncertainty:
+                # prioritize CCDData's uncertainty over variance argument
+                if image.uncertainty.uncertainty_type == 'var':
+                    variance = image.uncertainty.array
+                elif image.uncertainty.uncertainty_type == 'std':
+                    # CCDData default uncertainties given as pure arrays to std
+                    # and logs a warning saying so upon object creation. should
+                    # we remind users again here?
+                    variance = image.uncertainty.array**2
+                else:
+                    # NOTE: last type is InverseVariance. should we take it?
+                    variance = image.uncertainty.array
+            else:
+                # ignore variance arg to focus on updating CCDData object
+                raise ValueError('image CCDData object lacks uncertainty')
+
+        else:
+            if any(arg is None for arg in (variance, mask, unit)):
+                raise ValueError('if image is a numpy array, the variance, '
+                                 'mask, and unit arguments must be specified. '
+                                 'consider wrapping that information into one '
+                                 'object by instead passing a CCDData image.')
+
+            if image.shape != variance.shape:
+                raise ValueError('image and variance shapes must match')
+            if image.shape != mask.shape:
+                raise ValueError('image and mask shapes must match')
+            if isinstance(unit, str):
+                unit = u.Unit(unit)
+
+            img = np.ma.array(image, mask=mask)
+
+        # co-add signal in each image column
+        ncols = img.shape[crossdisp_axis]
+        xd_pixels = np.arange(ncols)  # y plot dir / x spec dir
+        coadd = img.sum(axis=disp_axis) / ncols
 
         # fit source profile, using Gaussian model as a template
         # NOTE: could add argument for users to provide their own model
@@ -204,41 +255,40 @@ class HorneExtract(SpecreduceOperation):
         fitter = fitting.LevMarLSQFitter()
         fit_ext_kernel = fitter(ext_prof, xd_pixels, coadd)
 
-        # generate 1D spectrum, column by column
-        extracted = []
-        for col_pix in range(image.shape[disp_axis]):
+        # use compound model to fit a kernel to each image column
+        # NOTE: infers Gaussian1D source profile; needs generalization for others
+        kernel_vals = []
+        norms = []
+        for col_pix in range(img.shape[disp_axis]):
             # set gaussian model's mean as column's corresponding trace value
             fit_ext_kernel.mean_0 = trace_object.trace[col_pix]
-            # kernel_col.stddev_0 = self.fwhm_fit(x)
-            # NOTE: support for variable FWHMs forthcoming
+            # NOTE: support for variable FWHMs forthcoming and would be here
 
             # fit compound model to column
-            kernel_vals = fit_ext_kernel(xd_pixels)
-            # NOTE: support user-provided kernels? would require different handling
-            # NOTE: allow smoothing in x direction via boxcar/x axis collapse/etc?
+            fitted_col = fit_ext_kernel(xd_pixels)
 
-            # fetch matching columns from original and variance images
-            image_col = image[:, col_pix]
-            variance_col = variance[:, col_pix]
+            # save result and normalization
+            kernel_vals.append(fitted_col)
+            norms.append(fit_ext_kernel.amplitude_0
+                         * fit_ext_kernel.stddev_0 * np.sqrt(2*np.pi))
 
-            # calculate kernel normalization
-            g_x = np.ma.sum(kernel_vals**2 / variance_col)
-            if np.ma.is_masked(g_x):
-                continue
+        # transform fit-specific information
+        kernel_vals = np.array(kernel_vals).T
+        norms = np.array(norms)
 
-            # sum by column weights
-            weighted_col = np.ma.divide(image_col * kernel_vals, variance_col)
-            result = np.ma.sum(weighted_col) / g_x
+        # calculate kernel normalization, masking NaNs
+        g_x = np.ma.sum(kernel_vals**2 / variance, axis=crossdisp_axis)
 
-            # multiply kernel normalization into the extracted signal
-            result *= (fit_ext_kernel.amplitude_0
-                       * fit_ext_kernel.stddev_0 * np.sqrt(2*np.pi))
-            extracted.append(result)
+        # sum by column weights
+        weighted_img = np.ma.divide(img * kernel_vals, variance)
+        result = np.ma.sum(weighted_img, axis=crossdisp_axis) / g_x
+
+        # multiply kernel normalization into the extracted signal
+        extraction = result * norms
 
         # convert the extraction to a Spectrum1D object
-        pixels = np.arange(image.shape[disp_axis]) * u.pix
-        spec_1d = Spectrum1D(spectral_axis=pixels,
-                             flux=extracted * getattr(image, 'unit', u.DN))
+        pixels = np.arange(img.shape[disp_axis]) * u.pix
+        spec_1d = Spectrum1D(spectral_axis=pixels, flux=extraction * unit)
 
         return spec_1d
 
@@ -246,7 +296,7 @@ class HorneExtract(SpecreduceOperation):
 @dataclass
 class OptimalExtract(HorneExtract):
     """
-    Perform a Horne extraction (a.k.a. optimal) on a region in a
-    two-dimensional spectrum.
+    An alias for `HorneExtract`.
     """
+    __doc__ += HorneExtract.__doc__
     pass
