@@ -145,7 +145,7 @@ class KosmosTrace(Trace):
         finder. Good for tracing a fainter source if multiple traces
         are present. [default: None]
     window : int, optional
-        Fit the trace to a region with size `window * 2` aroudn the
+        Fit the trace to a region with size `window * 2` around the
         guess position. Useful for tracing faint sources if multiple
         traces are present, but potentially bad if the trace is
         substantially bent or warped. [default: None]
@@ -167,11 +167,11 @@ class KosmosTrace(Trace):
     def __post_init__(self,
                       # Saxis=0, Waxis=1, display=False
                       ):
-        if self.bins < 4:
-            raise ValueError('bins must be >= 4')
         if not isinstance(self.bins, int):
             warnings.warn('TRACE: Converting bins to int')
             self.bins = int(self.bins)
+        if self.bins < 4:
+            raise ValueError('bins must be >= 4')
 
         if (self.window is not None
             and (self.window > self.image.shape[self.disp_axis]
