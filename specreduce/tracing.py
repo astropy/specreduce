@@ -5,6 +5,7 @@ import warnings
 
 from astropy.modeling import CompoundModel, fitting, models
 from astropy.nddata import CCDData
+from astropy.stats import gaussian_sigma_to_fwhm
 from scipy.interpolate import UnivariateSpline
 import numpy as np
 
@@ -163,7 +164,7 @@ class KosmosTrace(Trace):
     guess: float = None
     window: int = None
     disp_axis = 1
-    
+
     def __post_init__(self,
                       # Saxis=0, Waxis=1, display=False
                       ):
@@ -190,7 +191,7 @@ class KosmosTrace(Trace):
         # guess the peak width as the FWHM, roughly converted to gaussian sigma
         yy = np.arange(len(ztot))
         yy_above_half_max = np.sum(ztot > (np.nanmax(ztot) / 2))
-        width_guess = yy_above_half_max / 2.355
+        width_guess = yy_above_half_max / gaussian_sigma_to_fwhm
 
         # enforce some (maybe sensible?) rules about trace peak width
         width_guess = (2 if width_guess < 2
@@ -222,7 +223,7 @@ class KosmosTrace(Trace):
             peak_y_i = ilum2[np.nanargmax(z_i)]
 
             yy_i_above_half_max = np.sum(z_i > (np.nanmax(z_i) / 2))
-            width_guess_i = yy_i_above_half_max / 2.355
+            width_guess_i = yy_i_above_half_max / gaussian_sigma_to_fwhm
             width_guess_i = (2 if width_guess_i < 2
                              else 25 if width_guess_i > 25
                              else width_guess_i)
