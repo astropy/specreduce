@@ -165,9 +165,7 @@ class KosmosTrace(Trace):
     window: int = None
     disp_axis = 1
 
-    def __post_init__(self,
-                      # Saxis=0, Waxis=1, display=False
-                      ):
+    def __post_init__(self):
         if not isinstance(self.bins, int):
             warnings.warn('TRACE: Converting bins to int')
             self.bins = int(self.bins)
