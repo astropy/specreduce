@@ -1,5 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
+from copy import deepcopy
 from dataclasses import dataclass
 import warnings
 
@@ -49,6 +50,8 @@ class Trace:
         delta : float
             Shift to be applied to the trace
         """
+        if not isinstance(delta, (int, float)):
+            raise TypeError(f"{self.__class__.__name__} only supports shifting by floats/integers")
         self.trace += delta
         self._bound_trace()
 
@@ -58,6 +61,20 @@ class Trace:
         """
         ny = self.image.shape[0]
         self.trace = np.ma.masked_outside(self.trace, 0, ny-1)
+
+    def __add__(self, delta):
+        """
+        Return a copy of the trace shifted by delta pixels perpendicular to the axis being traced
+        """
+        copy = deepcopy(self)
+        copy.shift(delta)
+        return copy
+
+    def __sub__(self, delta):
+        """
+        Return a copy of the trace shifted by delta pixels perpendicular to the axis being traced
+        """
+        return self.__add__(-delta)
 
 
 @dataclass
