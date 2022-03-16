@@ -74,6 +74,9 @@ class Background(SpecreduceOperation):
             if self.trace_object.trace_pos < 1:
                 raise ValueError('trace_object.trace_pos must be >= 1')
 
+        if self.width >= 2 * self.separation:
+            raise ValueError("width must be < 2*separation to avoid spectral region")
+
         bkg_wimage = _ap_weight_image(
             self.trace_object-self.separation,
             self.width,
