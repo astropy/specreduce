@@ -50,8 +50,6 @@ class Trace:
         delta : float
             Shift to be applied to the trace
         """
-        if not isinstance(delta, (int, float)):
-            raise TypeError(f"{self.__class__.__name__} only supports shifting by floats/integers")
         self.trace += delta
         self._bound_trace()
 
