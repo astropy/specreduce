@@ -1,11 +1,10 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from astropy.nddata import CCDData
 
-from specreduce.core import SpecreduceOperation
 from specreduce.extract import _ap_weight_image
 from specreduce.tracing import Trace, FlatTrace
 
@@ -13,7 +12,7 @@ __all__ = ['Background']
 
 
 @dataclass
-class Background(SpecreduceOperation):
+class Background:
     """
     Determine the background from an image for subtraction
 
@@ -21,44 +20,37 @@ class Background(SpecreduceOperation):
     ----------
     image : nddata-compatible image
         image with 2-D spectral image data
-    trace_object : Trace
-        trace object
+    traces : List
+        list of trace objects (or integers to define FlatTraces) to
+        extract the background
     width : float
         width of extraction aperture in pixels
     disp_axis : int
         dispersion axis
     crossdisp_axis : int
         cross-dispersion axis
-
-    Returns
-    -------
-    spec : `~specutils.Spectrum1D`
-        The extracted 1d spectrum expressed in DN and pixel units
     """
     # required so numpy won't call __rsub__ on individual elements
     # https://stackoverflow.com/a/58409215
     __array_ufunc__ = None
 
     image: CCDData
-    trace_object: Trace
-    separation: float = 5
+    traces: list = field(default_factory=list)
     width: float = 5
     disp_axis: int = 1
     crossdisp_axis: int = 0
 
     def __post_init__(self):
         """
-        Extract the 1D spectrum using the boxcar method.
+        Determine the background from an image for subtraction.
 
         Parameters
         ----------
         image : nddata-compatible image
             image with 2-D spectral image data
-        trace_object : Trace or int
-            trace object or an integer to use a FloatTrace
-        separation: float
-            separation between trace and extraction apertures on each
-            side of the trace
+        traces : List
+            list of trace objects (or integers to define FlatTraces) to
+            extract the background
         width : float
             width of each background aperture in pixels
         disp_axis : int
@@ -66,33 +58,79 @@ class Background(SpecreduceOperation):
         crossdisp_axis : int
             cross-dispersion axis
         """
-        if isinstance(self.trace_object, (int, float)):
-            self.trace_object = FlatTrace(self.image, self.trace_object)
+        def _to_trace(trace):
+            if not isinstance(trace, Trace):
+                trace = FlatTrace(self.image, trace)
 
-        # TODO: this check can be removed if/when implemented as a check in FlatTrace
-        if isinstance(self.trace_object, FlatTrace):
-            if self.trace_object.trace_pos < 1:
-                raise ValueError('trace_object.trace_pos must be >= 1')
+            # TODO: this check can be removed if/when implemented as a check in FlatTrace
+            if isinstance(trace, FlatTrace):
+                if trace.trace_pos < 1:
+                    raise ValueError('trace_object.trace_pos must be >= 1')
+            return trace
 
-        if self.width >= 2 * self.separation:
-            raise ValueError("width must be < 2*separation to avoid spectral region")
+        bkg_wimage = np.zeros_like(self.image, dtype=np.float64)
+        for trace in self.traces:
+            trace = _to_trace(trace)
+            bkg_wimage += _ap_weight_image(trace,
+                                           self.width,
+                                           self.disp_axis,
+                                           self.crossdisp_axis,
+                                           self.image.shape)
 
-        bkg_wimage = _ap_weight_image(
-            self.trace_object-self.separation,
-            self.width,
-            self.disp_axis,
-            self.crossdisp_axis,
-            self.image.shape)
-
-        bkg_wimage += _ap_weight_image(
-            self.trace_object+self.separation,
-            self.width,
-            self.disp_axis,
-            self.crossdisp_axis,
-            self.image.shape)
+        if np.any(bkg_wimage > 1):
+            raise ValueError("background regions overlapped")
 
         self.bkg_wimage = bkg_wimage
         self.bkg_array = np.average(self.image, weights=self.bkg_wimage, axis=0)
+
+    @classmethod
+    def two_sided(cls, image, trace_object, separation, **kwargs):
+        """
+        Determine the background from an image for subtraction centered around
+        an input trace.
+
+        Parameters
+        ----------
+        image : nddata-compatible image
+            image with 2-D spectral image data
+        trace_object: Trace
+            estimated trace of the spectrum to center the background traces
+        separation: float
+            separation from ``trace_object`` for the background regions
+        width : float
+            width of each background aperture in pixels
+        disp_axis : int
+            dispersion axis
+        crossdisp_axis : int
+            cross-dispersion axis
+        """
+        kwargs['traces'] = [trace_object-separation, trace_object+separation]
+        return cls(image=image, **kwargs)
+
+    @classmethod
+    def one_sided(cls, image, trace_object, separation, **kwargs):
+        """
+        Determine the background from an image for subtraction above
+        or below an input trace.
+
+        Parameters
+        ----------
+        image : nddata-compatible image
+            image with 2-D spectral image data
+        trace_object: Trace
+            estimated trace of the spectrum to center the background traces
+        separation: float
+            separation from ``trace_object`` for the background, positive will be
+            above the trace, negative below.
+        width : float
+            width of each background aperture in pixels
+        disp_axis : int
+            dispersion axis
+        crossdisp_axis : int
+            cross-dispersion axis
+        """
+        kwargs['traces'] = [trace_object+separation]
+        return cls(image=image, **kwargs)
 
     def bkg_image(self, image=None):
         """
