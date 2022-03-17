@@ -25,6 +25,10 @@ class Background:
         extract the background
     width : float
         width of extraction aperture in pixels
+    statistic: string
+        statistic to use when computing the background.  'average' will
+        account for partial pixel weights, 'median' will include all partial
+        pixels.
     disp_axis : int
         dispersion axis
     crossdisp_axis : int
@@ -37,6 +41,7 @@ class Background:
     image: CCDData
     traces: list = field(default_factory=list)
     width: float = 5
+    statistic: str = 'average'
     disp_axis: int = 1
     crossdisp_axis: int = 0
 
@@ -53,6 +58,10 @@ class Background:
             extract the background
         width : float
             width of each background aperture in pixels
+        statistic: string
+            statistic to use when computing the background.  'average' will
+            account for partial pixel weights, 'median' will include all partial
+            pixels.
         disp_axis : int
             dispersion axis
         crossdisp_axis : int
@@ -80,8 +89,19 @@ class Background:
         if np.any(bkg_wimage > 1):
             raise ValueError("background regions overlapped")
 
+        if self.statistic == 'median':
+            # make it clear in the expose image that partial pixels are fully-weighted
+            bkg_wimage[bkg_wimage > 0] = 1
+
         self.bkg_wimage = bkg_wimage
-        self.bkg_array = np.average(self.image, weights=self.bkg_wimage, axis=0)
+        if self.statistic == 'average':
+            self.bkg_array = np.average(self.image, weights=self.bkg_wimage, axis=0)
+        elif self.statistic == 'median':
+            med_image = self.image.copy()
+            med_image[np.where(self.bkg_wimage) == 0] = np.nan
+            self.bkg_array = np.nanmedian(med_image, axis=0)
+        else:
+            raise ValueError("statistic must be 'average' or 'median'")
 
     @classmethod
     def two_sided(cls, image, trace_object, separation, **kwargs):
@@ -99,6 +119,10 @@ class Background:
             separation from ``trace_object`` for the background regions
         width : float
             width of each background aperture in pixels
+        statistic: string
+            statistic to use when computing the background.  'average' will
+            account for partial pixel weights, 'median' will include all partial
+            pixels.
         disp_axis : int
             dispersion axis
         crossdisp_axis : int
@@ -124,6 +148,10 @@ class Background:
             above the trace, negative below.
         width : float
             width of each background aperture in pixels
+        statistic: string
+            statistic to use when computing the background.  'average' will
+            account for partial pixel weights, 'median' will include all partial
+            pixels.
         disp_axis : int
             dispersion axis
         crossdisp_axis : int
