@@ -163,9 +163,12 @@ class KosmosTrace(Trace):
     bins: int = 20
     guess: float = None
     window: int = None
-    disp_axis = 1
+    _disp_axis = 1
 
     def __post_init__(self):
+        if self._disp_axis != 1:
+            raise ValueError('dispersion axis must equal 1')
+
         if not isinstance(self.bins, int):
             warnings.warn('TRACE: Converting bins to int')
             self.bins = int(self.bins)
@@ -173,7 +176,7 @@ class KosmosTrace(Trace):
             raise ValueError('bins must be >= 4')
 
         if (self.window is not None
-            and (self.window > self.image.shape[self.disp_axis]
+            and (self.window > self.image.shape[self._disp_axis]
                  or self.window < 1)):
             raise ValueError("window must be >= 2 and less than the length of "
                              "the image's spatial direction")
@@ -210,14 +213,14 @@ class KosmosTrace(Trace):
                  else yy[np.arange(peak_y - self.window,
                                    peak_y + self.window, dtype=int)])
 
-        x_bins = np.linspace(0, self.image.shape[self.disp_axis],
+        x_bins = np.linspace(0, self.image.shape[self._disp_axis],
                              self.bins + 1, dtype=int)
         y_bins = np.tile(np.nan, self.bins)
 
         for i in range(self.bins):
             # repeat earlier steps to create gaussian fit for each bin
             z_i = np.nansum(self.image[ilum2, x_bins[i]:x_bins[i+1]],
-                            axis=self.disp_axis)
+                            axis=self._disp_axis)
             peak_y_i = ilum2[np.nanargmax(z_i)]
 
             yy_i_above_half_max = np.sum(z_i > (np.nanmax(z_i) / 2))
@@ -266,7 +269,7 @@ class KosmosTrace(Trace):
 
             # run a cubic spline through the bins; interpolate over wavelengths
             ap_spl = UnivariateSpline(x_bins, y_bins, k=3, s=0)
-            trace_x = np.arange(self.image.shape[self.disp_axis])
+            trace_x = np.arange(self.image.shape[self._disp_axis])
             trace_y = ap_spl(trace_x)
         else:
             warnings.warn("TRACE ERROR: No valid points found in trace")
