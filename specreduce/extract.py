@@ -1,12 +1,13 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
 
 from astropy import units as u
 from astropy.modeling import models, fitting
-from astropy.nddata import CCDData
+from astropy.nddata import NDData
 
 from specreduce.core import SpecreduceOperation
 from specreduce.tracing import FlatTrace
@@ -165,9 +166,9 @@ class HorneExtract(SpecreduceOperation):
         Parameters
         ----------
 
-        image : `~astropy.nddata.CCDData` or array-like, required
-            The input 2D spectrum from which to extract a source. A
-            CCDData object must specify uncertainty and a mask. An array
+        image : `~astropy.nddata.NDData` or array-like, required
+            The input 2D spectrum from which to extract a source. An
+            NDData object must specify uncertainty and a mask. An array
             requires use of the `variance`, `mask`, & `unit` arguments.
 
         trace_object : `~specreduce.tracing.Trace`, required
@@ -184,17 +185,17 @@ class HorneExtract(SpecreduceOperation):
             [default: models.Polynomial1D(2)]
 
         variance : `~numpy.ndarray`, optional
-            (Only use if `image` is not a CCDData object.)
+            (Only use if `image` is not an NDData object.)
             The associated variances for each pixel in the image. Must
             have the same dimensions as `image`. [default: None]
 
         mask : `~numpy.ndarray`, optional
-            (Only use if `image` is not a CCDData object.)
+            (Only use if `image` is not an NDData object.)
             Whether to mask each pixel in the image. Must have the same
             dimensions as `image`. [default: None]
 
         unit : `~astropy.units.core.Unit` or str, optional
-            (Only use if `image` is not a CCDData object.)
+            (Only use if `image` is not an NDData object.)
             The associated unit for the data in `image`. [default: None]
 
 
@@ -204,32 +205,38 @@ class HorneExtract(SpecreduceOperation):
             The final, Horne extracted 1D spectrum.
         """
         # handle image and associated data based on image's type
-        if isinstance(image, CCDData):
+        if isinstance(image, NDData):
             img = np.ma.array(image.data, mask=image.mask)
-            unit = image.unit
+            unit = image.unit if image.unit is not None else u.Unit()
 
-            if image.uncertainty:
-                # prioritize CCDData's uncertainty over variance argument
+            if image.uncertainty is not None:
+                # prioritize NDData's uncertainty over variance argument
                 if image.uncertainty.uncertainty_type == 'var':
                     variance = image.uncertainty.array
                 elif image.uncertainty.uncertainty_type == 'std':
-                    # CCDData default uncertainties given as pure arrays to std
-                    # and logs a warning saying so upon object creation. should
-                    # we remind users again here?
+                    # NOTE: CCDData defaults uncertainties given as pure arrays
+                    # to std and logs a warning saying so upon object creation.
+                    # should we remind users again here?
+                    warnings.warn("image NDData object's uncertainty "
+                                  "interpreted as standard deviation. if "
+                                  "incorrect, use VarianceUncertainty when "
+                                  "assigning image object's uncertainty.")
                     variance = image.uncertainty.array**2
                 else:
-                    # NOTE: last type is InverseVariance. should we take it?
-                    variance = image.uncertainty.array
+                    # other options are InverseVariance and UnknownVariance
+                    raise ValueError("image NDData object has unexpected "
+                                     "uncertainty type. instead, try "
+                                     "VarianceUncertainty or StdDevUncertainty.")
             else:
-                # ignore variance arg to focus on updating CCDData object
-                raise ValueError('image CCDData object lacks uncertainty')
+                # ignore variance arg to focus on updating NDData object
+                raise ValueError('image NDData object lacks uncertainty')
 
         else:
             if any(arg is None for arg in (variance, mask, unit)):
                 raise ValueError('if image is a numpy array, the variance, '
                                  'mask, and unit arguments must be specified. '
                                  'consider wrapping that information into one '
-                                 'object by instead passing a CCDData image.')
+                                 'object by instead passing a NDData image.')
 
             if image.shape != variance.shape:
                 raise ValueError('image and variance shapes must match')
