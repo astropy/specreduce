@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 
 import numpy as np
-from astropy.nddata import CCDData
+from astropy.nddata import NDData
 
 from specreduce.extract import _ap_weight_image
 from specreduce.tracing import Trace, FlatTrace
@@ -18,7 +18,7 @@ class Background:
 
     Parameters
     ----------
-    image : nddata-compatible image
+    image : `~astropy.nddata.NDData` or array-like
         image with 2-D spectral image data
     traces : List
         list of trace objects (or integers to define FlatTraces) to
@@ -38,7 +38,7 @@ class Background:
     # https://stackoverflow.com/a/58409215
     __array_ufunc__ = None
 
-    image: CCDData
+    image: NDData
     traces: list = field(default_factory=list)
     width: float = 5
     statistic: str = 'average'
@@ -51,7 +51,7 @@ class Background:
 
         Parameters
         ----------
-        image : nddata-compatible image
+        image : `~astropy.nddata.NDData` or array-like
             image with 2-D spectral image data
         traces : List
             list of trace objects (or integers to define FlatTraces) to
@@ -196,7 +196,11 @@ class Background:
         if image is None:
             image = self.image
 
-        return image - self.bkg_image(image)
+        if isinstance(image, NDData):
+            # https://docs.astropy.org/en/stable/nddata/mixins/ndarithmetic.html
+            return image.subtract(self.bkg_image(image)*image.unit)
+        else:
+            return image - self.bkg_image(image)
 
     def __rsub__(self, image):
         """
