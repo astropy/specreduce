@@ -162,7 +162,7 @@ class KosmosTrace(Trace):
     bins: int = 20
     guess: float = None
     window: int = None
-    _cross_disp_axis = 0
+    _crossdisp_axis = 0
     _disp_axis = 1
 
     def __post_init__(self):
@@ -177,7 +177,7 @@ class KosmosTrace(Trace):
         if img.mask.all():
             raise ValueError('image is fully masked. Check for invalid values')
 
-        if self._cross_disp_axis != 0:
+        if self._crossdisp_axis != 0:
             raise ValueError('cross-dispersion axis must equal 0')
 
         if self._disp_axis != 1:
@@ -205,7 +205,7 @@ class KosmosTrace(Trace):
         # NOTE: peak finder can be bad if multiple objects are on slit
 
         # guess the peak width as the FWHM, roughly converted to gaussian sigma
-        yy = np.arange(img.shape[self._cross_disp_axis])
+        yy = np.arange(img.shape[self._crossdisp_axis])
         yy_above_half_max = np.sum(ztot > (ztot.max() / 2))
         width_guess = yy_above_half_max / gaussian_sigma_to_fwhm
 
