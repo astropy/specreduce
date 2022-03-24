@@ -229,34 +229,20 @@ class KosmosTrace(Trace):
                              else 25 if width_guess_i > 25
                              else width_guess_i)
 
-            # save initial parameter guesses in case off issues with fits
-            pguess = CompoundModel(
-                '+',
-                models.Gaussian1D(amplitude=np.nanmax(z_i),
-                                  mean=peak_y_i, stddev=width_guess_i),
-                models.Const1D(np.nanmedian(z_i)))
+            g1d_init_i = models.Gaussian1D(amplitude=np.nanmax(z_i),
+                                           mean=peak_y_i,
+                                           stddev=width_guess_i)
+            offset_init_i = models.Const1D(np.nanmedian(z_i))
 
-            try:
-                g1d_init_i = models.Gaussian1D(amplitude=np.nanmax(z_i),
-                                               mean=peak_y_i,
-                                               stddev=width_guess_i)
-                offset_init_i = models.Const1D(np.nanmedian(z_i))
+            profile_i = g1d_init_i + offset_init_i
+            popt_i = fitter(profile_i, ilum2, z_i)
 
-                profile_i = g1d_init_i + offset_init_i
-                popt_i = fitter(profile_i, ilum2, z_i)
-
-                # if gaussian fits off chip, then fall back to previous answer
-                if not ilum2.min() <= popt_i.mean_0 <= ilum2.max():
-                    y_bins[i] = popt_tot.mean_0.value
-                else:
-                    y_bins[i] = popt_i.mean_0.value
-                    popt_tot = popt_i
-
-            except RuntimeError:
-                # NOTE: would this happen? if not, pguess and try/except are unneeded
-                warnings.warn(f"TRACE: Fitting bin {i} caused RuntimeError; "
-                              "reverting to initial guess")
-                popt_i = pguess
+            # if gaussian fits off chip, then fall back to previous answer
+            if not ilum2.min() <= popt_i.mean_0 <= ilum2.max():
+                y_bins[i] = popt_tot.mean_0.value
+            else:
+                y_bins[i] = popt_i.mean_0.value
+                popt_tot = popt_i
 
         # recenter bin positions
         x_bins = (x_bins[:-1] + x_bins[1:]) / 2
