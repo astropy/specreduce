@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import warnings
 
 from astropy.modeling import CompoundModel, fitting, models
-from astropy.nddata import CCDData
+from astropy.nddata import CCDData, NDData
 from astropy.stats import gaussian_sigma_to_fwhm
 from scipy.interpolate import UnivariateSpline
 import numpy as np
@@ -131,7 +131,7 @@ class KosmosTrace(Trace):
 
     Parameters
     ----------
-    image : CCDData or array-like, required
+    image : `~astropy.nddata.NDData` or array-like, required
         The image over which to run the trace. Assumes cross-dispersion
         (spatial) direction is axis 0 and dispersion (wavelength)
         direction is axis 1.
@@ -159,24 +159,39 @@ class KosmosTrace(Trace):
     4) add other interpolation modes besides spline, maybe via
         specutils.manipulation methods?
     """
-    image: CCDData
     bins: int = 20
     guess: float = None
     window: int = None
+    _cross_disp_axis = 0
     _disp_axis = 1
 
     def __post_init__(self):
+        # handle multiple image types and mask uncaught invalid values
+        if isinstance(self.image, NDData):
+            img = np.ma.masked_invalid(np.ma.masked_array(self.image.data,
+                                                          mask=self.image.mask))
+        else:
+            img = np.ma.masked_invalid(self.image)
+
+        # validate arguments
+        if img.mask.all():
+            raise ValueError('image is fully masked. Check for invalid values')
+
+        if self._cross_disp_axis != 0:
+            raise ValueError('cross-dispersion axis must equal 0')
+
         if self._disp_axis != 1:
             raise ValueError('dispersion axis must equal 1')
 
         if not isinstance(self.bins, int):
             warnings.warn('TRACE: Converting bins to int')
             self.bins = int(self.bins)
+
         if self.bins < 4:
             raise ValueError('bins must be >= 4')
 
         if (self.window is not None
-            and (self.window > self.image.shape[self._disp_axis]
+            and (self.window > img.shape[self._disp_axis]
                  or self.window < 1)):
             raise ValueError("window must be >= 2 and less than the length of "
                              "the image's spatial direction")
@@ -185,13 +200,13 @@ class KosmosTrace(Trace):
             self.window = int(self.window)
 
         # set max peak location by user choice or wavelength with max avg flux
-        ztot = np.nansum(self.image, axis=1) / self.image.shape[1]
-        peak_y = self.guess if self.guess is not None else np.nanargmax(ztot)
-        # (peak finder can be bad if multiple objects are on slit...)
+        ztot = img.sum(axis=self._disp_axis) / img.shape[self._disp_axis]
+        peak_y = self.guess if self.guess is not None else ztot.argmax()
+        # NOTE: peak finder can be bad if multiple objects are on slit
 
         # guess the peak width as the FWHM, roughly converted to gaussian sigma
-        yy = np.arange(len(ztot))
-        yy_above_half_max = np.sum(ztot > (np.nanmax(ztot) / 2))
+        yy = np.arange(img.shape[self._cross_disp_axis])
+        yy_above_half_max = np.sum(ztot > (ztot.max() / 2))
         width_guess = yy_above_half_max / gaussian_sigma_to_fwhm
 
         # enforce some (maybe sensible?) rules about trace peak width
@@ -200,9 +215,9 @@ class KosmosTrace(Trace):
                        else width_guess)
 
         # fit a Gaussian to peak for fall-back answer, but don't use yet
-        g1d_init = models.Gaussian1D(amplitude=np.nanmax(ztot),
+        g1d_init = models.Gaussian1D(amplitude=ztot.max(),
                                      mean=peak_y, stddev=width_guess)
-        offset_init = models.Const1D(np.nanmedian(ztot))
+        offset_init = models.Const1D(np.ma.median(ztot))
         profile = g1d_init + offset_init
 
         fitter = fitting.LevMarLSQFitter()
@@ -212,27 +227,38 @@ class KosmosTrace(Trace):
         ilum2 = (yy if self.window is None
                  else yy[np.arange(peak_y - self.window,
                                    peak_y + self.window, dtype=int)])
+        if img[ilum2].mask.all():
+            raise ValueError('All pixels in window region are masked. Check '
+                             'for invalid values or use a larger window value.')
 
-        x_bins = np.linspace(0, self.image.shape[self._disp_axis],
+        x_bins = np.linspace(0, img.shape[self._disp_axis],
                              self.bins + 1, dtype=int)
         y_bins = np.tile(np.nan, self.bins)
 
         for i in range(self.bins):
             # repeat earlier steps to create gaussian fit for each bin
-            z_i = np.nansum(self.image[ilum2, x_bins[i]:x_bins[i+1]],
-                            axis=self._disp_axis)
-            peak_y_i = ilum2[np.nanargmax(z_i)]
+            z_i = img[ilum2, x_bins[i]:x_bins[i+1]].sum(axis=self._disp_axis)
+            if not z_i.mask.all():
+                peak_y_i = ilum2[z_i.argmax()]
+            else:
+                warnings.warn(f"All pixels in bin {i} are masked. Falling "
+                              'to trace value from all-bin fit.')
+                peak_y_i = peak_y
 
-            yy_i_above_half_max = np.sum(z_i > (np.nanmax(z_i) / 2))
+            yy_i_above_half_max = np.sum(z_i > (z_i.max() / 2))
             width_guess_i = yy_i_above_half_max / gaussian_sigma_to_fwhm
-            width_guess_i = (2 if width_guess_i < 2
-                             else 25 if width_guess_i > 25
-                             else width_guess_i)
 
-            g1d_init_i = models.Gaussian1D(amplitude=np.nanmax(z_i),
+            # NOTE: original KOSMOS code mandated width be greater than 2
+            # (to avoid cosmic rays) and less than 25 (to avoid fitting noise).
+            # we should extract values from img to derive similar limits
+            # width_guess_i = (2 if width_guess_i < 2
+            #                  else 25 if width_guess_i > 25
+            #                  else width_guess_i)
+
+            g1d_init_i = models.Gaussian1D(amplitude=z_i.max(),
                                            mean=peak_y_i,
                                            stddev=width_guess_i)
-            offset_init_i = models.Const1D(np.nanmedian(z_i))
+            offset_init_i = models.Const1D(np.ma.median(z_i))
 
             profile_i = g1d_init_i + offset_init_i
             popt_i = fitter(profile_i, ilum2, z_i)
@@ -255,7 +281,7 @@ class KosmosTrace(Trace):
 
             # run a cubic spline through the bins; interpolate over wavelengths
             ap_spl = UnivariateSpline(x_bins, y_bins, k=3, s=0)
-            trace_x = np.arange(self.image.shape[self._disp_axis])
+            trace_x = np.arange(img.shape[self._disp_axis])
             trace_y = ap_spl(trace_x)
         else:
             warnings.warn("TRACE ERROR: No valid points found in trace")
