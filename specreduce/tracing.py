@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import warnings
 
-from astropy.modeling import CompoundModel, fitting, models
+from astropy.modeling import fitting, models
 from astropy.nddata import CCDData, NDData
 from astropy.stats import gaussian_sigma_to_fwhm
 from scipy.interpolate import UnivariateSpline

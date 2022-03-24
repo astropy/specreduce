@@ -88,7 +88,6 @@ def test_kosmos_trace():
     t_shift_up = t.trace + shift_up
 
     shift_out = img.shape[0]
-    t_shift_out = t_shift_up + shift_out
 
     t.shift(shift_up)
     assert np.sum(t.trace == t_shift_up) == t.trace.size, 'valid shift failed'
@@ -102,11 +101,11 @@ def test_kosmos_trace():
     window = 10
     guess = int(nrows/2)
     img_win_nans = img.copy()
-    img_win_nans[guess - window : guess + window] = np.nan
+    img_win_nans[guess - window:guess + window] = np.nan
 
     # error on trace of otherwise valid image with all-nan window around guess
     try:
-        t_win_nans = KosmosTrace(img_win_nans, guess=guess, window=window)
+        KosmosTrace(img_win_nans, guess=guess, window=window)
     except ValueError as e:
         print(f"All-NaN window error message: {e}")
     else:
@@ -114,7 +113,7 @@ def test_kosmos_trace():
 
     # error on trace of all-nan image
     try:
-        t_all_nans = KosmosTrace(img_all_nans)
+        KosmosTrace(img_all_nans)
     except ValueError as e:
         print(f"All-NaN image error message: {e}")
     else:
