@@ -136,10 +136,10 @@ class KosmosTrace(Trace):
         (spatial) direction is axis 0 and dispersion (wavelength)
         direction is axis 1.
     bins : int, optional
-        The number of bins in the dispersion (wavelength) into which to
-        divide the image. Use fewer if KosmosTrace is having
-        difficulty, such as with faint targets. Minimum bin size is 4.
-        [default: 20]
+        The number of bins in the dispersion (wavelength) direction
+        into which to divide the image. Use fewer if KosmosTrace is
+        having difficulty, such as with faint targets.
+        Minimum bin size is 4. [default: 20]
     guess : int, optional
         A guess at the trace's location in the cross-dispersion
         (spatial) direction. If set, overrides the normal max peak
