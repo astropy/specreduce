@@ -11,6 +11,7 @@ New Features
 - Added basic ``Background`` subtraction
 
 Bug Fixes
+^^^^^^^^^
 
 - Update ``codecov-action`` to ``v2``
 - Change default branch from ``master`` to ``main``
