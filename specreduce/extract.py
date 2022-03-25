@@ -185,18 +185,20 @@ class HorneExtract(SpecreduceOperation):
             [default: models.Polynomial1D(2)]
 
         variance : `~numpy.ndarray`, optional
-            (Only use if `image` is not an NDData object.)
+            (Only used if `image` is not an NDData object.)
             The associated variances for each pixel in the image. Must
             have the same dimensions as `image`. [default: None]
 
         mask : `~numpy.ndarray`, optional
-            (Only use if `image` is not an NDData object.)
+            (Only used if `image` is not an NDData object.)
             Whether to mask each pixel in the image. Must have the same
-            dimensions as `image`. [default: None]
+            dimensions as `image`. If blank, all non-NaN pixels are
+            unmasked. [default: None]
 
         unit : `~astropy.units.core.Unit` or str, optional
-            (Only use if `image` is not an NDData object.)
-            The associated unit for the data in `image`. [default: None]
+            (Only used if `image` is not an NDData object.)
+            The associated unit for the data in `image`. If blank,
+            fluxes are interpreted as unitless. [default: None]
 
 
         Returns
@@ -237,14 +239,20 @@ class HorneExtract(SpecreduceOperation):
                                  'mask, and unit arguments must be specified. '
                                  'consider wrapping that information into one '
                                  'object by instead passing an NDData image.')
-
             if image.shape != variance.shape:
                 raise ValueError('image and variance shapes must match')
             if image.shape != mask.shape:
                 raise ValueError('image and mask shapes must match')
+
+            # fill in non-required arguments if empty
+            if mask is None:
+                mask = np.ma.masked_invalid(image)
             if isinstance(unit, str):
                 unit = u.Unit(unit)
+            else:
+                unit = unit if unit is not None else u.Unit()
 
+            # create image
             img = np.ma.array(image, mask=mask)
 
         # co-add signal in each image column
