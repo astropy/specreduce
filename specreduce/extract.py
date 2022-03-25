@@ -224,6 +224,8 @@ class HorneExtract(SpecreduceOperation):
                                   "incorrect, use VarianceUncertainty when "
                                   "assigning image object's uncertainty.")
                     variance = image.uncertainty.array**2
+                elif image.uncertainty.uncertainty_type == 'ivar':
+                    variance = 1 / image.uncertainty.array
                 else:
                     # other options are InverseVariance and UnknownVariance
                     raise ValueError("image NDData object has unexpected "
