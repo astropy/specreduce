@@ -236,7 +236,7 @@ class HorneExtract(SpecreduceOperation):
                 raise ValueError('if image is a numpy array, the variance, '
                                  'mask, and unit arguments must be specified. '
                                  'consider wrapping that information into one '
-                                 'object by instead passing a NDData image.')
+                                 'object by instead passing an NDData image.')
 
             if image.shape != variance.shape:
                 raise ValueError('image and variance shapes must match')
