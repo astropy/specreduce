@@ -193,8 +193,9 @@ class KosmosTrace(Trace):
         if (self.window is not None
             and (self.window > img.shape[self._disp_axis]
                  or self.window < 1)):
-            raise ValueError(f"window must be >= 2 and less than {self.image.shape[self.disp_axis]} "
-                             "the length of the image's spatial direction")
+            raise ValueError(f"window must be >= 2 and less than "
+                             "{self.image.shape[self.disp_axis]} the length of the "
+                             "image's spatial direction")
         elif self.window is not None and not isinstance(self.window, int):
             warnings.warn('TRACE: Converting window to int')
             self.window = int(self.window)
