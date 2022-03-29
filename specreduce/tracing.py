@@ -190,7 +190,7 @@ class KosmosTrace(Trace):
         if self.bins < 4:
             raise ValueError('bins must be >= 4')
 
-        cols = img.shape[self.disp_axis]
+        cols = img.shape[self._disp_axis]
         if self.bins >= cols:
             raise ValueError(f"bins must be < {cols}, the length of the "
                              "image's spatial direction")
