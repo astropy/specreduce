@@ -1,0 +1,8 @@
+astropy=5.0
+matplotlib==3.5.0
+numpy==1.21.4
+
+# KOSMOS-specific steps for notebook:
+# git clone git@github.com:jradavenport/kosmos.git OR git clone https://github.com/jradavenport/kosmos
+# find and delete all occurrences of ".data" in kosmos/apextract.py
+# use local location of root KOSMOS repository as argument to sys.path.insert()
