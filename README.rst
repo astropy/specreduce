@@ -3,7 +3,7 @@ Specreduce
 
 .. image:: https://github.com/astropy/specreduce/workflows/Python%20Tests/badge.svg
     :target: https://github.com/astropy/specreduce/actions
-    :alt: Python Integration Test Status
+    :alt: CI Status
 
 .. image:: https://readthedocs.org/projects/specreduce/badge/?version=latest
     :target: http://specreduce.readthedocs.io/en/latest/?badge=latest
@@ -18,4 +18,4 @@ set of Python utilities that can be used to reduce and calibrate spectroscopic d
 License
 -------
 
-Specreduce is licensed under a 3-clause BSD style license. Please see the LICENSE.rst file.
+Specreduce is licensed under a 3-clause BSD style license. Please see the licences/LICENSE.rst file.
