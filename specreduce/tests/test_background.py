@@ -7,6 +7,7 @@ from specreduce.background import Background
 from specreduce.tracing import FlatTrace
 
 
+# NOTE: same test image as in test_extract.py
 # Test image is comprised of 30 rows with 10 columns each. Row content
 # is row index itself. This makes it easy to predict what should be the
 # value extracted from a region centered at any arbitrary Y position.

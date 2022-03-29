@@ -62,7 +62,8 @@ class Trace:
 
     def __add__(self, delta):
         """
-        Return a copy of the trace shifted by delta pixels perpendicular to the axis being traced
+        Return a copy of the trace shifted "forward" by delta pixels perpendicular to the axis
+        being traced
         """
         copy = deepcopy(self)
         copy.shift(delta)
@@ -70,7 +71,8 @@ class Trace:
 
     def __sub__(self, delta):
         """
-        Return a copy of the trace shifted by delta pixels perpendicular to the axis being traced
+        Return a copy of the trace shifted "backward" by delta pixels perpendicular to the axis
+        being traced
         """
         return self.__add__(-delta)
 
