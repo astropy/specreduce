@@ -9,7 +9,8 @@ on:
 jobs:
   publish:
     uses: OpenAstronomy/github-actions-workflows/.github/workflows/publish_pure_python.yml@v1
-    if: ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags')) || contains(github.event.pull_request.labels.*.name, 'Build wheels'))
+    # NOTE: Uncomment "if" if you do not want this to run for every PR.
+    # if: ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags')) || contains(github.event.pull_request.labels.*.name, 'Build wheels'))
     with:
       test_extras: test
       test_command: pytest $GITHUB_WORKSPACE/specreduce/tests
