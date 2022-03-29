@@ -1,5 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
+from copy import deepcopy
 from dataclasses import dataclass
 import warnings
 
@@ -58,6 +59,22 @@ class Trace:
         """
         ny = self.image.shape[0]
         self.trace = np.ma.masked_outside(self.trace, 0, ny-1)
+
+    def __add__(self, delta):
+        """
+        Return a copy of the trace shifted "forward" by delta pixels perpendicular to the axis
+        being traced
+        """
+        copy = deepcopy(self)
+        copy.shift(delta)
+        return copy
+
+    def __sub__(self, delta):
+        """
+        Return a copy of the trace shifted "backward" by delta pixels perpendicular to the axis
+        being traced
+        """
+        return self.__add__(-delta)
 
 
 @dataclass
