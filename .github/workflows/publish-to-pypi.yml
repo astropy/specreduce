@@ -1,47 +1,17 @@
-name: Publish to PyPI and TestPyPI
+name: Release
 
 on:
+  pull_request:
   push:
-    branches: [ main ]
+    tags:
+      - '*'
 
 jobs:
-  build-n-publish:
-    name: Build and publish to PyPI and TestPyPI
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python 🐍 3.9
-      uses: actions/setup-python@v3
-      with:
-        python-version: 3.9
-
-    - name: Install pypa/build
-      run: >-
-        python -m
-        pip install
-        build
-        --user
-
-    - name: Build a binary wheel and a source tarball
-      run: >-
-        python -m
-        build
-        --sdist
-        --wheel
-        --outdir dist/
-        .
-
-    - name: Publish distribution 📦 to Test PyPI
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        user: __token__
-        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        repository_url: https://test.pypi.org/legacy/
-
-    - name: Publish distribution 📦 to PyPI
-      if: startsWith(github.ref, 'refs/tags')
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_API_TOKEN }}
+  publish:
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/publish_pure_python.yml@v1
+    if: ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags')) || contains(github.event.pull_request.labels.*.name, 'Build wheels'))
+    with:
+      test_extras: test
+      test_command: pytest $GITHUB_WORKSPACE/specreduce/tests
+    secrets:
+      pypi_token: ${{ secrets.PYPI_API_TOKEN }}
