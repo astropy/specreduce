@@ -1,4 +1,4 @@
-notebook==6.4.1
+notebook==6.4.10
 jupyter_client==5.3.5
 numpy==1.21.0
 scipy #==1.5.2
