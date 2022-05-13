@@ -238,19 +238,19 @@ class HorneExtract(SpecreduceOperation):
                 raise ValueError('image NDData object lacks uncertainty')
 
         else:
-            if any(arg is None for arg in (variance, mask, unit)):
-                raise ValueError('if image is a numpy array, the variance, '
-                                 'mask, and unit arguments must be specified. '
-                                 'consider wrapping that information into one '
+            if variance is None:
+                raise ValueError('if image is a numpy array, a variance must '
+                                 'be specified. consider wrapping it into one '
                                  'object by instead passing an NDData image.')
-            if image.shape != variance.shape:
+            elif image.shape != variance.shape:
                 raise ValueError('image and variance shapes must match')
-            if image.shape != mask.shape:
-                raise ValueError('image and mask shapes must match')
 
-            # fill in non-required arguments if empty
+            # check optional arguments, filling them in if absent
             if mask is None:
                 mask = np.ma.masked_invalid(image)
+            elif image.shape != mask.shape:
+                raise ValueError('image and mask shapes must match.')
+
             if isinstance(unit, str):
                 unit = u.Unit(unit)
             else:
