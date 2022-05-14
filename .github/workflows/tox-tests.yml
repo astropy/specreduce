@@ -52,6 +52,9 @@ jobs:
           - os: ubuntu-latest
             python: '3.8'
             tox_env: 'py38-test-datadeps-oldestdeps'
+          - os: ubuntu-latest
+            python: '3.10'
+            tox_env: 'py310-test-datadeps-astropyrc'
 
     steps:
     - name: Check out repository
