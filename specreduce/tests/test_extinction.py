@@ -1,6 +1,9 @@
+import pytest
+
 import numpy as np
 
 import astropy.units as u
+from astropy.utils.exceptions import AstropyUserWarning
 
 from ..calibration_data import (
     AtmosphericExtinction,
@@ -56,14 +59,16 @@ def test_missing_extinction_unit():
     """
     Test creation of custom model from Quantity arrays
     """
-    wave = np.linspace(0.3, 2.0, 50)
-    extinction = 1. / wave
-    ext = AtmosphericExtinction(extinction=extinction, spectral_axis=wave * u.um)
-    assert(len(ext.extinction_mag) > 0)
-    assert(len(ext.transmission) > 0)
+    with pytest.warns(AstropyUserWarning):
+        wave = np.linspace(0.3, 2.0, 50)
+        extinction = 1. / wave
+        ext = AtmosphericExtinction(extinction=extinction, spectral_axis=wave * u.um)
+        assert(len(ext.extinction_mag) > 0)
+        assert(len(ext.transmission) > 0)
 
 
 def test_transmission_model():
-    ext = AtmosphericTransmission()
-    assert(len(ext.extinction_mag) > 0)
-    assert(len(ext.transmission) > 0)
+    with pytest.warns(RuntimeWarning):
+        ext = AtmosphericTransmission()
+        assert(len(ext.extinction_mag) > 0)
+        assert(len(ext.transmission) > 0)
