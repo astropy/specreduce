@@ -59,15 +59,18 @@ def test_missing_extinction_unit():
     """
     Test creation of custom model from Quantity arrays
     """
+    wave = np.linspace(0.3, 2.0, 50)
+    extinction = 1. / wave
     with pytest.warns(AstropyUserWarning):
-        wave = np.linspace(0.3, 2.0, 50)
-        extinction = 1. / wave
         ext = AtmosphericExtinction(extinction=extinction, spectral_axis=wave * u.um)
         assert(len(ext.extinction_mag) > 0)
         assert(len(ext.transmission) > 0)
 
 
 def test_transmission_model():
+    """
+    Test creating of default atmospheric transmission model
+    """
     with pytest.warns(RuntimeWarning):
         ext = AtmosphericTransmission()
         assert(len(ext.extinction_mag) > 0)
