@@ -30,6 +30,9 @@ jobs:
           - os: ubuntu-latest
             python: '3.10'
             tox_env: 'py310-test-datadeps-devdeps'
+          - os: ubuntu-latest
+            python: '3.10'
+            tox_env: 'py310-test-datadeps-predeps'
 
     steps:
     - name: Check out repository
