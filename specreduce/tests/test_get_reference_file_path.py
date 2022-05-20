@@ -7,4 +7,4 @@ def test_get_reference_file_path():
     """
     test_path = "extinction/apoextinct.dat"
     p = get_reference_file_path(path=test_path)
-    assert(p is not None)
+    assert p is not None

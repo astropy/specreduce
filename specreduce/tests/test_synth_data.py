@@ -13,5 +13,5 @@ def test_make_2dspec_image():
         source_amplitude=10,
         source_alpha=0.1
     )
-    assert(ccdim.data.shape == (1000, 3000))
-    assert(isinstance(ccdim, CCDData))
+    assert ccdim.data.shape == (1000, 3000)
+    assert isinstance(ccdim, CCDData)
