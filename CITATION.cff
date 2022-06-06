@@ -16,6 +16,10 @@ authors:
     email: te.pickering@gmail.com
     affiliation: MMT Observatory
     orcid: 'https://orcid.org/0000-0002-9427-5448'
+  - given-names: Kyle
+    family-names: Conroy
+    affiliation: STScI
+    orcid: 'https://orcid.org/0000-0002-5442-8550'
 identifiers:
   - type: doi
     value: 10.5281/zenodo.6608788
