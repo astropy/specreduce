@@ -20,6 +20,11 @@ authors:
     family-names: Conroy
     affiliation: STScI
     orcid: 'https://orcid.org/0000-0002-5442-8550'
+  - given-names: Erik
+    family-names: Tollerud
+    email: erik.tollerud@gmail.com
+    affiliation: Space Telescope Science Institute
+    orcid: 'https://orcid.org/0000-0002-9599-310X'
 identifiers:
   - type: doi
     value: 10.5281/zenodo.6608788
