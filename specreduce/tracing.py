@@ -82,6 +82,10 @@ class FlatTrace(Trace):
     """
     Trace that is constant along the axis being traced
 
+    Example: ::
+
+        trace = FlatTrace(image, trace_pos)
+
     Parameters
     ----------
     trace_pos : float
@@ -144,7 +148,12 @@ class KosmosTrace(Trace):
     trace along every pixel in the dispersion direction.
 
     (The original version of this algorithm is sourced from James
-     Davenport's `kosmos` repository.)
+    Davenport's `kosmos` repository.)
+
+
+    Example: ::
+
+        trace = KosmosTrace(image, guess=trace_pos)
 
     Parameters
     ----------

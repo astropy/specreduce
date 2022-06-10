@@ -79,7 +79,14 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
 @dataclass
 class BoxcarExtract(SpecreduceOperation):
     """
-    Does a standard boxcar extraction
+    Does a standard boxcar extraction.
+
+    Example: ::
+
+        trace = FlatTrace(image, trace_pos)
+        extract = BoxcarExtract()
+        spectrum = extract(image, trace, width)
+
 
     Parameters
     ----------

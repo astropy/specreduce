@@ -14,7 +14,14 @@ __all__ = ['Background']
 @dataclass
 class Background:
     """
-    Determine the background from an image for subtraction
+    Determine the background from an image for subtraction.
+
+
+    Example: ::
+
+        trace = FlatTrace(image, trace_pos)
+        bg = Background.two_sided(image, trace, bkg_sep, width=bkg_width)
+        subtracted_image = image - bg
 
     Parameters
     ----------
@@ -109,6 +116,12 @@ class Background:
         Determine the background from an image for subtraction centered around
         an input trace.
 
+
+        Example: ::
+
+            trace = KosmosTrace(image, guess=trace_pos)
+            bg = Background.two_sided(image, trace, bkg_sep, width=bkg_width)
+
         Parameters
         ----------
         image : nddata-compatible image
@@ -136,6 +149,11 @@ class Background:
         """
         Determine the background from an image for subtraction above
         or below an input trace.
+
+        Example: ::
+
+            trace = KosmosTrace(image, guess=trace_pos)
+            bg = Background.one_sided(image, trace, bkg_sep, width=bkg_width)
 
         Parameters
         ----------
