@@ -48,6 +48,12 @@ Reference/API
 .. automodapi:: specreduce.core
     :no-inheritance-diagram:
 
+.. automodapi:: specreduce.tracing
+    :no-inheritance-diagram:
+
+.. automodapi:: specreduce.background
+    :no-inheritance-diagram:
+
 .. automodapi:: specreduce.extract
     :no-inheritance-diagram:
 
