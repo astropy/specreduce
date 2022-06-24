@@ -1,0 +1,31 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Specreduce
+message: >-
+  If you use Specreduce for work/research presented
+  in a publication (whether directly, or as a
+  dependency to another package), please cite the
+  Zenodo DOI for the appropriate version of
+  Specreduce.
+type: software
+authors:
+  - given-names: Timothy
+    family-names: Pickering
+    email: te.pickering@gmail.com
+    affiliation: MMT Observatory
+    orcid: 'https://orcid.org/0000-0002-9427-5448'
+  - given-names: Kyle
+    family-names: Conroy
+    affiliation: STScI
+    orcid: 'https://orcid.org/0000-0002-5442-8550'
+  - given-names: Erik
+    family-names: Tollerud
+    email: erik.tollerud@gmail.com
+    affiliation: Space Telescope Science Institute
+    orcid: 'https://orcid.org/0000-0002-9599-310X'
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.6608788
+    description: 'Version 1.0.0: First Official Release'
