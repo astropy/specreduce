@@ -266,6 +266,14 @@ class HorneExtract(SpecreduceOperation):
             # create image
             img = np.ma.array(image, mask=mask)
 
+        if np.all(variance == 0):
+            # technically would result in infinities, but since they're all zeros
+            # we can just do the unweighted case by overriding with all ones
+            variance = np.ones_like(variance)
+
+        if np.any(variance <= 0):
+            raise ValueError("variance must be fully positive")
+
         # co-add signal in each image column
         ncols = img.shape[crossdisp_axis]
         xd_pixels = np.arange(ncols)  # y plot dir / x spec dir
