@@ -196,7 +196,10 @@ class HorneExtract(SpecreduceOperation):
         variance : `~numpy.ndarray`, optional
             (Only used if `image` is not an NDData object.)
             The associated variances for each pixel in the image. Must
-            have the same dimensions as `image`. [default: None]
+            have the same dimensions as `image`. If all zeros, the variance
+            will be ignored and treated as all ones.  If any zeros, those
+            elements will be excluded via masking.  If any negative values,
+            an error will be raised. [default: None]
 
         mask : `~numpy.ndarray`, optional
             (Only used if `image` is not an NDData object.)
@@ -271,8 +274,14 @@ class HorneExtract(SpecreduceOperation):
             # we can just do the unweighted case by overriding with all ones
             variance = np.ones_like(variance)
 
-        if np.any(variance <= 0):
+        if np.any(variance < 0):
             raise ValueError("variance must be fully positive")
+
+        if np.any(variance == 0):
+            # exclude these elements by editing the input mask
+            img.mask[variance == 0] = True
+            # replace the variances to avoid a divide by zero warning
+            variance[variance == 0] = np.nan
 
         # co-add signal in each image column
         ncols = img.shape[crossdisp_axis]

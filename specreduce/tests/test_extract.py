@@ -87,12 +87,19 @@ def test_horne_variance_errors():
     # all zeros are treated as non-weighted (give non-zero fluxes)
     err = np.zeros_like(image)
     mask = np.zeros_like(image)
-    ext = extract(image.data, trace, variance=err, mask=np.zeros_like(err), unit=u.Jy)
+    ext = extract(image.data, trace, variance=err, mask=mask, unit=u.Jy)
     assert not np.all(ext == 0)
 
-    # single non-positive value raises error
+    # single zero value adjusts mask (does not raise error)
     err = np.ones_like(image)
     err[0] = 0
+    mask = np.zeros_like(image)
+    ext = extract(image.data, trace, variance=err, mask=mask, unit=u.Jy)
+    assert not np.all(ext == 0)
+
+    # single negative value raises error
+    err = np.ones_like(image)
+    err[0] = -1
     mask = np.zeros_like(image)
     with pytest.raises(ValueError, match='variance must be fully positive'):
         ext = extract(image.data, trace, variance=err, mask=mask, unit=u.Jy)
