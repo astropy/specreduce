@@ -1,9 +1,10 @@
 import numpy as np
+import pytest
 
 import astropy.units as u
 from astropy.nddata import CCDData
 
-from specreduce.extract import BoxcarExtract
+from specreduce.extract import BoxcarExtract, HorneExtract
 from specreduce.tracing import FlatTrace, ArrayTrace
 
 
@@ -16,7 +17,7 @@ for j in range(image.shape[0]):
 image = CCDData(image, unit=u.Jy)
 
 
-def test_extraction():
+def test_boxcar_extraction():
     #
     # Try combinations of extraction center, and even/odd
     # extraction aperture sizes.
@@ -57,7 +58,7 @@ def test_extraction():
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.0))
 
 
-def test_outside_image_condition():
+def test_boxcar_outside_image_condition():
     #
     # Trace is such that extraction aperture lays partially outside the image
     #
@@ -68,7 +69,7 @@ def test_outside_image_condition():
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 32.0))
 
 
-def test_array_trace():
+def test_boxcar_array_trace():
     boxcar = BoxcarExtract()
 
     trace_array = np.ones_like(image[1]) * 15.
@@ -77,3 +78,28 @@ def test_array_trace():
 
     spectrum = boxcar(image, trace)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
+
+
+def test_horne_variance_errors():
+    extract = HorneExtract()
+    trace = FlatTrace(image, 3.0)
+
+    # all zeros are treated as non-weighted (give non-zero fluxes)
+    err = np.zeros_like(image)
+    mask = np.zeros_like(image)
+    ext = extract(image.data, trace, variance=err, mask=mask, unit=u.Jy)
+    assert not np.all(ext == 0)
+
+    # single zero value adjusts mask (does not raise error)
+    err = np.ones_like(image)
+    err[0] = 0
+    mask = np.zeros_like(image)
+    ext = extract(image.data, trace, variance=err, mask=mask, unit=u.Jy)
+    assert not np.all(ext == 0)
+
+    # single negative value raises error
+    err = np.ones_like(image)
+    err[0] = -1
+    mask = np.zeros_like(image)
+    with pytest.raises(ValueError, match='variance must be fully positive'):
+        ext = extract(image.data, trace, variance=err, mask=mask, unit=u.Jy)
