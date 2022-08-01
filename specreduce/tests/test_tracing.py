@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from astropy.modeling import models
 from specreduce.utils.synth_data import make_2dspec_image
@@ -94,6 +95,18 @@ def test_kosmos_trace():
 
     t.shift(shift_out)
     assert t.trace.mask.all(), 'invalid values not masked'
+
+    # test peak_method options
+    tg = KosmosTrace(img, peak_method='gaussian')
+    tc = KosmosTrace(img, peak_method='centroid')
+    tm = KosmosTrace(img, peak_method='max')
+    # traces should all be close to 100 (note this passes with the current set values, but if
+    # changing the seed, noise, etc, then this test might need to be updated)
+    assert np.max(abs(tg.trace-100)) < sigma_pix
+    assert np.max(abs(tc.trace-100)) < 3 * sigma_pix
+    assert np.max(abs(tm.trace-100)) < 6 * sigma_pix
+    with pytest.raises(ValueError):
+        t = KosmosTrace(img, peak_method='invalid')
 
     # create same-shaped variations of image with invalid values
     img_all_nans = np.tile(np.nan, (nrows, ncols))

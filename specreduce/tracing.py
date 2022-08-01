@@ -176,6 +176,12 @@ class KosmosTrace(Trace):
         guess position. Useful for tracing faint sources if multiple
         traces are present, but potentially bad if the trace is
         substantially bent or warped. [default: None]
+    peak_method : string, optional
+        One of 'gaussian' (default), 'centroid', or 'max'.
+        gaussian: fits a gaussian to the window within each bin and
+        adopts the central value.  centroid: takes the centroid of the
+        window within in bin.  smooth_max: takes the position with the
+        maximum flux after smoothing over the window within each bin.
 
     Improvements Needed
     -------------------
@@ -188,6 +194,7 @@ class KosmosTrace(Trace):
     bins: int = 20
     guess: float = None
     window: int = None
+    peak_method: str = 'gaussian'
     _crossdisp_axis = 0
     _disp_axis = 1
 
@@ -200,6 +207,10 @@ class KosmosTrace(Trace):
             img = np.ma.masked_invalid(self.image)
 
         # validate arguments
+        valid_peak_methods = ('gaussian', 'centroid', 'max')
+        if self.peak_method not in valid_peak_methods:
+            raise ValueError(f"peak_method must be one of {valid_peak_methods}")
+
         if img.mask.all():
             raise ValueError('image is fully masked. Check for invalid values')
 
@@ -235,24 +246,26 @@ class KosmosTrace(Trace):
         peak_y = self.guess if self.guess is not None else ztot.argmax()
         # NOTE: peak finder can be bad if multiple objects are on slit
 
-        # guess the peak width as the FWHM, roughly converted to gaussian sigma
         yy = np.arange(img.shape[self._crossdisp_axis])
-        yy_above_half_max = np.sum(ztot > (ztot.max() / 2))
-        width_guess = yy_above_half_max / gaussian_sigma_to_fwhm
 
-        # enforce some (maybe sensible?) rules about trace peak width
-        width_guess = (2 if width_guess < 2
-                       else 25 if width_guess > 25
-                       else width_guess)
+        if self.peak_method == 'gaussian':
+            # guess the peak width as the FWHM, roughly converted to gaussian sigma
+            yy_above_half_max = np.sum(ztot > (ztot.max() / 2))
+            width_guess = yy_above_half_max / gaussian_sigma_to_fwhm
 
-        # fit a Gaussian to peak for fall-back answer, but don't use yet
-        g1d_init = models.Gaussian1D(amplitude=ztot.max(),
-                                     mean=peak_y, stddev=width_guess)
-        offset_init = models.Const1D(np.ma.median(ztot))
-        profile = g1d_init + offset_init
+            # enforce some (maybe sensible?) rules about trace peak width
+            width_guess = (2 if width_guess < 2
+                           else 25 if width_guess > 25
+                           else width_guess)
 
-        fitter = fitting.LevMarLSQFitter()
-        popt_tot = fitter(profile, yy, ztot)
+            # fit a Gaussian to peak for fall-back answer, but don't use yet
+            g1d_init = models.Gaussian1D(amplitude=ztot.max(),
+                                         mean=peak_y, stddev=width_guess)
+            offset_init = models.Const1D(np.ma.median(ztot))
+            profile = g1d_init + offset_init
+
+            fitter = fitting.LevMarLSQFitter()
+            popt_tot = fitter(profile, yy, ztot)
 
         # restrict fit to window (if one exists)
         ilum2 = (yy if self.window is None
@@ -276,30 +289,41 @@ class KosmosTrace(Trace):
                               'to trace value from all-bin fit.')
                 peak_y_i = peak_y
 
-            yy_i_above_half_max = np.sum(z_i > (z_i.max() / 2))
-            width_guess_i = yy_i_above_half_max / gaussian_sigma_to_fwhm
+            if self.peak_method == 'gaussian':
+                yy_i_above_half_max = np.sum(z_i > (z_i.max() / 2))
+                width_guess_i = yy_i_above_half_max / gaussian_sigma_to_fwhm
 
-            # NOTE: original KOSMOS code mandated width be greater than 2
-            # (to avoid cosmic rays) and less than 25 (to avoid fitting noise).
-            # we should extract values from img to derive similar limits
-            # width_guess_i = (2 if width_guess_i < 2
-            #                  else 25 if width_guess_i > 25
-            #                  else width_guess_i)
+                # NOTE: original KOSMOS code mandated width be greater than 2
+                # (to avoid cosmic rays) and less than 25 (to avoid fitting noise).
+                # we should extract values from img to derive similar limits
+                # width_guess_i = (2 if width_guess_i < 2
+                #                  else 25 if width_guess_i > 25
+                #                  else width_guess_i)
 
-            g1d_init_i = models.Gaussian1D(amplitude=z_i.max(),
-                                           mean=peak_y_i,
-                                           stddev=width_guess_i)
-            offset_init_i = models.Const1D(np.ma.median(z_i))
+                g1d_init_i = models.Gaussian1D(amplitude=z_i.max(),
+                                               mean=peak_y_i,
+                                               stddev=width_guess_i)
+                offset_init_i = models.Const1D(np.ma.median(z_i))
 
-            profile_i = g1d_init_i + offset_init_i
-            popt_i = fitter(profile_i, ilum2, z_i)
+                profile_i = g1d_init_i + offset_init_i
+                popt_i = fitter(profile_i, ilum2, z_i)
 
-            # if gaussian fits off chip, then fall back to previous answer
-            if not ilum2.min() <= popt_i.mean_0 <= ilum2.max():
-                y_bins[i] = popt_tot.mean_0.value
-            else:
-                y_bins[i] = popt_i.mean_0.value
-                popt_tot = popt_i
+                # if gaussian fits off chip, then fall back to previous answer
+                if not ilum2.min() <= popt_i.mean_0 <= ilum2.max():
+                    y_bins[i] = popt_tot.mean_0.value
+                else:
+                    y_bins[i] = popt_i.mean_0.value
+                    popt_tot = popt_i
+
+            elif self.peak_method == 'centroid':
+                z_i_cumsum = np.cumsum(z_i)
+                # find the interpolated index where the cumulative array reaches half the total
+                # cumulative values
+                y_bins[i] = np.interp(z_i_cumsum[-1]/2., z_i_cumsum, ilum2)
+
+            elif self.peak_method == 'max':
+                # TODO: implement smoothing with provided width
+                y_bins[i] = ilum2[z_i.argmax()]
 
         # recenter bin positions
         x_bins = (x_bins[:-1] + x_bins[1:]) / 2
