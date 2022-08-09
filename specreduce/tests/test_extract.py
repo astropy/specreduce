@@ -22,39 +22,40 @@ def test_boxcar_extraction():
     # Try combinations of extraction center, and even/odd
     # extraction aperture sizes.
     #
-    boxcar = BoxcarExtract()
     trace = FlatTrace(image, 15.0)
+    boxcar = BoxcarExtract(image, trace)
 
-    spectrum = boxcar(image, trace)
+    spectrum = boxcar.spectrum
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
     assert spectrum.unit is not None and spectrum.unit == u.Jy
 
     trace.set_position(14.5)
-    spectrum = boxcar(image, trace)
+    spectrum = boxcar()
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 72.5))
 
     trace.set_position(14.7)
-    spectrum = boxcar(image, trace)
+    spectrum = boxcar()
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 73.5))
 
     trace.set_position(15.0)
-    spectrum = boxcar(image, trace, width=6)
+    boxcar.width = 6
+    spectrum = boxcar()
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 90.))
 
     trace.set_position(14.5)
-    spectrum = boxcar(image, trace, width=6)
+    spectrum = boxcar(width=6)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 87.))
 
     trace.set_position(15.0)
-    spectrum = boxcar(image, trace, width=4.5)
+    spectrum = boxcar(width=4.5)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.5))
 
     trace.set_position(15.0)
-    spectrum = boxcar(image, trace, width=4.7)
+    spectrum = boxcar(width=4.7)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 70.5))
 
     trace.set_position(14.3)
-    spectrum = boxcar(image, trace, width=4.7)
+    spectrum = boxcar(width=4.7)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.0))
 
 
@@ -62,39 +63,37 @@ def test_boxcar_outside_image_condition():
     #
     # Trace is such that extraction aperture lays partially outside the image
     #
-    boxcar = BoxcarExtract()
     trace = FlatTrace(image, 3.0)
+    boxcar = BoxcarExtract(image, trace)
 
-    spectrum = boxcar(image, trace, width=10.)
+    spectrum = boxcar(width=10.)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 32.0))
 
 
 def test_boxcar_array_trace():
-    boxcar = BoxcarExtract()
-
     trace_array = np.ones_like(image[1]) * 15.
-
     trace = ArrayTrace(image, trace_array)
 
-    spectrum = boxcar(image, trace)
+    boxcar = BoxcarExtract(image, trace)
+    spectrum = boxcar()
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
 
 
 def test_horne_variance_errors():
-    extract = HorneExtract()
     trace = FlatTrace(image, 3.0)
 
     # all zeros are treated as non-weighted (give non-zero fluxes)
     err = np.zeros_like(image)
     mask = np.zeros_like(image)
-    ext = extract(image.data, trace, variance=err, mask=mask, unit=u.Jy)
+    extract = HorneExtract(image.data, trace, variance=err, mask=mask, unit=u.Jy)
+    ext = extract.spectrum
     assert not np.all(ext == 0)
 
     # single zero value adjusts mask (does not raise error)
     err = np.ones_like(image)
     err[0] = 0
     mask = np.zeros_like(image)
-    ext = extract(image.data, trace, variance=err, mask=mask, unit=u.Jy)
+    ext = extract(variance=err, mask=mask, unit=u.Jy)
     assert not np.all(ext == 0)
 
     # single negative value raises error
@@ -102,4 +101,4 @@ def test_horne_variance_errors():
     err[0] = -1
     mask = np.zeros_like(image)
     with pytest.raises(ValueError, match='variance must be fully positive'):
-        ext = extract(image.data, trace, variance=err, mask=mask, unit=u.Jy)
+        ext = extract(variance=err, mask=mask, unit=u.Jy)

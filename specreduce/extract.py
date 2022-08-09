@@ -1,16 +1,16 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
 from astropy import units as u
-from astropy.modeling import models, fitting
+from astropy.modeling import Model, models, fitting
 from astropy.nddata import NDData
 
 from specreduce.core import SpecreduceOperation
-from specreduce.tracing import FlatTrace
+from specreduce.tracing import Trace, FlatTrace
 from specutils import Spectrum1D
 
 __all__ = ['BoxcarExtract', 'HorneExtract', 'OptimalExtract']
@@ -84,8 +84,8 @@ class BoxcarExtract(SpecreduceOperation):
     Example: ::
 
         trace = FlatTrace(image, trace_pos)
-        extract = BoxcarExtract()
-        spectrum = extract(image, trace, width)
+        extract = BoxcarExtract(image, trace)
+        spectrum = extract(width=width)
 
 
     Parameters
@@ -106,11 +106,19 @@ class BoxcarExtract(SpecreduceOperation):
     spec : `~specutils.Spectrum1D`
         The extracted 1d spectrum expressed in DN and pixel units
     """
-
+    image: NDData
+    trace_object: Trace
+    width: float = 5
+    disp_axis: int = 1
+    crossdisp_axis: int = 0
     # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
 
-    def __call__(self, image, trace_object, width=5,
-                 disp_axis=1, crossdisp_axis=0):
+    @property
+    def spectrum(self):
+        return self.__call__()
+
+    def __call__(self, image=None, trace_object=None, width=None,
+                 disp_axis=None, crossdisp_axis=None):
         """
         Extract the 1D spectrum using the boxcar method.
 
@@ -121,11 +129,11 @@ class BoxcarExtract(SpecreduceOperation):
         trace_object : Trace
             trace object
         width : float
-            width of extraction aperture in pixels
+            width of extraction aperture in pixels [default: 5]
         disp_axis : int
-            dispersion axis
+            dispersion axis [default: 1]
         crossdisp_axis : int
-            cross-dispersion axis
+            cross-dispersion axis [default: 0]
 
 
         Returns
@@ -134,6 +142,12 @@ class BoxcarExtract(SpecreduceOperation):
             The extracted 1d spectrum with flux expressed in the same
             units as the input image, or u.DN, and pixel units
         """
+        image = image if image is not None else self.image
+        trace_object = trace_object if trace_object is not None else self.trace_object
+        width = width if width is not None else self.width
+        disp_axis = disp_axis if disp_axis is not None else self.disp_axis
+        crossdisp_axis = crossdisp_axis if crossdisp_axis is not None else self.crossdisp_axis
+
         # TODO: this check can be removed if/when implemented as a check in FlatTrace
         if isinstance(trace_object, FlatTrace):
             if trace_object.trace_pos < 1:
@@ -162,11 +176,65 @@ class HorneExtract(SpecreduceOperation):
     """
     Perform a Horne (a.k.a. optimal) extraction on a two-dimensional
     spectrum.
-    """
 
-    def __call__(self, image, trace_object,
-                 disp_axis=1, crossdisp_axis=0,
-                 bkgrd_prof=models.Polynomial1D(2),
+    Parameters
+    ----------
+
+    image : `~astropy.nddata.NDData` or array-like, required
+        The input 2D spectrum from which to extract a source. An
+        NDData object must specify uncertainty and a mask. An array
+        requires use of the `variance`, `mask`, & `unit` arguments.
+
+    trace_object : `~specreduce.tracing.Trace`, required
+        The associated 1D trace object created for the 2D image.
+
+    disp_axis : int, optional
+        The index of the image's dispersion axis. [default: 1]
+
+    crossdisp_axis : int, optional
+        The index of the image's cross-dispersion axis. [default: 0]
+
+    bkgrd_prof : `~astropy.modeling.Model`, optional
+        A model for the image's background flux.
+        [default: models.Polynomial1D(2)]
+
+    variance : `~numpy.ndarray`, optional
+        (Only used if `image` is not an NDData object.)
+        The associated variances for each pixel in the image. Must
+        have the same dimensions as `image`. If all zeros, the variance
+        will be ignored and treated as all ones.  If any zeros, those
+        elements will be excluded via masking.  If any negative values,
+        an error will be raised. [default: None]
+
+    mask : `~numpy.ndarray`, optional
+        (Only used if `image` is not an NDData object.)
+        Whether to mask each pixel in the image. Must have the same
+        dimensions as `image`. If blank, all non-NaN pixels are
+        unmasked. [default: None]
+
+    unit : `~astropy.units.core.Unit` or str, optional
+        (Only used if `image` is not an NDData object.)
+        The associated unit for the data in `image`. If blank,
+        fluxes are interpreted as unitless. [default: None]
+
+    """
+    image: NDData
+    trace_object: Trace
+    bkgrd_prof: Model = field(default=models.Polynomial1D(2))
+    variance: np.ndarray = field(default=None)
+    mask: np.ndarray = field(default=None)
+    unit: np.ndarray = field(default=None)
+    disp_axis: int = 1
+    crossdisp_axis: int = 0
+    # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
+
+    @property
+    def spectrum(self):
+        return self.__call__()
+
+    def __call__(self, image=None, trace_object=None,
+                 disp_axis=None, crossdisp_axis=None,
+                 bkgrd_prof=None,
                  variance=None, mask=None, unit=None):
         """
         Run the Horne calculation on a region of an image and extract a
@@ -184,14 +252,13 @@ class HorneExtract(SpecreduceOperation):
             The associated 1D trace object created for the 2D image.
 
         disp_axis : int, optional
-            The index of the image's dispersion axis. [default: 1]
+            The index of the image's dispersion axis.
 
         crossdisp_axis : int, optional
-            The index of the image's cross-dispersion axis. [default: 0]
+            The index of the image's cross-dispersion axis.
 
         bkgrd_prof : `~astropy.modeling.Model`, optional
             A model for the image's background flux.
-            [default: models.Polynomial1D(2)]
 
         variance : `~numpy.ndarray`, optional
             (Only used if `image` is not an NDData object.)
@@ -199,18 +266,18 @@ class HorneExtract(SpecreduceOperation):
             have the same dimensions as `image`. If all zeros, the variance
             will be ignored and treated as all ones.  If any zeros, those
             elements will be excluded via masking.  If any negative values,
-            an error will be raised. [default: None]
+            an error will be raised.
 
         mask : `~numpy.ndarray`, optional
             (Only used if `image` is not an NDData object.)
             Whether to mask each pixel in the image. Must have the same
             dimensions as `image`. If blank, all non-NaN pixels are
-            unmasked. [default: None]
+            unmasked.
 
         unit : `~astropy.units.core.Unit` or str, optional
             (Only used if `image` is not an NDData object.)
             The associated unit for the data in `image`. If blank,
-            fluxes are interpreted as unitless. [default: None]
+            fluxes are interpreted as unitless.
 
 
         Returns
@@ -218,6 +285,15 @@ class HorneExtract(SpecreduceOperation):
         spec_1d : `~specutils.Spectrum1D`
             The final, Horne extracted 1D spectrum.
         """
+        image = image if image is not None else self.image
+        trace_object = trace_object if trace_object is not None else self.trace_object
+        disp_axis = disp_axis if disp_axis is not None else self.disp_axis
+        crossdisp_axis = crossdisp_axis if crossdisp_axis is not None else self.crossdisp_axis
+        bkgrd_prof = bkgrd_prof if bkgrd_prof is not None else self.bkgrd_prof
+        variance = variance if variance is not None else self.variance
+        mask = mask if mask is not None else self.mask
+        unit = unit if unit is not None else self.unit
+
         # handle image and associated data based on image's type
         if isinstance(image, NDData):
             img = np.ma.array(image.data, mask=image.mask)
