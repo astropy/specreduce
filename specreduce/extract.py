@@ -333,7 +333,7 @@ class HorneExtract(SpecreduceOperation):
 
             # check optional arguments, filling them in if absent
             if mask is None:
-                mask = np.ma.masked_invalid(image)
+                mask = np.ma.masked_invalid(image).mask
             elif image.shape != mask.shape:
                 raise ValueError('image and mask shapes must match.')
 
