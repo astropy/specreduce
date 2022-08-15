@@ -4,7 +4,7 @@ import pytest
 import astropy.units as u
 from astropy.nddata import CCDData
 
-from specreduce.extract import BoxcarExtract, HorneExtract
+from specreduce.extract import BoxcarExtract, HorneExtract, OptimalExtract
 from specreduce.tracing import FlatTrace, ArrayTrace
 
 
@@ -77,6 +77,36 @@ def test_boxcar_array_trace():
     boxcar = BoxcarExtract(image, trace)
     spectrum = boxcar()
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
+
+
+def test_horne_array_validation():
+    #
+    # Test HorneExtract scenarios specific to its use with an image of
+    # type `~numpy.ndarray` (instead of the default `~astropy.nddata.NDData`).
+    #
+    extract = OptimalExtract()  # alias of Horne; behavior shouldn't change
+    trace = FlatTrace(image, 15.0)
+
+    # an array-type image must come with a variance argument
+    with pytest.raises(ValueError, match=r'.*array.*variance.*specified.*'):
+        ext = extract(image.data, trace)
+
+    # an array-type image must have the same dimensions as its variance argument
+    with pytest.raises(ValueError, match=r'.*shapes must match.*'):
+        err = np.ones_like(image[0])
+        ext = extract(image.data, trace, variance=err)
+
+    # an array-type image must have the same dimensions as its mask argument
+    with pytest.raises(ValueError, match=r'.*shapes must match.*'):
+        err = np.ones_like(image)
+        mask = np.zeros_like(image[0])
+        ext = extract(image.data, trace, variance=err, mask=mask)
+
+    # an array-type image given without mask and unit arguments is fine
+    # and produces a unitless result
+    err = np.ones_like(image)
+    ext = extract(image.data, trace, variance=err)
+    assert ext.unit == u.Unit()
 
 
 def test_horne_variance_errors():
