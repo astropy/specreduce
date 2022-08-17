@@ -1,5 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -87,6 +88,13 @@ class Background:
         bkg_wimage = np.zeros_like(self.image, dtype=np.float64)
         for trace in self.traces:
             trace = _to_trace(trace)
+            if (np.any(trace.trace.data >= self.image.shape[self.crossdisp_axis]) or
+                    np.any(trace.trace.data < 0)):
+                raise ValueError("center of background window goes beyond image boundaries")
+            elif (np.any(trace.trace.data + self.width/2. >= self.image.shape[self.crossdisp_axis])
+                  or np.any(trace.trace.data - self.width/2. < 0)):
+                warnings.warn("background window extends beyond image boundaries")
+            # pass trace.trace.data to ignore any mask on the trace
             bkg_wimage += _ap_weight_image(trace,
                                            self.width,
                                            self.disp_axis,

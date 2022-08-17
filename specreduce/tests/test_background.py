@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 
 import astropy.units as u
@@ -42,3 +43,13 @@ def test_background():
     sub3 = bg1.sub_image()
     assert np.allclose(sub1, sub2)
     assert np.allclose(sub1, sub3)
+
+
+def test_oob():
+    # image.shape (30, 10)
+    with pytest.warns(match="background window extends beyond image boundaries"):
+        Background.two_sided(image, 25, 4, width=3)
+
+    with pytest.raises(ValueError,
+                       match="center of background window goes beyond image boundaries"):
+        Background.two_sided(image, 25, 6, width=3)
