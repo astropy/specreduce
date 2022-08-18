@@ -9,6 +9,7 @@ New Features
 API Changes
 ^^^^^^^^^^^
 
+- ``HorneExtract`` no longer requires ``mask`` and ``unit`` arguments [#105]
 - ``BoxcarExtract`` and ``HorneExtract`` now accept parameters (and require the image and trace)
   at initialization, and allow overriding any input parameters when calling [#117]
 
