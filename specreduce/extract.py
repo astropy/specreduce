@@ -19,24 +19,50 @@ __all__ = ['BoxcarExtract', 'HorneExtract', 'OptimalExtract']
 def _get_boxcar_weights(center, hwidth, npix):
     """
     Compute weights given an aperture center, half width,
-    and number of pixels
+    and number of pixels.
+
+    Based on `get_boxcar_weights()` from a JDAT Notebook by Karl Gordon:
+    https://github.com/spacetelescope/jdat_notebooks/blob/main/notebooks/MIRI_LRS_spectral_extraction/miri_lrs_spectral_extraction.ipynb
+
+    Parameters
+    ----------
+    center : float, required
+        The index of the aperture's center pixel on the larger image's
+        cross-dispersion axis.
+
+    hwidth : float, required
+        Half of the aperture's width in the cross-dispersion direction.
+
+    npix : float, required
+        The number of pixels in the larger image's cross-dispersion
+        axis.
+
+    Returns
+    -------
+    weights : `~numpy.ndarray`
+        A 2D image with weights assigned to pixels that fall within the
+        defined aperture.
     """
-    weights = np.zeros((npix))
+    weights = np.zeros(npix)
 
-    # pixels with full weight
-    fullpixels = [max(0, int(center - hwidth + 1)),
-                  min(int(center + hwidth), npix)]
-    weights[fullpixels[0]:fullpixels[1]] = 1.0
+    # pixels given full weight because they sit entirely within the aperture
+    fullpixels = [max(0, int(np.ceil(center - hwidth))),
+                  min(int(np.floor(center + hwidth)), npix)]
+    weights[fullpixels[0]:fullpixels[1]] = 1
 
-    # pixels at the edges of the boxcar with partial weight
+    # pixels at the edges of the boxcar with partial weight, if any
     if fullpixels[0] > 0:
-        w = hwidth - (center - fullpixels[0] + 0.5)
-        if w >= 0:
-            weights[fullpixels[0] - 1] = w
-        else:
-            weights[fullpixels[0]] = 1. + w
+        w0 = hwidth - (center - fullpixels[0])
+        if w0 >= 0:
+            weights[fullpixels[0] - 1] = w0
+        else: # does this scenario happen given adjustment made to w0?
+            weights[fullpixels[0]] = 1 + w0
     if fullpixels[1] < npix:
-        weights[fullpixels[1]] = hwidth - (fullpixels[1] - center - 0.5)
+        w1 = hwidth - (fullpixels[1] - center)
+        if w1 >= 0:
+            weights[fullpixels[1]] = w1
+        else: # does this scenario happen given adjustment made to w1?
+            weights[fullpixels[1]] = 1 + w1
 
     return weights
 
@@ -46,23 +72,26 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
     """
     Create a weight image that defines the desired extraction aperture.
 
+    Based on `ap_weight_images()` from a JDAT Notebook by Karl Gordon:
+    https://github.com/spacetelescope/jdat_notebooks/blob/main/notebooks/MIRI_LRS_spectral_extraction/miri_lrs_spectral_extraction.ipynb
+
     Parameters
     ----------
-    trace : Trace
+    trace : `~specreduce.tracing.Trace`, required
         trace object
-    width : float
+    width : float, required
         width of extraction aperture in pixels
-    disp_axis : int
+    disp_axis : int, required
         dispersion axis
-    crossdisp_axis : int
+    crossdisp_axis : int, required
         cross-dispersion axis
-    image_shape : tuple with 2 elements
+    image_shape : tuple with 2 elements, required
         size (shape) of image
 
     Returns
     -------
-    wimage : 2D image
-        weight image defining the aperture
+    wimage : `~numpy.ndarray`
+        a 2D weight image defining the aperture
     """
     wimage = np.zeros(image_shape)
     hwidth = 0.5 * width
