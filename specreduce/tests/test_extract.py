@@ -84,28 +84,28 @@ def test_horne_array_validation():
     # Test HorneExtract scenarios specific to its use with an image of
     # type `~numpy.ndarray` (instead of the default `~astropy.nddata.NDData`).
     #
-    extract = OptimalExtract()  # alias of Horne; behavior shouldn't change
     trace = FlatTrace(image, 15.0)
+    extract = OptimalExtract(image.data, trace)  # equivalent to HorneExtract
 
     # an array-type image must come with a variance argument
     with pytest.raises(ValueError, match=r'.*array.*variance.*specified.*'):
-        ext = extract(image.data, trace)
+        ext = extract()
 
     # an array-type image must have the same dimensions as its variance argument
     with pytest.raises(ValueError, match=r'.*shapes must match.*'):
         err = np.ones_like(image[0])
-        ext = extract(image.data, trace, variance=err)
+        ext = extract(variance=err)
 
     # an array-type image must have the same dimensions as its mask argument
     with pytest.raises(ValueError, match=r'.*shapes must match.*'):
         err = np.ones_like(image)
         mask = np.zeros_like(image[0])
-        ext = extract(image.data, trace, variance=err, mask=mask)
+        ext = extract(variance=err, mask=mask)
 
     # an array-type image given without mask and unit arguments is fine
     # and produces a unitless result
     err = np.ones_like(image)
-    ext = extract(image.data, trace, variance=err)
+    ext = extract(variance=err)
     assert ext.unit == u.Unit()
 
 
