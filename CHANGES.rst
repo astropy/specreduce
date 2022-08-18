@@ -10,8 +10,13 @@ API Changes
 ^^^^^^^^^^^
 
 - ``BoxcarExtract`` and ``HorneExtract`` now accept parameters (and require the image and trace)
-  at initialization, and allow overriding any input parameters when calling. [#117]
+  at initialization, and allow overriding any input parameters when calling [#117]
 
+Bug Fixes
+^^^^^^^^^
+
+- Corrected the default mask created in ``HorneExtract``/``OptimalExtract``
+  when a user doesn't specify one and gives their image as a numpy array [#118]
 
 1.0.0
 -----
