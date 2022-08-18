@@ -1,3 +1,12 @@
+1.1.0 (unreleased)
+------------------
+
+New Features
+^^^^^^^^^^^^
+
+- ``peak_method`` as an optional argument to ``KosmosTrace`` [#115]
+
+
 1.0.0
 -----
 
