@@ -45,6 +45,10 @@ def _get_boxcar_weights(center, hwidth, npix):
     """
     weights = np.zeros(npix)
 
+    # shift center from integer to pixel space, where pixel N is [N-0.5, N+0.5),
+    # not [N, N+1). a pixel's integer index corresponds to its middle, not edge
+    center += 0.5
+
     # pixels given full weight because they sit entirely within the aperture
     fullpixels = [max(0, int(np.ceil(center - hwidth))),
                   min(int(np.floor(center + hwidth)), npix)]

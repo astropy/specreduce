@@ -56,7 +56,7 @@ def test_boxcar_extraction():
 
     trace.set_position(14.3)
     spectrum = boxcar(width=4.7)
-    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.0))
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.15))
 
 
 def test_boxcar_outside_image_condition():
