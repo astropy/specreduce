@@ -51,7 +51,7 @@ class Trace:
             Shift to be applied to the trace
         """
         # act on self.trace.data to ignore the mask and then re-mask when calling _bound_trace
-        self.trace = self.trace.data + delta
+        self.trace = np.asarray(self.trace.data) + delta
         self._bound_trace()
 
     def _bound_trace(self):
