@@ -59,14 +59,10 @@ def _get_boxcar_weights(center, hwidth, npix):
         w0 = hwidth - (center - fullpixels[0])
         if w0 >= 0:
             weights[fullpixels[0] - 1] = w0
-        else:  # does this scenario happen anymore given the adjustment to w0?
-            weights[fullpixels[0]] = 1 + w0
     if fullpixels[1] < npix:
         w1 = hwidth - (fullpixels[1] - center)
         if w1 >= 0:
             weights[fullpixels[1]] = w1
-        else:  # does this scenario happen anymore given the adjustment to w1?
-            weights[fullpixels[1]] = 1 + w1
 
     return weights
 
