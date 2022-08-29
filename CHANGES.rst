@@ -36,6 +36,14 @@ Bug Fixes
 New Features
 ^^^^^^^^^^^^
 
+- Added ``PolyTrace`` class [#128]
+
+1.1.0
+-----
+
+New Features
+^^^^^^^^^^^^
+
 - ``peak_method`` as an optional argument to ``KosmosTrace`` [#115]
 
 API Changes
