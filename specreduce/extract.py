@@ -56,13 +56,9 @@ def _get_boxcar_weights(center, hwidth, npix):
 
     # pixels at the edges of the boxcar with partial weight, if any
     if fullpixels[0] > 0:
-        w0 = hwidth - (center - fullpixels[0])
-        if w0 >= 0:
-            weights[fullpixels[0] - 1] = w0
+        weights[fullpixels[0] - 1] = hwidth - (center - fullpixels[0])
     if fullpixels[1] < npix:
-        w1 = hwidth - (fullpixels[1] - center)
-        if w1 >= 0:
-            weights[fullpixels[1]] = w1
+        weights[fullpixels[1]] = hwidth - (fullpixels[1] - center)
 
     return weights
 
