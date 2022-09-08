@@ -42,9 +42,6 @@ Calibration
 Reference/API
 *************
 
-.. automodapi:: specreduce
-    :no-inheritance-diagram:
-
 .. automodapi:: specreduce.core
     :no-inheritance-diagram:
 
