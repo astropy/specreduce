@@ -169,7 +169,7 @@ github_issues_url = 'https://github.com/{0}/issues/'.format(setup_cfg['github_pr
 
 # -- Turn on nitpicky mode for sphinx (to warn about references not found) ----
 #
-# nitpicky = True
+nitpicky = True
 # nitpick_ignore = []
 #
 # Some warnings are impossible to suppress, and you can list specific references
