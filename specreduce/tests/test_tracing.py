@@ -100,8 +100,8 @@ def test_kosmos_trace():
     tg = KosmosTrace(img, peak_method='gaussian')
     tc = KosmosTrace(img, peak_method='centroid')
     tm = KosmosTrace(img, peak_method='max')
-    # traces should all be close to 100 (note this passes with the current set values, but if
-    # changing the seed, noise, etc, then this test might need to be updated)
+    # traces should all be close to 100
+    # (values may need to be updated on changes to seed, noise, etc.)
     assert np.max(abs(tg.trace-100)) < sigma_pix
     assert np.max(abs(tc.trace-100)) < 3 * sigma_pix
     assert np.max(abs(tm.trace-100)) < 6 * sigma_pix
@@ -115,6 +115,14 @@ def test_kosmos_trace():
     guess = int(nrows/2)
     img_win_nans = img.copy()
     img_win_nans[guess - window:guess + window] = np.nan
+
+    # ensure a low bin number is rejected
+    with pytest.raises(ValueError, match='bins must be >= 4'):
+        KosmosTrace(img, bins=3)
+
+    # ensure number of bins greater than number of dispersion pixels is rejected
+    with pytest.raises(ValueError, match=r'bins must be <*'):
+        KosmosTrace(img, bins=ncols)
 
     # error on trace of otherwise valid image with all-nan window around guess
     try:
