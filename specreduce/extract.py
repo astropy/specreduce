@@ -71,7 +71,8 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
     # loop in dispersion direction and compute weights.
     for i in range(image_shape[disp_axis]):
         # TODO trace must handle transposed data (disp_axis == 0)
-        wimage[:, i] = _get_boxcar_weights(trace[i], hwidth, image_sizes)
+        # pass trace.trace.data[i] to avoid any mask if part of the regions is out-of-bounds
+        wimage[:, i] = _get_boxcar_weights(trace.trace.data[i], hwidth, image_sizes)
 
     return wimage
 

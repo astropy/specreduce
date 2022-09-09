@@ -1,5 +1,14 @@
-1.1.0 (unreleased)
+1.2.0 (unreleased)
 ------------------
+
+Bug Fixes
+^^^^^^^^^
+
+- Improved errors/warnings when background region extends beyond bounds of image. [#127]
+
+
+1.1.0
+-----
 
 New Features
 ^^^^^^^^^^^^
