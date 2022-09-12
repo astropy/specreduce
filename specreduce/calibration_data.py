@@ -23,8 +23,8 @@ __all__ = [
 ]
 
 """
-Make specreduce_data optional. If it's available, great and we can access its data via
-pkg_resources. If not, we'll fall back to downloading and optionally caching it using
+Make ``specreduce_data`` optional. If it's available, great and we can access its data via
+``pkg_resources``. If not, we'll fall back to downloading and optionally caching it using
 `~astropy.utils.data`.
 """
 LOCAL_DATA = True
@@ -66,14 +66,14 @@ SPECPHOT_DATASETS = [
 
 def get_reference_file_path(path=None, cache=False, show_progress=False):
     """
-    Basic function to take a path to a file and load it via pkg_resources if the specreduce_data
-    package is available and load it via ghithub raw user content if not.
+    Basic function to take a path to a file and load it via ``pkg_resources`` if the ``specreduce_data``
+    package is available and load it via github raw user content if not.
 
     Parameters
     ----------
     path : str or None (default: None)
         Filename of reference file relative to the reference_data directory within
-        specreduce_data package.
+        ``specreduce_data`` package.
 
     cache : bool (default: False)
         Set whether file is cached if file is downloaded.
@@ -125,12 +125,12 @@ def get_reference_file_path(path=None, cache=False, show_progress=False):
 
 def load_MAST_calspec(filename, remote=True, cache=True, show_progress=False):
     """
-    Load a standard star spectrum from the `calspec` database at MAST. These spectra are provided in
+    Load a standard star spectrum from the ``calspec`` database at MAST. These spectra are provided in
     FITS format and are described in detail at:
 
     https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec  # noqa
 
-    If `remote` is True, the spectrum will be downloaded from MAST. Set `remote` to False to load
+    If ``remote`` is True, the spectrum will be downloaded from MAST. Set ``remote`` to False to load
     a local file.
 
     Parameters
@@ -139,7 +139,7 @@ def load_MAST_calspec(filename, remote=True, cache=True, show_progress=False):
         FITS filename of the standard star spectrum, e.g. g191b2b_005.fits.
 
     remote : bool (default = True)
-        If True, download the spectrum from MAST. If False, check if `filename` exists and load
+        If True, download the spectrum from MAST. If False, check if ``filename`` exists and load
         it.
     cache : bool (default = True)
         Toggle whether downloaded data is cached or not.
@@ -148,10 +148,9 @@ def load_MAST_calspec(filename, remote=True, cache=True, show_progress=False):
 
     Returns
     -------
-    spectrum : None or `~specutils.Spectrum1D`
+    spectrum : `~specutils.Spectrum1D` or None
         If the spectrum can be loaded, return it as a `~specutils.Spectrum1D`.
-        Otherwise return None. The spectral_axis units are Å (`~astropy.units.angstrom`) and
-        the flux units are milli-Janskys (`~astropy.units.mJy`).
+        Otherwise return None. The spectral_axis units are Å and the flux units are milli-Janskys.
     """
     if remote:
         url = f"https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/{filename}"
@@ -190,7 +189,7 @@ def load_MAST_calspec(filename, remote=True, cache=True, show_progress=False):
 def load_onedstds(dataset="snfactory", specfile="EG131.dat", cache=True, show_progress=False):
     """
     This is a convenience function for loading a standard star spectrum from the 'onedstds'
-    dataset in the `~specreduce_data` package. If that package is installed, `~pkg_resources`
+    dataset in the ``specreduce_data`` package. If that package is installed, ``pkg_resources``
     will be used to locate the data files locally. Otherwise they will be downloaded from the
     repository on github.
 
@@ -212,8 +211,7 @@ def load_onedstds(dataset="snfactory", specfile="EG131.dat", cache=True, show_pr
     -------
     spectrum : None or `~specutils.Spectrum1D`
         If the spectrum can be loaded, return it as a `~specutils.Spectrum1D`.
-        Otherwise return None. The spectral_axis units are Å (`~astropy.units.angstrom`) and
-        the flux units are milli-Janskys (`~astropy.units.mJy`).
+        Otherwise return None. The spectral_axis units are Å and the flux units are milli-Janskys.
     """
     if dataset not in SPECPHOT_DATASETS:
         msg = (f"Specfied dataset, {dataset}, not in list of supported datasets of "
@@ -248,12 +246,12 @@ class AtmosphericExtinction(Spectrum1D):
     Spectrum container for atmospheric extinction in magnitudes as a function of wavelength.
     If extinction and spectral_axis are provided, this will use them to build a custom model.
     If they are not, the 'model' parameter will be used to lookup and load a pre-defined
-    atmospheric extinction model from the `specreduce_data` package.
+    atmospheric extinction model from the ``specreduce_data`` package.
 
     Parameters
     ----------
     model : str
-        Name of atmospheric extinction model provided by `specreduce_data`. Valid
+        Name of atmospheric extinction model provided by ``specreduce_data``. Valid
         options are:
 
         kpno - Kitt Peak National Observatory (default)
@@ -270,7 +268,7 @@ class AtmosphericExtinction(Spectrum1D):
         to build custom atmospheric extinction model. If no units are provided, assumed to
         be given in magnitudes.
 
-    spectral_axis : `~astropy.units.Quantity` or `~specutils.SpectralCoord` or None
+    spectral_axis : `~astropy.units.Quantity` or `~astropy.coordinates.SpectralCoord` or None
         Optional Dispersion information with the same shape as the last (or only)
         dimension of flux, or one greater than the last dimension of flux
         if specifying bin edges. Used along with flux to build custom atmospheric
