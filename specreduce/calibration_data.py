@@ -66,8 +66,8 @@ SPECPHOT_DATASETS = [
 
 def get_reference_file_path(path=None, cache=False, show_progress=False):
     """
-    Basic function to take a path to a file and load it via ``pkg_resources`` if the ``specreduce_data``
-    package is available and load it via github raw user content if not.
+    Basic function to take a path to a file and load it via ``pkg_resources`` if
+    the ``specreduce_data`` package is available and load it via github raw user content if not.
 
     Parameters
     ----------
