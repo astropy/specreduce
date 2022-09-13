@@ -96,11 +96,8 @@ class Background:
         bkg_wimage = np.zeros_like(self.image, dtype=np.float64)
         for trace in self.traces:
             trace = _to_trace(trace)
-            if (np.any(trace.trace.data >= self.image.shape[self.crossdisp_axis]) or
-                    np.any(trace.trace.data < 0)):
-                raise ValueError("center of background window goes beyond image boundaries")
-            elif (np.any(trace.trace.data + self.width/2. >= self.image.shape[self.crossdisp_axis])
-                  or np.any(trace.trace.data - self.width/2. < 0)):
+            if (np.any(trace.trace.data + self.width/2. >= self.image.shape[self.crossdisp_axis])
+                    or np.any(trace.trace.data - self.width/2. < 0)):
                 warnings.warn("background window extends beyond image boundaries")
             # pass trace.trace.data to ignore any mask on the trace
             bkg_wimage += _ap_weight_image(trace,
@@ -111,12 +108,15 @@ class Background:
 
         if np.any(bkg_wimage > 1):
             raise ValueError("background regions overlapped")
+        if np.any(np.sum(bkg_wimage, axis=0) == 0):
+            raise ValueError("background window does not remain in bounds across entire dispersion axis")  # noqa
 
         if self.statistic == 'median':
             # make it clear in the expose image that partial pixels are fully-weighted
             bkg_wimage[bkg_wimage > 0] = 1
 
         self.bkg_wimage = bkg_wimage
+
         if self.statistic == 'average':
             self.bkg_array = np.average(self.image, weights=self.bkg_wimage, axis=0)
         elif self.statistic == 'median':

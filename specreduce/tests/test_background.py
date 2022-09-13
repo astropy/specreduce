@@ -6,7 +6,7 @@ from astropy.nddata import CCDData
 from specutils import Spectrum1D
 
 from specreduce.background import Background
-from specreduce.tracing import FlatTrace
+from specreduce.tracing import FlatTrace, KosmosTrace
 
 
 # NOTE: same test image as in test_extract.py
@@ -56,6 +56,7 @@ def test_oob():
     with pytest.warns(match="background window extends beyond image boundaries"):
         Background.two_sided(image, 25, 4, width=3)
 
+    trace = KosmosTrace(image, guess=15, bins=5)
     with pytest.raises(ValueError,
-                       match="center of background window goes beyond image boundaries"):
-        Background.two_sided(image, 25, 6, width=3)
+                       match="background window does not remain in bounds across entire dispersion axis"):  # noqa
+        Background.two_sided(image, trace, 15, width=3)
