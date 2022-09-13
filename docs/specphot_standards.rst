@@ -51,7 +51,7 @@ database names and their descriptions are listed here. Please refer to the `spec
 specific data files that are available:
 
 - `bstdscal <https://github.com/iraf-community/iraf/tree/main/noao/lib/onedstds/bstdscal>`_: Directory of the brighter KPNO IRS
-  standards (i.e. those with HR numbers) at 29 bandpasses, data from various sources transformed to the Hayes and Latham system, unpublished.
+  standards (i.e., those with HR numbers) at 29 bandpasses, data from various sources transformed to the Hayes and Latham system, unpublished.
 
 - `ctiocal <https://github.com/iraf-community/iraf/tree/main/noao/lib/onedstds/ctiocal>`_:
   Directory containing fluxes for the southern tertiary standards as published by
@@ -66,7 +66,7 @@ specific data files that are available:
   directory also contains the fluxes of the tertiaries in the red (6050-10000A) at
   50A steps as will be published in PASP (Hamuy et al 1994).  The combined fluxes
   are obtained by gray shifting the blue fluxes to match the red fluxes in the
-  overlap region of 6500A-7500A and averaging the red and blue fluxes in the
+  overlap region of 6500-7500A and averaging the red and blue fluxes in the
   overlap.  The separate red and blue fluxes may be selected by following the star
   name with "red" or "blue"; i.e. CD 32 blue.
 
@@ -109,7 +109,7 @@ specific data files that are available:
   at 16A steps as will be published in PASP (`Hamuy et al 1994
   <https://ui.adsabs.harvard.edu/abs/1994PASP..106..566H/abstract>`_).  The
   combined fluxes are obtained by gray shifting the blue fluxes to match the red
-  fluxes in the overlap region of 6500A-7500A and averaging the blue and red
+  fluxes in the overlap region of 6500-7500A and averaging the blue and red
   fluxes in the overlap. The separate red and blue fluxes may be selected by
   following the star name with "red" or "blue"; i.e. HR 1544 blue.
 
