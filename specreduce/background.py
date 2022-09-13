@@ -108,7 +108,7 @@ class Background:
 
         if np.any(bkg_wimage > 1):
             raise ValueError("background regions overlapped")
-        if np.any(np.sum(bkg_wimage, axis=0) == 0):
+        if np.any(np.sum(bkg_wimage, axis=self.crossdisp_axis) == 0):
             raise ValueError("background window does not remain in bounds across entire dispersion axis")  # noqa
 
         if self.statistic == 'median':
@@ -118,11 +118,12 @@ class Background:
         self.bkg_wimage = bkg_wimage
 
         if self.statistic == 'average':
-            self.bkg_array = np.average(self.image, weights=self.bkg_wimage, axis=0)
+            self.bkg_array = np.average(self.image, weights=self.bkg_wimage,
+                                        axis=self.crossdisp_axis)
         elif self.statistic == 'median':
             med_image = self.image.copy()
             med_image[np.where(self.bkg_wimage) == 0] = np.nan
-            self.bkg_array = np.nanmedian(med_image, axis=0)
+            self.bkg_array = np.nanmedian(med_image, axis=self.crossdisp_axis)
         else:
             raise ValueError("statistic must be 'average' or 'median'")
 
