@@ -156,7 +156,7 @@ spectra available from MAST, ESO, and the Nearby Supernova factory:
     ax.legend()
     fig.show()
 
-The ``MAST`` data have the best UV coverage, but that's not useful from the ground and they only extend to 0.9 microns in the red in this case.
+The MAST data have the best UV coverage, but that's not useful from the ground and they only extend to 0.9 microns in the red in this case.
 The other data extend to 1.0 microns, but both spectra show systematics due to telluric absorption. The ``SNFactory``
 data extend well past the atmospheric cutoff with no correction applied for atmospheric transmission. The ``ESO`` data, on the
 other hand, are not corrected for the telluric features in the near-IR while the ``SNFactory`` data are. Regions affected by
