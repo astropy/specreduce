@@ -133,7 +133,7 @@ Many commonly used standard stars have spectra in multiple datasets, but the qua
 The `~specreduce.calibration_data.load_MAST_calspec` and `~specreduce.calibration_data.load_onedstds` functions can be
 useful tools for exploring and comparing spectra from the various databases. An example is shown here for `LTT 9491
 <http://simbad.u-strasbg.fr/simbad/sim-id?Ident=LTT+9491&NbIdent=1&Radius=2&Radius.unit=arcmin&submit=submit+id>`_ which has
-spectra available from ``MAST``, ``ESO``, and the Nearby Supernova factory:
+spectra available from MAST, ESO, and the Nearby Supernova factory:
 
 .. plot::
     :include-source:
