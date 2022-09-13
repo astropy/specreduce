@@ -23,8 +23,7 @@ __all__ = [
 ]
 
 """
-Make ``specreduce_data`` optional. If it's available, great and we can access its data via
-``pkg_resources``. If not, we'll fall back to downloading and optionally caching it using
+If specreduce_data is not available, we'll fall back to downloading and optionally caching it using
 `~astropy.utils.data`.
 """
 LOCAL_DATA = True
