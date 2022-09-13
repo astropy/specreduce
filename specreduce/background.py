@@ -86,6 +86,13 @@ class Background:
                     raise ValueError('trace_object.trace_pos must be >= 1')
             return trace
 
+        if self.width < 0:
+            raise ValueError("width must be positive")
+
+        if self.width == 0:
+            self.bkg_array = np.zeros(self.image.shape[self.disp_axis])
+            return
+
         bkg_wimage = np.zeros_like(self.image, dtype=np.float64)
         for trace in self.traces:
             trace = _to_trace(trace)

@@ -196,6 +196,9 @@ class BoxcarExtract(SpecreduceOperation):
             if trace_object.trace_pos < 1:
                 raise ValueError('trace_object.trace_pos must be >= 1')
 
+        if width < 0:
+            raise ValueError("width must be positive")
+
         # weight image to use for extraction
         wimage = _ap_weight_image(
             trace_object,
