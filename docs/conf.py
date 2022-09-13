@@ -170,10 +170,13 @@ github_issues_url = 'https://github.com/{0}/issues/'.format(setup_cfg['github_pr
 # -- Turn on nitpicky mode for sphinx (to warn about references not found) ----
 #
 nitpicky = True
-nitpick_ignore = [
-    ("py:class", "specutils.spectra.spectrum1d.Spectrum1D"),
-    ("py:obj", "specutils.Spectrum1D")
-]
+intersphinx_mapping.update(
+    {
+        'astropy': ('https://docs.astropy.org/en/latest/', None),
+        'ccdproc': ('https://ccdproc.readthedocs.io/en/latest/', None),
+        'specutils': ('https://specutils.readthedocs.io/en/latest/', None)
+    }
+)
 #
 # Some warnings are impossible to suppress, and you can list specific references
 # that should be ignored in a nitpick-exceptions file which should be inside
