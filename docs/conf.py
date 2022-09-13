@@ -172,9 +172,9 @@ github_issues_url = 'https://github.com/{0}/issues/'.format(setup_cfg['github_pr
 nitpicky = True
 intersphinx_mapping.update(
     {
-        'astropy': ('https://docs.astropy.org/en/latest/', None),
-        'ccdproc': ('https://ccdproc.readthedocs.io/en/latest/', None),
-        'specutils': ('https://specutils.readthedocs.io/en/latest/', None)
+        'astropy': ('https://docs.astropy.org/en/stable/', None),
+        'ccdproc': ('https://ccdproc.readthedocs.io/en/stable/', None),
+        'specutils': ('https://specutils.readthedocs.io/en/stable/', None)
     }
 )
 #
