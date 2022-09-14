@@ -6,7 +6,8 @@ Spectroscopic data reduction outline
 
 Here are some examples of complete DR processes, to help guide development
 (including basic image reduction steps, provided by other packages). These are
-not a summary of functionality actually implemented in ``specreduce`` today.
+not a summary of functionality actually implemented in
+`specreduce <https://specreduce.readthedocs.io/en/stable/index.html>`_ today.
 
 
 .. _specreduce-nir-mos:

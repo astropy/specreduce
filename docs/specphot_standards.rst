@@ -59,14 +59,14 @@ specific data files that are available:
   and `Stone and Baldwin, 1983, MNRAS, 204, 347 <https://ui.adsabs.harvard.edu/abs/1983MNRAS.204..347S/abstract>`_.
 
 - `ctionewcal <https://github.com/iraf-community/iraf/tree/main/noao/lib/onedstds/ctionewcal>`_:
-  Directory containing fluxes at 50A steps in the blue range 3300-7550A for the
+  Directory containing fluxes at 50 Å steps in the blue range 3300-7550 Å for the
   tertiary standards of Baldwin and Stone derived from the revised calibration of
   `Hamuy et al., 1992, PASP, 104, 533
   <https://ui.adsabs.harvard.edu/abs/1992PASP..104..533H/abstract>`_. This
-  directory also contains the fluxes of the tertiaries in the red (6050-10000A) at
-  50A steps as will be published in PASP (Hamuy et al 1994).  The combined fluxes
+  directory also contains the fluxes of the tertiaries in the red (6050-10000 Å) at
+  50 Å steps as will be published in PASP (Hamuy et al 1994).  The combined fluxes
   are obtained by gray shifting the blue fluxes to match the red fluxes in the
-  overlap region of 6500-7500A and averaging the red and blue fluxes in the
+  overlap region of 6500-7500 Å and averaging the red and blue fluxes in the
   overlap.  The separate red and blue fluxes may be selected by following the star
   name with "red" or "blue"; i.e. CD 32 blue.
 
@@ -86,11 +86,11 @@ specific data files that are available:
   Directory of spectrophotometric standards observed for use with the HST, Table
   VII, `Oke 1990, AJ, 99, 1621
   <https://ui.adsabs.harvard.edu/abs/1990AJ.....99.1621O/abstract>`_ (no
-  correction was applied).  An arbitrary 1A bandpass is specified for these
+  correction was applied).  An arbitrary 1 Å bandpass is specified for these
   smoothed and interpolated flux "points".
 
 - `redcal <https://github.com/iraf-community/iraf/tree/main/noao/lib/onedstds/redcal>`_:
-  Directory of standard stars with flux data beyond 8370A.
+  Directory of standard stars with flux data beyond 8370 Å.
   These stars are from the IRS or the IIDS directory but
   have data extending as far out into the red as the
   literature permits.  Data from various sources.
@@ -101,20 +101,20 @@ specific data files that are available:
   et al., 1988, ApJ 328, p. 315 <https://ui.adsabs.harvard.edu/abs/1988ApJ...328..315M/abstract>`_.
 
 - `spec16cal <https://github.com/iraf-community/iraf/tree/main/noao/lib/onedstds/spec16cal>`_:
-  Directory containing fluxes at 16A steps in the blue
-  range 3300-7550A for the secondary standards, published in `Hamuy et al., 1992,
+  Directory containing fluxes at 16 Å steps in the blue
+  range 3300-7550 Å for the secondary standards, published in `Hamuy et al., 1992,
   PASP, 104, 533
   <https://ui.adsabs.harvard.edu/abs/1992PASP..104..533H/abstract>`_.  This
-  directory also contains the fluxes of the secondaries in the red (6020-10300A)
-  at 16A steps as will be published in PASP (`Hamuy et al 1994
+  directory also contains the fluxes of the secondaries in the red (6020-10300 Å)
+  at 16 Å steps as will be published in PASP (`Hamuy et al 1994
   <https://ui.adsabs.harvard.edu/abs/1994PASP..106..566H/abstract>`_).  The
   combined fluxes are obtained by gray shifting the blue fluxes to match the red
-  fluxes in the overlap region of 6500-7500A and averaging the blue and red
+  fluxes in the overlap region of 6500-7500 Å and averaging the blue and red
   fluxes in the overlap. The separate red and blue fluxes may be selected by
   following the star name with "red" or "blue"; i.e. HR 1544 blue.
 
 - `spec50cal <https://github.com/iraf-community/iraf/tree/main/noao/lib/onedstds/spec50cal>`_:
-  The KPNO spectrophotometric standards at 50 A intervals. The data
+  The KPNO spectrophotometric standards at 50 Å intervals. The data
   are from (1) Table V, Spectrophotometric Standards, `Massey et al., 1988, ApJ
   328, p. 315 <https://ui.adsabs.harvard.edu/abs/1988ApJ...328..315M/abstract>`_
   and (2) Table 3, The Kitt Peak Spectrophotometric Standards: Extension to 1
