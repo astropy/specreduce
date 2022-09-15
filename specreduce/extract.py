@@ -209,7 +209,7 @@ class HorneExtract(SpecreduceOperation):
     image : `~astropy.nddata.NDData` or array-like, required
         The input 2D spectrum from which to extract a source. An
         NDData object must specify uncertainty and a mask. An array
-        requires use of the `variance`, `mask`, & `unit` arguments.
+        requires use of the ``variance``, ``mask``, & ``unit`` arguments.
 
     trace_object : `~specreduce.tracing.Trace`, required
         The associated 1D trace object created for the 2D image.
@@ -225,22 +225,22 @@ class HorneExtract(SpecreduceOperation):
         [default: models.Polynomial1D(2)]
 
     variance : `~numpy.ndarray`, optional
-        (Only used if `image` is not an NDData object.)
+        (Only used if ``image`` is not an NDData object.)
         The associated variances for each pixel in the image. Must
-        have the same dimensions as `image`. If all zeros, the variance
+        have the same dimensions as ``image``. If all zeros, the variance
         will be ignored and treated as all ones.  If any zeros, those
         elements will be excluded via masking.  If any negative values,
         an error will be raised. [default: None]
 
     mask : `~numpy.ndarray`, optional
-        (Only used if `image` is not an NDData object.)
+        (Only used if ``image`` is not an NDData object.)
         Whether to mask each pixel in the image. Must have the same
-        dimensions as `image`. If blank, all non-NaN pixels are
+        dimensions as ``image``. If blank, all non-NaN pixels are
         unmasked. [default: None]
 
-    unit : `~astropy.units.core.Unit` or str, optional
-        (Only used if `image` is not an NDData object.)
-        The associated unit for the data in `image`. If blank,
+    unit : `~astropy.units.Unit` or str, optional
+        (Only used if ``image`` is not an NDData object.)
+        The associated unit for the data in ``image``. If blank,
         fluxes are interpreted as unitless. [default: None]
 
     """
@@ -272,7 +272,7 @@ class HorneExtract(SpecreduceOperation):
         image : `~astropy.nddata.NDData` or array-like, required
             The input 2D spectrum from which to extract a source. An
             NDData object must specify uncertainty and a mask. An array
-            requires use of the `variance`, `mask`, & `unit` arguments.
+            requires use of the ``variance``, ``mask``, & ``unit`` arguments.
 
         trace_object : `~specreduce.tracing.Trace`, required
             The associated 1D trace object created for the 2D image.
@@ -287,22 +287,22 @@ class HorneExtract(SpecreduceOperation):
             A model for the image's background flux.
 
         variance : `~numpy.ndarray`, optional
-            (Only used if `image` is not an NDData object.)
+            (Only used if ``image`` is not an NDData object.)
             The associated variances for each pixel in the image. Must
-            have the same dimensions as `image`. If all zeros, the variance
+            have the same dimensions as ``image``. If all zeros, the variance
             will be ignored and treated as all ones.  If any zeros, those
             elements will be excluded via masking.  If any negative values,
             an error will be raised.
 
         mask : `~numpy.ndarray`, optional
-            (Only used if `image` is not an NDData object.)
+            (Only used if ``image`` is not an NDData object.)
             Whether to mask each pixel in the image. Must have the same
-            dimensions as `image`. If blank, all non-NaN pixels are
+            dimensions as ``image``. If blank, all non-NaN pixels are
             unmasked.
 
-        unit : `~astropy.units.core.Unit` or str, optional
-            (Only used if `image` is not an NDData object.)
-            The associated unit for the data in `image`. If blank,
+        unit : `~astropy.units.Unit` or str, optional
+            (Only used if ``image`` is not an NDData object.)
+            The associated unit for the data in ``image``. If blank,
             fluxes are interpreted as unitless.
 
 

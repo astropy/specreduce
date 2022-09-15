@@ -11,7 +11,7 @@ and infrared.
 Supported Optical Extinction Models
 -----------------------------------
 
-`specreduce` offers support for average optical extinction models for a set of observatories:
+``specreduce`` offers support for average optical extinction models for a set of observatories:
 
 .. csv-table::
     :header:  "Model Name", "Observatory", "Lat", "Lon", "Elevation (m)", "Ref"
@@ -55,8 +55,8 @@ https://www.aanda.org/articles/aa/pdf/2011/03/aa15537-10.pdf.
 available at https://www.apo.nmsu.edu/arc35m/Instruments/DIS/ (https://www.apo.nmsu.edu/arc35m/Instruments/DIS/images/apoextinct.dat).
 
 In each case, the extinction is given in magnitudes per airmass and the wavelengths are in Angstroms. Here is an example that
-uses the `AtmosphericExtinction` class to load each model and plots the extinction in magnitudes as well as fractional transmission
-as a function of wavelength:
+uses the `~specreduce.calibration_data.AtmosphericExtinction` class to load each model and plots the extinction in magnitudes as well
+as fractional transmission as a function of wavelength:
 
 .. plot::
     :include-source:
@@ -76,9 +76,9 @@ as a function of wavelength:
     plt.tight_layout()
     fig.show()
 
-A convenience class, `AtmosphericTransmission`, is provided for loading data files containing atmospheric transmission versus wavelength.
-The common use case for this would be loading the output of telluric models. By default it loads a telluric model for an airmass of 1 and
-1 mm of precipitable water. Some resources for generating more realistic model atmospheric transmission spectra include
+A convenience class, `~specreduce.calibration_data.AtmosphericTransmission`, is provided for loading data files containing atmospheric transmission
+versus wavelength. The common use case for this would be loading the output of telluric models. By default it loads a telluric model for an
+airmass of 1 and 1 mm of precipitable water. Some resources for generating more realistic model atmospheric transmission spectra include
 https://mwvgroup.github.io/pwv_kpno/1.0.0/documentation/html/index.html and http://www.eso.org/sci/software/pipelines/skytools/molecfit.
 
 .. plot::

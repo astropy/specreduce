@@ -2,12 +2,12 @@
 Specreduce documentation
 ########################
 
-The `specreduce` package aims to provide a data reduction toolkit for optical
+The `specreduce <https://specreduce.readthedocs.io/en/latest/index.html>`_ package aims to provide a data reduction toolkit for optical
 and infrared spectroscopy, on which applications such as pipeline processes for
 specific instruments can be built. The scope of its functionality is limited to
 basic spectroscopic reduction, with basic *image* processing steps (such as
-bias subtraction) instead covered by `ccdproc` and other packages, data
-analysis by `specutils` and visualization by `specviz` or `cubeviz`. A few
+bias subtraction) instead covered by `ccdproc <https://ccdproc.readthedocs.io/en/latest/>`_ and other packages, data
+analysis by `specutils <https://specutils.readthedocs.io/en/latest/>`_ and visualization by `matplotlib <https://matplotlib.org/>`_. A few
 examples will nevertheless be provided of its usage in conjunction with these
 complementary packages.
 

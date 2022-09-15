@@ -149,7 +149,7 @@ class KosmosTrace(Trace):
     trace along every pixel in the dispersion direction.
 
     (The original version of this algorithm is sourced from James
-    Davenport's `kosmos` repository.)
+    Davenport's ``kosmos`` repository.)
 
 
     Example: ::
@@ -173,12 +173,12 @@ class KosmosTrace(Trace):
         finder. Good for tracing a fainter source if multiple traces
         are present. [default: None]
     window : int, optional
-        Fit the trace to a region with size `window * 2` around the
+        Fit the trace to a region with size ``window * 2`` around the
         guess position. Useful for tracing faint sources if multiple
         traces are present, but potentially bad if the trace is
         substantially bent or warped. [default: None]
     peak_method : string, optional
-        One of 'gaussian' (default), 'centroid', or 'max'.
+        One of ``gaussian`` (default), ``centroid``, or ``max``.
         gaussian: fits a gaussian to the window within each bin and
         adopts the central value.  centroid: takes the centroid of the
         window within in bin.  smooth_max: takes the position with the
