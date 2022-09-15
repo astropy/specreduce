@@ -56,7 +56,18 @@ def test_oob():
     with pytest.warns(match="background window extends beyond image boundaries"):
         Background.two_sided(image, 25, 4, width=3)
 
+    # bottom of top window near/on top-edge of image (these should warn, but not fail)
+    with pytest.warns(match="background window extends beyond image boundaries"):
+        Background.two_sided(image, 25, 8, width=5)
+
+    with pytest.warns(match="background window extends beyond image boundaries"):
+        Background.two_sided(image, 25, 8, width=6)
+
+    with pytest.warns(match="background window extends beyond image boundaries"):
+        Background.two_sided(image, 25, 8, width=7)
+
     trace = KosmosTrace(image, guess=15, bins=5)
-    with pytest.raises(ValueError,
-                       match="background window does not remain in bounds across entire dispersion axis"):  # noqa
-        Background.two_sided(image, trace, 15, width=3)
+    with pytest.warns(match="background window extends beyond image boundaries"):
+        with pytest.raises(ValueError,
+                           match="background window does not remain in bounds across entire dispersion axis"):  # noqa
+            Background.two_sided(image, trace, 15, width=3)

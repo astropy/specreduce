@@ -56,20 +56,24 @@ def _get_boxcar_weights(center, hwidth, npix):
     lower_edge = max(-0.5, center-hwidth)  # where -0.5 is lower bound of the image
     upper_edge = min(center+hwidth, npix-0.5)  # where npix-0.5 is upper bound of the image
 
+    # let's avoid recomputing the round repeatedly
+    int_round_lower_edge = int(round(lower_edge))
+    int_round_upper_edge = int(round(upper_edge))
+
     # inner pixels that get full weight
     # the round in conjunction with the +1 handles the half-pixel "offset",
     # the upper bound doesn't have the +1 because array slicing is inclusive on the lower index and
     # exclusive on the upper-index
     # NOTE: round(-0.5) == 0, which is helpful here for the case where lower_edge == -0.5
-    weights[int(round(lower_edge))+1:int(round(upper_edge))] = 1
+    weights[int_round_lower_edge+1:int_round_upper_edge] = 1
 
     # handle edge pixels (for cases where an edge pixel is fully-weighted, this will set it again,
-    # but should still compute a weight of 1.  For cases where the edge is on or off the bounds
-    # of the image, skip this logic to avoid an index out of bounds error)
-    if lower_edge != -0.5:
-        weights[int(round(lower_edge))] = round(lower_edge) + 0.5 - lower_edge
-    if upper_edge != npix-0.5:
-        weights[int(round(upper_edge))] = upper_edge - (round(upper_edge) - 0.5)
+    # but should still compute a weight of 1.  By using N:N+1, we avoid index errors if the edge
+    # is outside the image bounds.  But we do need to avoid negative indices which would count
+    # from the end of the array.
+    if int_round_lower_edge > 0:
+        weights[int_round_lower_edge:int_round_lower_edge+1] = round(lower_edge) + 0.5 - lower_edge
+    weights[int_round_upper_edge:int_round_upper_edge+1] = upper_edge - (round(upper_edge) - 0.5)
 
     return weights
 
