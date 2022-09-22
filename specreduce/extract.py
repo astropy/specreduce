@@ -379,6 +379,10 @@ class HorneExtract(SpecreduceOperation):
         if np.any(variance < 0):
             raise ValueError("variance must be fully positive")
 
+        if np.any(np.isnan(variance)):
+            # exclude these elements by editing the input mask
+            img.mask[np.isnan(variance)] = True
+
         if np.any(variance == 0):
             # exclude these elements by editing the input mask
             img.mask[variance == 0] = True
