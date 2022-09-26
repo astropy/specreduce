@@ -71,7 +71,7 @@ def _get_boxcar_weights(center, hwidth, npix):
     # but should still compute a weight of 1.  By using N:N+1, we avoid index errors if the edge
     # is outside the image bounds.  But we do need to avoid negative indices which would count
     # from the end of the array.
-    if int_round_lower_edge > 0:
+    if int_round_lower_edge >= 0:
         weights[int_round_lower_edge:int_round_lower_edge+1] = round(lower_edge) + 0.5 - lower_edge
     weights[int_round_upper_edge:int_round_upper_edge+1] = upper_edge - (round(upper_edge) - 0.5)
 
