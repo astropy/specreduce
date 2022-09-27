@@ -1,5 +1,5 @@
 ########################
-Specreduce documentation
+Specreduce Documentation
 ########################
 
 The `specreduce <https://specreduce.readthedocs.io/en/latest/index.html>`_ package aims to provide a data reduction toolkit for optical
@@ -17,16 +17,16 @@ complementary packages.
     change. Please feel free to contribute code and suggestions through github.
 
 
-.. _DR-process:
+.. _spectral-extraction:
 
-**********************
-Data reduction process
-**********************
+*******************
+Spectral Extraction
+*******************
 
 .. toctree::
-    :maxdepth: 1
+    :maxdepth: 2
 
-    process/index
+    extraction_quickstart.rst
 
 ***********
 Calibration
@@ -38,30 +38,26 @@ Calibration
     extinction.rst
     specphot_standards.rst
 
-*************
-Reference/API
-*************
-
-.. automodapi:: specreduce.core
-    :no-inheritance-diagram:
-
-.. automodapi:: specreduce.tracing
-    :no-inheritance-diagram:
-
-.. automodapi:: specreduce.background
-    :no-inheritance-diagram:
-
-.. automodapi:: specreduce.extract
-    :no-inheritance-diagram:
-
-.. automodapi:: specreduce.calibration_data
-    :no-inheritance-diagram:
-    :include-all-objects:
 
 *****
 Index
 *****
 
+.. toctree::
+    :maxdepth: 1
+
+    api.rst
+
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+
+****************
+Development Docs
+****************
+
+.. toctree::
+    :maxdepth: 1
+
+    process/index
