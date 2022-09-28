@@ -1,11 +1,10 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
 from copy import deepcopy
-from dataclasses import dataclass
-import math
+from dataclasses import dataclass, field
 import warnings
 
-from astropy.modeling import fitting, models
+from astropy.modeling import Model, fitting, models
 from astropy.nddata import CCDData, NDData
 from astropy.stats import gaussian_sigma_to_fwhm
 from scipy.interpolate import UnivariateSpline
@@ -230,8 +229,8 @@ class KosmosTrace(Trace):
             raise ValueError('bins must be >= 4')
 
         cols = img.shape[self._disp_axis]
-        if self.bins >= cols:
-            raise ValueError(f"bins must be < {cols}, the length of the "
+        if self.bins > cols:
+            raise ValueError(f"bins must be <= {cols}, the length of the "
                              "image's spatial direction")
 
         if (self.window is not None
@@ -342,7 +341,7 @@ class KosmosTrace(Trace):
             trace_y = ap_spl(trace_x)
         else:
             warnings.warn("TRACE ERROR: No valid points found in trace")
-            trace_y = np.tile(np.nan, len(x_bins))
+            trace_y = np.tile(np.nan, img.shape[self._disp_axis])
 
         self.trace = np.ma.masked_invalid(trace_y)
 
@@ -355,7 +354,8 @@ class PolyTrace(Trace):
 
     Example: ::
 
-        trace = PolyTrace(image, degree=3)
+        from astropy.modeling import models
+        trace = PolyTrace(image, trace_model=models.Legendre1D(3))
 
     Parameters
     ----------
@@ -363,89 +363,93 @@ class PolyTrace(Trace):
         The image over which to run the trace. Assumes cross-dispersion
         (spatial) direction is axis 0 and dispersion (wavelength)
         direction is axis 1.
-    degree : int, optional
-        The degree of the polynomial used to fit the trace.
-        [default: 3]
-    bin_size : int, optional
-        The number of dispersion pixels to group into each bin before
-        calculating the fit. [default: 1]
+    bins : int, optional
+        The number of bins in the dispersion (wavelength) direction
+        into which to divide the image. The minimum (and default) number
+        of bins is 4. [default: 4]
+    trace_model : `~astropy.modeling.Model`, optional
+        The 1-D polynomial model used to fit the trace to the bins' peak
+        pixels. Valid options are ``Legendre1D``, ``Chebyshev1D``, and
+        ``Polynomial1D``. [default: ``models.Legendre1D(3)``]
     """
-    degree: int = 3
-    bin_size: int = 1
+    bins: int = 4
+    trace_model: Model = field(default=models.Legendre1D(3))
     _crossdisp_axis = 0
     _disp_axis = 1
 
     def __post_init__(self):
         # validate arguments
-        if self.degree < 0:
-            raise ValueError('degree must be >= 0')
-        elif not isinstance(self.degree, int):
-            warnings.warn('TRACE: Converting degree to int')
-            self.bins = int(self.degree)
-
-        if self.bin_size < 1:
-            raise ValueError('bin_size must be >= 1')
-        elif self.bin_size > self.image.shape[self._disp_axis]:
-            raise ValueError('bin_size must be less than number of'
-                             'dispersion pixels in image')
-        elif not isinstance(self.bin_size, int):
-            warnings.warn('TRACE: Converting bin_size to int')
-            self.bin_size = int(self.bin_size)
-
         if isinstance(self.image, NDData):
             # NOTE: not sure how well LevMarLSQFitter can handle masked values
             img = self.image.data
         else:
             img = self.image
 
-        # find peak cross-dispersion pixel in each bin
-        if self.bin_size == 1:
-            raw_trace = img.argmax(axis=self._crossdisp_axis)
+        cols = img.shape[self._disp_axis]
+        if self.bins < 4:
+            # many of the Astropy model fitters require four points at minimum
+            raise ValueError('bins must be >= 4')
+        elif self.bins > cols:
+            raise ValueError(f"bins must be <= {cols}, the length of the "
+                             "image's spatial direction")
 
-            # save matching dispersion indices for each pixel
-            disp_inds_all = np.arange(img.shape[self._disp_axis])
-            disp_inds = disp_inds_all.copy()
-        else:
-            # find number of extra dispersion pixels needed for equal-sized bins
-            if img.shape[self._disp_axis] % self.bin_size == 0:
-                pad_x = 0
-            else:
-                pad_x = self.bin_size - (img.shape[self._disp_axis] % self.bin_size)
+        if not isinstance(self.bins, int):
+            warnings.warn('TRACE: Converting bins to int')
+            self.bins = int(self.bins)
 
-            # if necessary, pad dispersion axis with zeros
-            # [shape: Y by (X + pad_x)] (original img has shape Y by X)
-            img_padded = np.pad(img, ((0, 0), (0, pad_x)))
-            # compare to:
-            # img_padded = np.hstack((img, np.zeros((img.shape[self._crossdisp_axis], pad_x))))
+        valid_models = ["Legendre1D", "Chebyshev1D", "Polynomial1D"]
+        if type(self.trace_model).name not in valid_models:
+            raise ValueError("trace_model must be one of "
+                             f"{', '.join(valid_models)}.")
 
-            # create array where each index is a bin of dispersion pixels
-            # [shape: (Y * bins_in_row) by bin_size]
-            bins_in_row = math.ceil(img.shape[self._disp_axis] / self.bin_size)
-            # np.ceil() only gives floats...
-            bins_arr = np.resize(img_padded,
-                                 (img.shape[self._crossdisp_axis] * bins_in_row,
-                                  self.bin_size))
+        # save the bin's boundaries on the cross-disperision axis
+        bin_size = img.shape[self._disp_axis] / self.bins
+        borders = np.linspace(bin_size, img.shape[self._disp_axis], self.bins)
 
-            # sum each bin, then reshape to get collapsed version of self.image
-            # [shape: Y by bins_in_row]
-            bins_summed = bins_arr.sum(axis=self._disp_axis)
-            img_collapsed = bins_summed.reshape(-1, bins_in_row)
+        # create 2D array where each row represents a set of weights for its
+        # matching bin. pixels fully in the bin get a weight of 1, pixels fully
+        # outside the bin have no weight, and partial pixels get partial weight.
+        # [shape: bins by X] (original img has shape Y by X)
+        bin_weights = np.array(
+            [
+                [0 if ((b - bin_size) - x >= 1 or x - b >= 0)
+                 else 1 if (x >= (b - bin_size) and b - x >= 1)
+                 else (1 - (b - bin_size) % 1 if x < (b - bin_size)
+                       else b % 1)
+                 for x in range(img.shape[self._disp_axis])]
 
-            # find peak pixels
-            raw_trace = img_collapsed.argmax(axis=self._crossdisp_axis)
+                for b in borders
+            ])
 
-            # set dispersion indices as each bin's mean pixel value
-            disp_inds_all = np.arange(img.shape[self._disp_axis])
-            disp_inds = [disp_inds_all[b:b+self.bin_size].mean()
-                         for b in disp_inds_all[::self.bin_size]]
+        # all rows of bin_weights should have the same weight
+        # (e.g., assert len(np.unique(bin_weights.sum(axis=1))) == 1)
+        # bin_weights' total sum should be the number of dispersion pixels:
+        # (e.g., assert bin_weights.sum() == img.shape[self._disp_axis])
+
+        # extend the image into a cube where each 2D slice is a copy of img.
+        # multiply each slice by its corresponding bin's row of weights.
+        # (bin_weights needs an extra dimension for numpy broadcasting to work)
+        # [shape: bins by Y by X]
+        img_seq = (np.resize(img, (self.bins,) + img.shape)
+                   * bin_weights[:, np.newaxis])
+
+        # collapse each slice to the sums of its cross-dispersion rows
+        # [shape: bins by Y]
+        img_seq_collapsed = img_seq.sum(axis=self._disp_axis + 1)
+
+        # find each bin's peak cross-dispersion pixel
+        raw_trace = img_seq_collapsed.argmax(axis=self._disp_axis)
+
+        # set dispersion indices as each bin's mean pixel value
+        disp_inds_trace = borders - bin_size / 2
+        disp_inds_all = np.arange(img.shape[self._disp_axis])
 
         # NOTE: consider argument for pre-fit smoothing of raw_trace?
         # (Patrick's sample polytrace uses Hanning)
 
-        # fit peak pixels to polynomial function
-        poly_init = models.Polynomial1D(self.degree)
+        # fit peak pixels to Legendre series
         fitter = fitting.LevMarLSQFitter()
-        self.poly_model = fitter(poly_init, disp_inds, raw_trace)
+        self.fitted_model = fitter(self.trace_model, disp_inds_trace, raw_trace)
 
         # interpolate the fitted trace over the entire wavelength axis
-        self.trace = self.poly_model(disp_inds_all)
+        self.trace = self.fitted_model(disp_inds_all)
