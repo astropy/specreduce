@@ -15,6 +15,8 @@ New Features
 ^^^^^^^^^^^^
 
 - ``peak_method`` as an optional argument to ``KosmosTrace`` [#115]
+- ``Background`` has new methods for exposing the 1D spectrum of the background or
+  background-subtracted regions [#143]
 
 API Changes
 ^^^^^^^^^^^
