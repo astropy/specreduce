@@ -3,7 +3,7 @@ import pytest
 
 from astropy.modeling import models
 from specreduce.utils.synth_data import make_2dspec_image
-from specreduce.tracing import Trace, FlatTrace, ArrayTrace, KosmosTrace
+from specreduce.tracing import Trace, FlatTrace, ArrayTrace, AutoTrace
 
 IM = make_2dspec_image()
 
@@ -82,7 +82,7 @@ def test_kosmos_trace():
     img = col_model(index_arr.T) + noise
 
     # calculate trace on normal image
-    t = KosmosTrace(img)
+    t = AutoTrace(img, bins=20)
 
     # test shifting
     shift_up = int(-img.shape[0]/4)
@@ -97,16 +97,16 @@ def test_kosmos_trace():
     assert t.trace.mask.all(), 'invalid values not masked'
 
     # test peak_method options
-    tg = KosmosTrace(img, peak_method='gaussian')
-    tc = KosmosTrace(img, peak_method='centroid')
-    tm = KosmosTrace(img, peak_method='max')
+    tg = AutoTrace(img, bins=20, peak_method='gaussian')
+    tc = AutoTrace(img, bins=20, peak_method='centroid')
+    tm = AutoTrace(img, bins=20, peak_method='max')
     # traces should all be close to 100
     # (values may need to be updated on changes to seed, noise, etc.)
     assert np.max(abs(tg.trace-100)) < sigma_pix
     assert np.max(abs(tc.trace-100)) < 3 * sigma_pix
     assert np.max(abs(tm.trace-100)) < 6 * sigma_pix
     with pytest.raises(ValueError):
-        t = KosmosTrace(img, peak_method='invalid')
+        t = AutoTrace(img, peak_method='invalid')
 
     # create same-shaped variations of image with invalid values
     img_all_nans = np.tile(np.nan, (nrows, ncols))
@@ -118,15 +118,15 @@ def test_kosmos_trace():
 
     # ensure a low bin number is rejected
     with pytest.raises(ValueError, match='bins must be >= 4'):
-        KosmosTrace(img, bins=3)
+        AutoTrace(img, bins=3)
 
     # ensure number of bins greater than number of dispersion pixels is rejected
     with pytest.raises(ValueError, match=r'bins must be <*'):
-        KosmosTrace(img, bins=ncols)
+        AutoTrace(img, bins=ncols + 1)
 
     # error on trace of otherwise valid image with all-nan window around guess
     try:
-        KosmosTrace(img_win_nans, guess=guess, window=window)
+        AutoTrace(img_win_nans, guess=guess, window=window)
     except ValueError as e:
         print(f"All-NaN window error message: {e}")
     else:
@@ -134,7 +134,7 @@ def test_kosmos_trace():
 
     # error on trace of all-nan image
     try:
-        KosmosTrace(img_all_nans)
+        AutoTrace(img_all_nans)
     except ValueError as e:
         print(f"All-NaN image error message: {e}")
     else:

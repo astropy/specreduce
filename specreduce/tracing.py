@@ -7,10 +7,9 @@ import warnings
 from astropy.modeling import Model, fitting, models
 from astropy.nddata import CCDData, NDData
 from astropy.stats import gaussian_sigma_to_fwhm
-from scipy.interpolate import UnivariateSpline
 import numpy as np
 
-__all__ = ['Trace', 'FlatTrace', 'ArrayTrace', 'KosmosTrace']
+__all__ = ['Trace', 'FlatTrace', 'ArrayTrace', 'AutoTrace']
 
 
 @dataclass
@@ -139,22 +138,21 @@ class ArrayTrace(Trace):
 
 
 @dataclass
-class KosmosTrace(Trace):
+class AutoTrace(Trace):
     """
     Trace the spectrum aperture in an image.
 
-    Chops image up in bins along the dispersion (wavelength) direction,
-    fits a Gaussian within each bin to determine the trace's spatial
-    center. Finally, draws a cubic spline through the bins to up-sample
-    trace along every pixel in the dispersion direction.
-
-    The original version of this algorithm is sourced from James
-    Davenport's `kosmos` repository.
+    Bins along the image's dispersion (wavelength) direction, finds each
+    bin's peak cross-dispersion (spatial) pixel, and uses a model to
+    interpolate the function fitted to the peaks as a final trace. The
+    number of bins, peak finding algorithm, and model used for fitting
+    are customizable by the user.
 
 
     Example: ::
 
-        trace = KosmosTrace(image, guess=trace_pos)
+        trace = AutoTrace(image, peak_method='gaussian',
+                          guess=trace_pos)
 
     Parameters
     ----------
@@ -164,9 +162,9 @@ class KosmosTrace(Trace):
         direction is axis 1.
     bins : int, optional
         The number of bins in the dispersion (wavelength) direction
-        into which to divide the image. Use fewer if KosmosTrace is
-        having difficulty, such as with faint targets.
-        Minimum bin size is 4. [default: 20]
+        into which to divide the image. If using
+        ``peak_method='gaussian'``, try fewer for better results with
+        faint targets. Minimum bin size is 4. [default: 4]
     guess : int, optional
         A guess at the trace's location in the cross-dispersion
         (spatial) direction. If set, overrides the normal max peak
@@ -177,24 +175,31 @@ class KosmosTrace(Trace):
         guess position. Useful for tracing faint sources if multiple
         traces are present, but potentially bad if the trace is
         substantially bent or warped. [default: None]
+    trace_model : `~astropy.modeling.Model` or, optional
+        The 1-D polynomial model used to fit the trace to the bins' peak
+        pixels. Valid options are ``Spline1D``, ``Legendre1D``,
+        ``Chebyshev1D``, and ``Polynomial1D``. ``Spline1D`` is used with
+        the ``SplineSmoothingFilter`` fitter; the other models are
+        paired with the ``LevMarLSQFitter`` fitter.
+        [default: ``models.Spline1D(degree=3)``]
     peak_method : string, optional
-        One of ``gaussian`` (default), ``centroid``, or ``max``.
-        gaussian: fits a gaussian to the window within each bin and
-        adopts the central value. centroid: takes the centroid of the
-        window within in bin. smooth_max: takes the position with the
-        maximum flux after smoothing over the window within each bin.
+        One of ``gaussian``, ``centroid``, or ``max``.
+        ``gaussian``: Fits a gaussian to the window within each bin and
+        adopts the central value as the peak. (Based on the "kosmos"
+        algorithm from James Davenport's same-named repository.)
+        ``centroid``: Takes the centroid of the window within in bin.
+        ``max``: Saves the position with the maximum flux in each bin.
+        [default: ``gaussian``]
 
-    Improvements Needed
-    -------------------
-    1) switch to astropy models for Gaussian (done)
-    2) return info about trace width (?)
-    3) add re-fit trace functionality (or break off into other method)
-    4) add other interpolation modes besides spline, maybe via
-        specutils.manipulation methods?
+    Possible Improvements
+    ---------------------
+    1) return info about trace width (?)
+    2) add re-fit trace functionality (or break off into other method)
     """
-    bins: int = 20
+    bins: int = 4
     guess: float = None
     window: int = None
+    trace_model: Model = field(default=models.Spline1D(degree=3))
     peak_method: str = 'gaussian'
     _crossdisp_axis = 0
     _disp_axis = 1
@@ -221,17 +226,23 @@ class KosmosTrace(Trace):
         if self._disp_axis != 1:
             raise ValueError('dispersion axis must equal 1')
 
+        cols = img.shape[self._disp_axis]
+        if self.bins < 4:
+            # many of the Astropy model fitters require four points at minimum
+            raise ValueError('bins must be >= 4')
+        elif self.bins > cols:
+            raise ValueError(f"bins must be <= {cols}, the length of the "
+                             "image's spatial direction")
+
         if not isinstance(self.bins, int):
             warnings.warn('TRACE: Converting bins to int')
             self.bins = int(self.bins)
 
-        if self.bins < 4:
-            raise ValueError('bins must be >= 4')
-
-        cols = img.shape[self._disp_axis]
-        if self.bins > cols:
-            raise ValueError(f"bins must be <= {cols}, the length of the "
-                             "image's spatial direction")
+        valid_models = ["Spline1D", "Legendre1D", "Chebyshev1D", "Polynomial1D"]
+        trace_model_name = type(self.trace_model).name
+        if trace_model_name not in valid_models:
+            raise ValueError("trace_model must be one of "
+                             f"{', '.join(valid_models)}.")
 
         if (self.window is not None
             and (self.window > img.shape[self._disp_axis]
@@ -335,10 +346,14 @@ class KosmosTrace(Trace):
             x_bins = x_bins[y_finite]
             y_bins = y_bins[y_finite]
 
-            # run a cubic spline through the bins; interpolate over wavelengths
-            ap_spl = UnivariateSpline(x_bins, y_bins, k=3, s=0)
+            # use given model to bin y-values; interpolate over all wavelengths
+            fitter = (fitting.SplineSmoothingFitter()
+                      if trace_model_name == "Spline1D"
+                      else fitting.LevMarLSQFitter())
+            fitted_model = fitter(self.trace_model, x_bins, y_bins)
+
             trace_x = np.arange(img.shape[self._disp_axis])
-            trace_y = ap_spl(trace_x)
+            trace_y = fitted_model(trace_x)
         else:
             warnings.warn("TRACE ERROR: No valid points found in trace")
             trace_y = np.tile(np.nan, img.shape[self._disp_axis])
