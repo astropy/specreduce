@@ -27,7 +27,7 @@ class Background:
 
     Parameters
     ----------
-    image : `~astropy.nddata.NDData` or array-like
+    image : `~astropy.nddata.NDData`-like or array-like
         image with 2-D spectral image data
     traces : List
         list of trace objects (or integers to define FlatTraces) to
@@ -60,7 +60,7 @@ class Background:
 
         Parameters
         ----------
-        image : `~astropy.nddata.NDData` or array-like
+        image : `~astropy.nddata.NDData`-like or array-like
             image with 2-D spectral image data
         traces : List
             list of trace objects (or integers to define FlatTraces) to
@@ -88,13 +88,17 @@ class Background:
 
         if self.width < 0:
             raise ValueError("width must be positive")
-
         if self.width == 0:
             self.bkg_array = np.zeros(self.image.shape[self.disp_axis])
             return
 
         if isinstance(self.traces, Trace):
             self.traces = [self.traces]
+
+        if isinstance(self.image, NDData):
+            # NOTE: should the NDData structure instead be preserved?
+            # (NDData includes Spectrum1D under its umbrella)
+            self.image = self.image.data
 
         bkg_wimage = np.zeros_like(self.image, dtype=np.float64)
         for trace in self.traces:
@@ -150,7 +154,7 @@ class Background:
 
         Parameters
         ----------
-        image : nddata-compatible image
+        image : `~astropy.nddata.NDData`-like or array-like
             image with 2-D spectral image data
         trace_object: Trace
             estimated trace of the spectrum to center the background traces
@@ -183,7 +187,7 @@ class Background:
 
         Parameters
         ----------
-        image : nddata-compatible image
+        image : `~astropy.nddata.NDData`-like or array-like
             image with 2-D spectral image data
         trace_object: Trace
             estimated trace of the spectrum to center the background traces

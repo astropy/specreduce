@@ -137,15 +137,15 @@ class BoxcarExtract(SpecreduceOperation):
 
     Parameters
     ----------
-    image : nddata-compatible image
+    image : `~astropy.nddata.NDData`-like or array-like, required
         image with 2-D spectral image data
-    trace_object : Trace
+    trace_object : Trace, required
         trace object
-    width : float
+    width : float, optional
         width of extraction aperture in pixels
-    disp_axis : int
+    disp_axis : int, optional
         dispersion axis
-    crossdisp_axis : int
+    crossdisp_axis : int, optional
         cross-dispersion axis
 
     Returns
@@ -171,15 +171,15 @@ class BoxcarExtract(SpecreduceOperation):
 
         Parameters
         ----------
-        image : nddata-compatible image
+        image : `~astropy.nddata.NDData`-like or array-like, required
             image with 2-D spectral image data
-        trace_object : Trace
+        trace_object : Trace, required
             trace object
-        width : float
+        width : float, optional
             width of extraction aperture in pixels [default: 5]
-        disp_axis : int
+        disp_axis : int, optional
             dispersion axis [default: 1]
-        crossdisp_axis : int
+        crossdisp_axis : int, optional
             cross-dispersion axis [default: 0]
 
 
@@ -195,6 +195,14 @@ class BoxcarExtract(SpecreduceOperation):
         disp_axis = disp_axis if disp_axis is not None else self.disp_axis
         crossdisp_axis = crossdisp_axis if crossdisp_axis is not None else self.crossdisp_axis
 
+        # handle image processing based on its type
+        if isinstance(image, Spectrum1D):
+            img = image.data
+            unit = image.unit
+        else:
+            img = image
+            unit = getattr(image, 'unit', u.DN)
+
         # TODO: this check can be removed if/when implemented as a check in FlatTrace
         if isinstance(trace_object, FlatTrace):
             if trace_object.trace_pos < 1:
@@ -204,16 +212,16 @@ class BoxcarExtract(SpecreduceOperation):
             raise ValueError("width must be positive")
 
         # weight image to use for extraction
-        wimage = _ap_weight_image(
+        wimg = _ap_weight_image(
             trace_object,
             width,
             disp_axis,
             crossdisp_axis,
-            image.shape)
+            img.shape)
 
         # extract
-        ext1d = np.sum(image * wimage, axis=crossdisp_axis)
-        return _to_spectrum1d_pixels(ext1d * getattr(image, 'unit', u.DN))
+        ext1d = np.sum(img * wimg, axis=crossdisp_axis) * unit
+        return _to_spectrum1d_pixels(ext1d)
 
 
 @dataclass
@@ -225,7 +233,7 @@ class HorneExtract(SpecreduceOperation):
     Parameters
     ----------
 
-    image : `~astropy.nddata.NDData` or array-like, required
+    image : `~astropy.nddata.NDData`-like or array-like, required
         The input 2D spectrum from which to extract a source. An
         NDData object must specify uncertainty and a mask. An array
         requires use of the ``variance``, ``mask``, & ``unit`` arguments.
@@ -288,7 +296,7 @@ class HorneExtract(SpecreduceOperation):
         Parameters
         ----------
 
-        image : `~astropy.nddata.NDData` or array-like, required
+        image : `~astropy.nddata.NDData`-like or array-like, required
             The input 2D spectrum from which to extract a source. An
             NDData object must specify uncertainty and a mask. An array
             requires use of the ``variance``, ``mask``, & ``unit`` arguments.
@@ -341,6 +349,7 @@ class HorneExtract(SpecreduceOperation):
 
         # handle image and associated data based on image's type
         if isinstance(image, NDData):
+            # (NDData includes Spectrum1D under its umbrella)
             img = np.ma.array(image.data, mask=image.mask)
             unit = image.unit if image.unit is not None else u.Unit()
 

@@ -5,9 +5,10 @@ from dataclasses import dataclass, field
 import warnings
 
 from astropy.modeling import Model, fitting, models
-from astropy.nddata import CCDData, NDData
+from astropy.nddata import NDData
 from astropy.stats import gaussian_sigma_to_fwhm
 from astropy.utils.decorators import deprecated
+from specutils import Spectrum1D
 import numpy as np
 
 __all__ = ['Trace', 'FlatTrace', 'ArrayTrace', 'FitTrace']
@@ -20,7 +21,7 @@ class Trace:
 
     Parameters
     ----------
-    image : `~astropy.nddata.CCDData`
+    image : `~astropy.nddata.NDData`-like or array-like, required
         Image to be traced
 
     Properties
@@ -28,7 +29,7 @@ class Trace:
     shape : tuple
         Shape of the array describing the trace
     """
-    image: CCDData
+    image: NDData
 
     def __post_init__(self):
         self.trace_pos = self.image.shape[0] / 2
@@ -36,6 +37,11 @@ class Trace:
 
     def __getitem__(self, i):
         return self.trace[i]
+
+    def _parse_image(self):
+        if isinstance(self.image, Spectrum1D):
+            # NOTE: should the Spectrum1D structure instead be preserved?
+            self.image = self.image.data
 
     @property
     def shape(self):
@@ -95,6 +101,8 @@ class FlatTrace(Trace):
     trace_pos: float
 
     def __post_init__(self):
+        super()._parse_image()
+
         self.set_position(self.trace_pos)
 
     def set_position(self, trace_pos):
@@ -124,6 +132,8 @@ class ArrayTrace(Trace):
     trace: np.ndarray
 
     def __post_init__(self):
+        super()._parse_image()
+
         nx = self.image.shape[1]
         nt = len(self.trace)
         if nt != nx:
@@ -156,7 +166,7 @@ class FitTrace(Trace):
 
     Parameters
     ----------
-    image : `~astropy.nddata.NDData` or array-like, required
+    image : `~astropy.nddata.NDData`-like or array-like, required
         The image over which to run the trace. Assumes cross-dispersion
         (spatial) direction is axis 0 and dispersion (wavelength)
         direction is axis 1.
@@ -203,6 +213,8 @@ class FitTrace(Trace):
     _disp_axis = 1
 
     def __post_init__(self):
+        super()._parse_image()
+
         # handle multiple image types and mask uncaught invalid values
         if isinstance(self.image, NDData):
             img = np.ma.masked_invalid(np.ma.masked_array(self.image.data,
