@@ -49,9 +49,12 @@ def test_background():
     assert isinstance(bkg_spec, Spectrum1D)
     sub_spec = bg1.sub_spectrum()
     assert isinstance(sub_spec, Spectrum1D)
+    # test that width==0 results in no background
+    bg = Background.two_sided(image, trace, bkg_sep, width=0)
+    assert np.all(bg.bkg_image() == 0)
 
 
-def test_oob():
+def test_warnings_errors():
     # image.shape (30, 10)
     with pytest.warns(match="background window extends beyond image boundaries"):
         Background.two_sided(image, 25, 4, width=3)
@@ -73,3 +76,6 @@ def test_oob():
             # 20 + 10 - 3 = 27 (lower edge of window on-image at right side of trace)
             # 29 + 10 - 3 = 36 (lower edge of window off-image at right side of trace)
             Background.one_sided(image, trace, 10, width=3)
+
+    with pytest.raises(ValueError, match="width must be positive"):
+        Background.two_sided(image, 25, 2, width=-1)
