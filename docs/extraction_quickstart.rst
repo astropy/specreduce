@@ -10,7 +10,7 @@ including steps for determining the trace of a spectrum, background subtraction,
 Tracing
 -------
 
-The `specreduce.tracing` package allows for defining the trace of a spectrum on the 2D image.  These
+The `specreduce.tracing` module defines the trace of a spectrum on the 2D image.  These
 traces can either be determined semi-automatically or manually, and are provided as the inputs for
 the remaining steps of the extraction process.  Supported trace types include:
 
@@ -29,7 +29,7 @@ of the available trace classes)::
 Background
 ----------
 
-The `specreduce.background` package allows for generating and subtracting a background image from
+The `specreduce.background` module generates and subtracts a background image from
 the input 2D spectral image.  The `~specreduce.background.Background` object is defined by one
 or more windows, and can be generated with:
 
@@ -56,7 +56,7 @@ background-subtracted image as input.
 Extraction
 ----------
 
-The `specreduce.extract` package extracts a 1D spectrum from an input 2D spectrum (likely a
+The `specreduce.extract` module extracts a 1D spectrum from an input 2D spectrum (likely a
 background-extracted spectrum from the previous step) and a defined window, using one of the 
 implemented methods:
 
@@ -79,7 +79,7 @@ Example Workflow
 ----------------
 
 This will produce a 1D spectrum, with flux in units of the 2D spectrum. The wavelength units will
-be pixels. Wavelength and Flux calibration steps are not included here.
+be pixels. Wavelength and flux calibration steps are not included here.
 
 Putting all these steps together, a simple extraction process might look something like::
 
