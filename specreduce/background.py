@@ -194,8 +194,8 @@ class Background:
         Parameters
         ----------
         image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will use ``image`` passed
-            to extract the background.
+            image with 2-D spectral image data.  If None, will extract
+            the background from ``image`` used to initialize the class.
 
         Returns
         -------
@@ -213,14 +213,15 @@ class Background:
         Parameters
         ----------
         image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will use ``image`` passed
-            to extract the background.
+            image with 2-D spectral image data.  If None, will extract
+            the background from ``image`` used to initialize the class.
 
         Returns
         -------
         spec : `~specutils.Spectrum1D`
-            The background 1d spectrum with flux expressed in the same
-            units as the input image, or u.DN, and pixel units
+            The background 1-D spectrum, with flux expressed in the same
+            units as the input image (or u.DN if none were provided) and
+            the spectral axis expressed in pixel units.
         """
         bkg_image = self.bkg_image(image=image)
 
@@ -234,8 +235,8 @@ class Background:
         Parameters
         ----------
         image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will use ``image`` passed
-            to extract the background.
+            image with 2-D spectral image data.  If None, will extract
+            the background from ``image`` used to initialize the class.
 
         Returns
         -------
@@ -257,14 +258,15 @@ class Background:
         Parameters
         ----------
         image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will use ``image`` passed
-            to extract the background.
+            image with 2-D spectral image data.  If None, will extract
+            the background from ``image`` used to initialize the class.
 
         Returns
         -------
         spec : `~specutils.Spectrum1D`
-            The background-subtracted 1d spectrum with flux expressed in the same
-            units as the input image, or u.DN, and pixel units
+            The background 1-D spectrum, with flux expressed in the same
+            units as the input image (or u.DN if none were provided) and
+            the spectral axis expressed in pixel units.
         """
         sub_image = self.sub_image(image=image)
 
