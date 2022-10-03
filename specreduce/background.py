@@ -5,8 +5,9 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from astropy.nddata import NDData
+from astropy import units as u
 
-from specreduce.extract import _ap_weight_image
+from specreduce.extract import _ap_weight_image, _to_spectrum1d_pixels
 from specreduce.tracing import Trace, FlatTrace
 
 __all__ = ['Background']
@@ -193,8 +194,8 @@ class Background:
         Parameters
         ----------
         image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will use ``image`` passed
-            to extract the background.
+            image with 2-D spectral image data.  If None, will extract
+            the background from ``image`` used to initialize the class.
 
         Returns
         -------
@@ -205,6 +206,28 @@ class Background:
 
         return np.tile(self.bkg_array, (image.shape[0], 1))
 
+    def bkg_spectrum(self, image=None):
+        """
+        Expose the 1D spectrum of the background.
+
+        Parameters
+        ----------
+        image : nddata-compatible image or None
+            image with 2-D spectral image data.  If None, will extract
+            the background from ``image`` used to initialize the class.
+
+        Returns
+        -------
+        spec : `~specutils.Spectrum1D`
+            The background 1-D spectrum, with flux expressed in the same
+            units as the input image (or u.DN if none were provided) and
+            the spectral axis expressed in pixel units.
+        """
+        bkg_image = self.bkg_image(image=image)
+
+        ext1d = np.sum(bkg_image, axis=self.crossdisp_axis)
+        return _to_spectrum1d_pixels(ext1d * getattr(image, 'unit', u.DN))
+
     def sub_image(self, image=None):
         """
         Subtract the computed background from ``image``.
@@ -212,8 +235,8 @@ class Background:
         Parameters
         ----------
         image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will use ``image`` passed
-            to extract the background.
+            image with 2-D spectral image data.  If None, will extract
+            the background from ``image`` used to initialize the class.
 
         Returns
         -------
@@ -227,6 +250,28 @@ class Background:
             return image.subtract(self.bkg_image(image)*image.unit)
         else:
             return image - self.bkg_image(image)
+
+    def sub_spectrum(self, image=None):
+        """
+        Expose the 1D spectrum of the background-subtracted image.
+
+        Parameters
+        ----------
+        image : nddata-compatible image or None
+            image with 2-D spectral image data.  If None, will extract
+            the background from ``image`` used to initialize the class.
+
+        Returns
+        -------
+        spec : `~specutils.Spectrum1D`
+            The background 1-D spectrum, with flux expressed in the same
+            units as the input image (or u.DN if none were provided) and
+            the spectral axis expressed in pixel units.
+        """
+        sub_image = self.sub_image(image=image)
+
+        ext1d = np.sum(sub_image, axis=self.crossdisp_axis)
+        return _to_spectrum1d_pixels(ext1d * getattr(image, 'unit', u.DN))
 
     def __rsub__(self, image):
         """

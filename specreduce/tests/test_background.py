@@ -3,6 +3,7 @@ import numpy as np
 
 import astropy.units as u
 from astropy.nddata import CCDData
+from specutils import Spectrum1D
 
 from specreduce.background import Background
 from specreduce.tracing import FlatTrace
@@ -43,6 +44,11 @@ def test_background():
     sub3 = bg1.sub_image()
     assert np.allclose(sub1, sub2)
     assert np.allclose(sub1, sub3)
+
+    bkg_spec = bg1.bkg_spectrum()
+    assert isinstance(bkg_spec, Spectrum1D)
+    sub_spec = bg1.sub_spectrum()
+    assert isinstance(sub_spec, Spectrum1D)
 
 
 def test_oob():
