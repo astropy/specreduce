@@ -6,7 +6,7 @@ from astropy.nddata import CCDData
 from specutils import Spectrum1D
 
 from specreduce.background import Background
-from specreduce.tracing import FlatTrace
+from specreduce.tracing import FlatTrace, ArrayTrace
 
 
 # NOTE: same test image as in test_extract.py
@@ -49,13 +49,36 @@ def test_background():
     assert isinstance(bkg_spec, Spectrum1D)
     sub_spec = bg1.sub_spectrum()
     assert isinstance(sub_spec, Spectrum1D)
+    # test that width==0 results in no background
+    bg = Background.two_sided(image, trace, bkg_sep, width=0)
+    assert np.all(bg.bkg_image() == 0)
 
 
-def test_oob():
+def test_warnings_errors():
     # image.shape (30, 10)
     with pytest.warns(match="background window extends beyond image boundaries"):
         Background.two_sided(image, 25, 4, width=3)
 
-    with pytest.raises(ValueError,
-                       match="center of background window goes beyond image boundaries"):
-        Background.two_sided(image, 25, 6, width=3)
+    # bottom of top window near/on top-edge of image (these should warn, but not fail)
+    with pytest.warns(match="background window extends beyond image boundaries"):
+        Background.two_sided(image, 25, 8, width=5)
+
+    with pytest.warns(match="background window extends beyond image boundaries"):
+        Background.two_sided(image, 25, 8, width=6)
+
+    with pytest.warns(match="background window extends beyond image boundaries"):
+        Background.two_sided(image, 25, 8, width=7)
+
+    with pytest.warns(match="background window extends beyond image boundaries"):
+        Background.two_sided(image, 7, 5, width=6)
+
+    trace = ArrayTrace(image, trace=np.arange(10)+20)  # from 20 to 29
+    with pytest.warns(match="background window extends beyond image boundaries"):
+        with pytest.raises(ValueError,
+                           match="background window does not remain in bounds across entire dispersion axis"):  # noqa
+            # 20 + 10 - 3 = 27 (lower edge of window on-image at right side of trace)
+            # 29 + 10 - 3 = 36 (lower edge of window off-image at right side of trace)
+            Background.one_sided(image, trace, 10, width=3)
+
+    with pytest.raises(ValueError, match="width must be positive"):
+        Background.two_sided(image, 25, 2, width=-1)

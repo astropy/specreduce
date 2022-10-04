@@ -7,6 +7,13 @@ Bug Fixes
 - Improved errors/warnings when background region extends beyond bounds of image [#127]
 - Fixed boxcar weighting bug that often resulted in peak pixels having weight
   above 1 and erroneously triggered overlapping background errors [#125]
+- Fixed boxcar weighting to handle zero width and edge of image cases [#141]
+
+New Features
+^^^^^^^^^^^^
+- ``Background`` has new methods for exposing the 1D spectrum of the background or
+  background-subtracted regions [#143]
+
 
 1.1.0
 -----
@@ -15,8 +22,6 @@ New Features
 ^^^^^^^^^^^^
 
 - ``peak_method`` as an optional argument to ``KosmosTrace`` [#115]
-- ``Background`` has new methods for exposing the 1D spectrum of the background or
-  background-subtracted regions [#143]
 
 API Changes
 ^^^^^^^^^^^

@@ -43,22 +43,37 @@ def _get_boxcar_weights(center, hwidth, npix):
         A 2D image with weights assigned to pixels that fall within the
         defined aperture.
     """
-    weights = np.zeros(npix)
+    weights = np.zeros((npix))
+    if hwidth == 0:
+        # the logic below would return all zeros anyways, so might as well save the time
+        # (negative widths should be avoided by earlier logic!)
+        return weights
 
-    # shift center from integer to pixel space, where pixel N is [N-0.5, N+0.5),
-    # not [N, N+1). a pixel's integer index corresponds to its middle, not edge
-    center += 0.5
+    if center-hwidth > npix-0.5 or center+hwidth < -0.5:
+        # entire window is out-of-bounds
+        return weights
 
-    # pixels given full weight because they sit entirely within the aperture
-    fullpixels = [max(0, int(np.ceil(center - hwidth))),
-                  min(int(np.floor(center + hwidth)), npix)]
-    weights[fullpixels[0]:fullpixels[1]] = 1
+    lower_edge = max(-0.5, center-hwidth)  # where -0.5 is lower bound of the image
+    upper_edge = min(center+hwidth, npix-0.5)  # where npix-0.5 is upper bound of the image
 
-    # pixels at the edges of the boxcar with partial weight, if any
-    if fullpixels[0] > 0:
-        weights[fullpixels[0] - 1] = hwidth - (center - fullpixels[0])
-    if fullpixels[1] < npix:
-        weights[fullpixels[1]] = hwidth - (fullpixels[1] - center)
+    # let's avoid recomputing the round repeatedly
+    int_round_lower_edge = int(round(lower_edge))
+    int_round_upper_edge = int(round(upper_edge))
+
+    # inner pixels that get full weight
+    # the round in conjunction with the +1 handles the half-pixel "offset",
+    # the upper bound doesn't have the +1 because array slicing is inclusive on the lower index and
+    # exclusive on the upper-index
+    # NOTE: round(-0.5) == 0, which is helpful here for the case where lower_edge == -0.5
+    weights[int_round_lower_edge+1:int_round_upper_edge] = 1
+
+    # handle edge pixels (for cases where an edge pixel is fully-weighted, this will set it again,
+    # but should still compute a weight of 1.  By using N:N+1, we avoid index errors if the edge
+    # is outside the image bounds.  But we do need to avoid negative indices which would count
+    # from the end of the array.
+    if int_round_lower_edge >= 0:
+        weights[int_round_lower_edge:int_round_lower_edge+1] = round(lower_edge) + 0.5 - lower_edge
+    weights[int_round_upper_edge:int_round_upper_edge+1] = upper_edge - (round(upper_edge) - 0.5)
 
     return weights
 
@@ -184,6 +199,9 @@ class BoxcarExtract(SpecreduceOperation):
         if isinstance(trace_object, FlatTrace):
             if trace_object.trace_pos < 1:
                 raise ValueError('trace_object.trace_pos must be >= 1')
+
+        if width < 0:
+            raise ValueError("width must be positive")
 
         # weight image to use for extraction
         wimage = _ap_weight_image(

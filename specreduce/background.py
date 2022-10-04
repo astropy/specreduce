@@ -86,15 +86,25 @@ class Background:
                     raise ValueError('trace_object.trace_pos must be >= 1')
             return trace
 
+        if self.width < 0:
+            raise ValueError("width must be positive")
+
+        if self.width == 0:
+            self.bkg_array = np.zeros(self.image.shape[self.disp_axis])
+            return
+
         bkg_wimage = np.zeros_like(self.image, dtype=np.float64)
         for trace in self.traces:
             trace = _to_trace(trace)
-            if (np.any(trace.trace.data >= self.image.shape[self.crossdisp_axis]) or
-                    np.any(trace.trace.data < 0)):
-                raise ValueError("center of background window goes beyond image boundaries")
-            elif (np.any(trace.trace.data + self.width/2. >= self.image.shape[self.crossdisp_axis])
-                  or np.any(trace.trace.data - self.width/2. < 0)):
-                warnings.warn("background window extends beyond image boundaries")
+            windows_max = trace.trace.data.max() + self.width/2
+            windows_min = trace.trace.data.min() - self.width/2
+            if windows_max >= self.image.shape[self.crossdisp_axis]:
+                warnings.warn("background window extends beyond image boundaries " +
+                              f"({windows_max} >= {self.image.shape[self.crossdisp_axis]})")
+            if windows_min < 0:
+                warnings.warn("background window extends beyond image boundaries " +
+                              f"({windows_min} < 0)")
+
             # pass trace.trace.data to ignore any mask on the trace
             bkg_wimage += _ap_weight_image(trace,
                                            self.width,
@@ -104,18 +114,22 @@ class Background:
 
         if np.any(bkg_wimage > 1):
             raise ValueError("background regions overlapped")
+        if np.any(np.sum(bkg_wimage, axis=self.crossdisp_axis) == 0):
+            raise ValueError("background window does not remain in bounds across entire dispersion axis")  # noqa
 
         if self.statistic == 'median':
             # make it clear in the expose image that partial pixels are fully-weighted
             bkg_wimage[bkg_wimage > 0] = 1
 
         self.bkg_wimage = bkg_wimage
+
         if self.statistic == 'average':
-            self.bkg_array = np.average(self.image, weights=self.bkg_wimage, axis=0)
+            self.bkg_array = np.average(self.image, weights=self.bkg_wimage,
+                                        axis=self.crossdisp_axis)
         elif self.statistic == 'median':
             med_image = self.image.copy()
             med_image[np.where(self.bkg_wimage) == 0] = np.nan
-            self.bkg_array = np.nanmedian(med_image, axis=0)
+            self.bkg_array = np.nanmedian(med_image, axis=self.crossdisp_axis)
         else:
             raise ValueError("statistic must be 'average' or 'median'")
 
