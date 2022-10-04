@@ -96,9 +96,15 @@ class Background:
         bkg_wimage = np.zeros_like(self.image, dtype=np.float64)
         for trace in self.traces:
             trace = _to_trace(trace)
-            if (np.any(trace.trace.data + self.width/2. >= self.image.shape[self.crossdisp_axis])
-                    or np.any(trace.trace.data - self.width/2. < 0)):
-                warnings.warn("background window extends beyond image boundaries")
+            windows_max = trace.trace.data.max() + self.width/2
+            windows_min = trace.trace.data.min() - self.width/2
+            if windows_max >= self.image.shape[self.crossdisp_axis]:
+                warnings.warn("background window extends above image boundaries " +
+                              f"({windows_max} >= {self.image.shape[self.crossdisp_axis]})")
+            if windows_min < 0:
+                warnings.warn("background window extends below image boundaries " +
+                              f"({windows_min} < 0)")
+
             # pass trace.trace.data to ignore any mask on the trace
             bkg_wimage += _ap_weight_image(trace,
                                            self.width,
