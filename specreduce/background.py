@@ -99,10 +99,10 @@ class Background:
             windows_max = trace.trace.data.max() + self.width/2
             windows_min = trace.trace.data.min() - self.width/2
             if windows_max >= self.image.shape[self.crossdisp_axis]:
-                warnings.warn("background window extends above image boundaries " +
+                warnings.warn("background window extends beyond image boundaries " +
                               f"({windows_max} >= {self.image.shape[self.crossdisp_axis]})")
             if windows_min < 0:
-                warnings.warn("background window extends below image boundaries " +
+                warnings.warn("background window extends beyond image boundaries " +
                               f"({windows_min} < 0)")
 
             # pass trace.trace.data to ignore any mask on the trace
