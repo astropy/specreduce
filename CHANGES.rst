@@ -7,6 +7,7 @@ Bug Fixes
 - Improved errors/warnings when background region extends beyond bounds of image [#127]
 - Fixed boxcar weighting bug that often resulted in peak pixels having weight
   above 1 and erroneously triggered overlapping background errors [#125]
+- Fixed boxcar weighting to handle zero width and edge of image cases [#141]
 
 1.1.0
 -----
