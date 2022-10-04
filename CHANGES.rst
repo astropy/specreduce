@@ -1,5 +1,23 @@
-1.2.0 (unreleased)
+1.3.0 (unreleased)
 ------------------
+
+New Features
+^^^^^^^^^^^^
+
+API Changes
+^^^^^^^^^^^
+
+Bug Fixes
+^^^^^^^^^
+
+
+1.2.0
+-----
+
+New Features
+^^^^^^^^^^^^
+- ``Background`` has new methods for exposing the 1D spectrum of the background or
+  background-subtracted regions [#143]
 
 Bug Fixes
 ^^^^^^^^^
@@ -8,11 +26,6 @@ Bug Fixes
 - Fixed boxcar weighting bug that often resulted in peak pixels having weight
   above 1 and erroneously triggered overlapping background errors [#125]
 - Fixed boxcar weighting to handle zero width and edge of image cases [#141]
-
-New Features
-^^^^^^^^^^^^
-- ``Background`` has new methods for exposing the 1D spectrum of the background or
-  background-subtracted regions [#143]
 
 
 1.1.0
