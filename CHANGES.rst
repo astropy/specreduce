@@ -10,6 +10,8 @@ API Changes
 Bug Fixes
 ^^^^^^^^^
 
+- Fixed passing a single ``Trace`` object to ``Background`` [#146]
+
 
 1.2.0
 -----
