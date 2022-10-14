@@ -93,6 +93,9 @@ class Background:
             self.bkg_array = np.zeros(self.image.shape[self.disp_axis])
             return
 
+        if isinstance(self.traces, Trace):
+            self.traces = [self.traces]
+
         bkg_wimage = np.zeros_like(self.image, dtype=np.float64)
         for trace in self.traces:
             trace = _to_trace(trace)

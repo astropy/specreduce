@@ -38,6 +38,9 @@ def test_background():
     # test that creating a one_sided background works
     Background.one_sided(image, trace, bkg_sep, width=bkg_width)
 
+    # test that passing a single trace works
+    bg = Background(image, trace, width=bkg_width)
+
     # test that image subtraction works
     sub1 = image - bg1
     sub2 = bg1.sub_image(image)
