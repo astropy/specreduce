@@ -10,7 +10,7 @@ from astropy.modeling import Model, models, fitting
 from astropy.nddata import NDData
 
 from specreduce.core import SpecreduceOperation
-from specreduce.tracing import FlatTrace, BaseTrace
+from specreduce.tracing import FlatTrace, Trace
 from specutils import Spectrum1D
 
 __all__ = ['BoxcarExtract', 'HorneExtract', 'OptimalExtract']
@@ -88,7 +88,7 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
 
     Parameters
     ----------
-    trace : `~specreduce.tracing.BaseTrace`, required
+    trace : `~specreduce.tracing.Trace`, required
         trace object
     width : float, required
         width of extraction aperture in pixels
@@ -139,7 +139,7 @@ class BoxcarExtract(SpecreduceOperation):
     ----------
     image : nddata-compatible image
         image with 2-D spectral image data
-    trace_object : BaseTrace
+    trace_object : Trace
         trace object
     width : float
         width of extraction aperture in pixels
@@ -154,7 +154,7 @@ class BoxcarExtract(SpecreduceOperation):
         The extracted 1d spectrum expressed in DN and pixel units
     """
     image: NDData
-    trace_object: BaseTrace
+    trace_object: Trace
     width: float = 5
     disp_axis: int = 1
     crossdisp_axis: int = 0
@@ -173,7 +173,7 @@ class BoxcarExtract(SpecreduceOperation):
         ----------
         image : nddata-compatible image
             image with 2-D spectral image data
-        trace_object : BaseTrace
+        trace_object : Trace
             trace object
         width : float
             width of extraction aperture in pixels [default: 5]
@@ -230,7 +230,7 @@ class HorneExtract(SpecreduceOperation):
         NDData object must specify uncertainty and a mask. An array
         requires use of the ``variance``, ``mask``, & ``unit`` arguments.
 
-    trace_object : `~specreduce.tracing.BaseTrace`, required
+    trace_object : `~specreduce.tracing.Trace`, required
         The associated 1D trace object created for the 2D image.
 
     disp_axis : int, optional
@@ -264,7 +264,7 @@ class HorneExtract(SpecreduceOperation):
 
     """
     image: NDData
-    trace_object: BaseTrace
+    trace_object: Trace
     bkgrd_prof: Model = field(default=models.Polynomial1D(2))
     variance: np.ndarray = field(default=None)
     mask: np.ndarray = field(default=None)
@@ -293,7 +293,7 @@ class HorneExtract(SpecreduceOperation):
             NDData object must specify uncertainty and a mask. An array
             requires use of the ``variance``, ``mask``, & ``unit`` arguments.
 
-        trace_object : `~specreduce.tracing.BaseTrace`, required
+        trace_object : `~specreduce.tracing.Trace`, required
             The associated 1D trace object created for the 2D image.
 
         disp_axis : int, optional

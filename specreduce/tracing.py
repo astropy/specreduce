@@ -10,17 +10,25 @@ from astropy.stats import gaussian_sigma_to_fwhm
 from scipy.interpolate import UnivariateSpline
 import numpy as np
 
-__all__ = ['BaseTrace', 'Trace', 'FlatTrace', 'ArrayTrace', 'KosmosTrace']
+__all__ = ['Trace', 'Trace', 'FlatTrace', 'ArrayTrace', 'KosmosTrace']
 
 
-@dataclass(frozen=True)
-class BaseTrace:
+@dataclass(init=False, frozen=True)
+class Trace:
     """
-    A dataclass common to all Trace objects.
+    Basic tracing class that by default traces the middle of the image.
+
+    Parameters
+    ----------
+    image : `~astropy.nddata.CCDData`
+        Image to be traced
     """
     image: CCDData
-    _trace_pos: (float, np.ndarray) = field(repr=False)
-    _trace: np.ndarray = field(repr=False)
+    _trace: (np.ndarray, None) = field(repr=False)
+
+    def __init__(self, image, _trace=None):
+        object.__setattr__(self, '_trace', self._default_trace(image))
+        object.__setattr__(self, 'image', image)
 
     def __post_init__(self):
         # this class only exists to catch __post_init__ calls in its
@@ -64,7 +72,6 @@ class BaseTrace:
         """
         # act on self._trace.data to ignore the mask and then re-mask when calling _bound_trace
         object.__setattr__(self, '_trace', np.asarray(self._trace.data) + delta)
-        object.__setattr__(self, '_trace_pos', self._trace_pos + delta)
         self._bound_trace()
 
     @property
@@ -75,38 +82,21 @@ class BaseTrace:
     def trace(self):
         return self._trace
 
-    @property
-    def trace_pos(self):
-        return self._trace_pos
-
     @staticmethod
-    def _default_trace_attrs(image):
+    def _default_trace(image, trace_pos=None):
         """
         Compute a default trace position and trace array using only
         the image dimensions.
         """
-        trace_pos = image.shape[0] / 2
+        if trace_pos is None:
+            trace_pos = image.shape[0] / 2
+
         trace = np.ones_like(image[0]) * trace_pos
-        return trace_pos, trace
+        return trace
 
 
 @dataclass(init=False, frozen=True)
-class Trace(BaseTrace):
-    """
-    Basic tracing class that by default traces the middle of the image.
-
-    Parameters
-    ----------
-    image : `~astropy.nddata.CCDData`
-        Image to be traced
-    """
-    def __init__(self, image):
-        trace_pos, trace = self._default_trace_attrs(image)
-        super().__init__(image, trace_pos, trace)
-
-
-@dataclass(init=False, frozen=True)
-class FlatTrace(BaseTrace):
+class FlatTrace(Trace):
     """
     Trace that is constant along the axis being traced
 
@@ -119,10 +109,11 @@ class FlatTrace(BaseTrace):
     trace_pos : float
         Position of the trace
     """
+    _trace_pos: (float, np.ndarray) = field(repr=False)
 
     def __init__(self, image, trace_pos):
-        _, trace = self._default_trace_attrs(image)
-        super().__init__(image, trace_pos, trace)
+        object.__setattr__(self, '_trace_pos', trace_pos)
+        super().__init__(image, _trace=self._default_trace(image, trace_pos))
         self.set_position(trace_pos)
 
     def set_position(self, trace_pos):
@@ -138,9 +129,13 @@ class FlatTrace(BaseTrace):
         object.__setattr__(self, '_trace', np.ones_like(self.image[0]) * trace_pos)
         self._bound_trace()
 
+    @property
+    def trace_pos(self):
+        return self._trace_pos
+
 
 @dataclass(init=False, frozen=True)
-class ArrayTrace(BaseTrace):
+class ArrayTrace(Trace):
     """
     Define a trace given an array of trace positions
 
@@ -149,10 +144,9 @@ class ArrayTrace(BaseTrace):
     trace : `numpy.ndarray`
         Array containing trace positions
     """
-    def __init__(self, image, trace):
-        trace_pos, _ = self._default_trace_attrs(image)
-        super().__init__(image, trace_pos, trace)
 
+    def __init__(self, image, trace):
+        super().__init__(image, _trace=trace)
         nx = self.image.shape[1]
         nt = len(trace)
         if nt != nx:
@@ -165,11 +159,12 @@ class ArrayTrace(BaseTrace):
                 padding = np.ma.MaskedArray(np.ones(nx - nt) * trace[-1], mask=True)
                 trace = np.ma.hstack([trace, padding])
         object.__setattr__(self, '_trace', trace)
+
         self._bound_trace()
 
 
 @dataclass(init=False, frozen=True)
-class KosmosTrace(BaseTrace):
+class KosmosTrace(Trace):
     """
     Trace the spectrum aperture in an image.
 
@@ -238,8 +233,7 @@ class KosmosTrace(BaseTrace):
         self._process_init_kwargs(
             bins=bins, guess=guess, window=window, peak_method=peak_method
         )
-        trace_pos, trace = self._default_trace_attrs(image)
-        super().__init__(image, trace_pos, trace)
+        super().__init__(image, _trace=self._default_trace(image))
 
         # handle multiple image types and mask uncaught invalid values
         if isinstance(self.image, NDData):

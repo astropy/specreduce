@@ -8,7 +8,7 @@ from astropy.nddata import NDData
 from astropy import units as u
 
 from specreduce.extract import _ap_weight_image, _to_spectrum1d_pixels
-from specreduce.tracing import FlatTrace, BaseTrace
+from specreduce.tracing import FlatTrace, Trace
 
 __all__ = ['Background']
 
@@ -77,7 +77,7 @@ class Background:
             cross-dispersion axis
         """
         def _to_trace(trace):
-            if not isinstance(trace, BaseTrace):
+            if not isinstance(trace, Trace):
                 trace = FlatTrace(self.image, trace)
 
             # TODO: this check can be removed if/when implemented as a check in FlatTrace
@@ -93,7 +93,7 @@ class Background:
             self.bkg_array = np.zeros(self.image.shape[self.disp_axis])
             return
 
-        if isinstance(self.traces, BaseTrace):
+        if isinstance(self.traces, Trace):
             self.traces = [self.traces]
 
         bkg_wimage = np.zeros_like(self.image, dtype=np.float64)
