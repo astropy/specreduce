@@ -133,6 +133,19 @@ class FlatTrace(Trace):
     def trace_pos(self):
         return self._trace_pos
 
+    def shift(self, delta):
+        """
+        Shift the trace by delta pixels perpendicular to the axis being traced
+
+        Parameters
+        ----------
+        delta : float
+            Shift to be applied to the trace
+        """
+        # act on self._trace.data to ignore the mask and then re-mask when calling _bound_trace
+        object.__setattr__(self, '_trace_pos', self._trace_pos + delta)
+        super().shift(delta)
+
 
 @dataclass(init=False, frozen=True)
 class ArrayTrace(Trace):

@@ -141,3 +141,17 @@ def test_kosmos_trace():
         raise RuntimeError('Trace was erroneously calculated on all-NaN image')
 
     # could try to catch warning thrown for all-nan bins
+
+
+def test_mutability():
+    trace = FlatTrace(IM, 10)
+    assert trace.trace_pos == 10
+    assert trace.trace_pos == trace.trace[0]
+
+    trace_shifted = trace + 10
+    assert trace_shifted.trace_pos == 20
+    assert trace_shifted.trace[0] == 20
+
+    with pytest.raises(AttributeError):
+        # this attribute shouldn't be writable:
+        trace_shifted.trace_pos = 15
