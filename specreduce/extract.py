@@ -10,7 +10,7 @@ from astropy.modeling import Model, models, fitting
 from astropy.nddata import NDData
 
 from specreduce.core import SpecreduceOperation
-from specreduce.tracing import Trace, FlatTrace
+from specreduce.tracing import FlatTrace, Trace
 from specutils import Spectrum1D
 
 __all__ = ['BoxcarExtract', 'HorneExtract', 'OptimalExtract']

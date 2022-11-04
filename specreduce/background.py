@@ -8,7 +8,7 @@ from astropy.nddata import NDData
 from astropy import units as u
 
 from specreduce.extract import _ap_weight_image, _to_spectrum1d_pixels
-from specreduce.tracing import Trace, FlatTrace
+from specreduce.tracing import FlatTrace, Trace
 
 __all__ = ['Background']
 
