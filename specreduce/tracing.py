@@ -10,7 +10,7 @@ from astropy.stats import gaussian_sigma_to_fwhm
 from scipy.interpolate import UnivariateSpline
 import numpy as np
 
-__all__ = ['Trace', 'Trace', 'FlatTrace', 'ArrayTrace', 'KosmosTrace']
+__all__ = ['Trace', 'FlatTrace', 'ArrayTrace', 'KosmosTrace']
 
 
 @dataclass(init=False, frozen=True)
