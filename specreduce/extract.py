@@ -7,7 +7,7 @@ import numpy as np
 
 from astropy import units as u
 from astropy.modeling import Model, models, fitting
-from astropy.nddata import NDData
+from astropy.nddata import NDData, VarianceUncertainty
 
 from specreduce.core import SpecreduceOperation
 from specreduce.tracing import Trace, FlatTrace
@@ -164,6 +164,41 @@ class BoxcarExtract(SpecreduceOperation):
     def spectrum(self):
         return self.__call__()
 
+    def _parse_image(self):
+        """
+        Convert all accepted image types to a consistently formatted Spectrum1D.
+        """
+
+        if isinstance(self.image, np.ndarray):
+            img = self.image
+        elif isinstance(self.image, u.quantity.Quantity):
+            img = self.image.value
+        else:  # NDData, including CCDData and Spectrum1D
+            img = self.image.data
+
+        # mask and uncertainty are set as None when they aren't specified upon
+        # creating a Spectrum1D object, so we must check whether these
+        # attributes are absent *and* whether they are present but set as None
+        if getattr(self.image, 'mask', None) is not None:
+            mask = self.image.mask
+        else:
+            mask = np.ma.masked_invalid(img).mask
+
+        if getattr(self.image, 'uncertainty', None) is not None:
+            uncertainty = self.image.uncertainty
+        else:
+            uncertainty = VarianceUncertainty(np.ones(img.shape))
+
+        unit = getattr(self.image, 'unit', u.Unit('DN'))  # or u.Unit()?
+
+        spectral_axis = getattr(self.image, 'spectral_axis',
+                                (np.arange(img.shape[self.disp_axis])
+                                 if hasattr(self, 'disp_axis')
+                                 else np.arange(img.shape[1])) * u.pix)
+
+        self.image = Spectrum1D(img * unit, spectral_axis=spectral_axis,
+                                uncertainty=uncertainty, mask=mask)
+
     def __call__(self, image=None, trace_object=None, width=None,
                  disp_axis=None, crossdisp_axis=None):
         """
@@ -285,6 +320,86 @@ class HorneExtract(SpecreduceOperation):
     def spectrum(self):
         return self.__call__()
 
+    def _parse_image(self, variance=None, mask=None, unit=None):
+        """
+        Convert all accepted image types to a consistently formatted Spectrum1D.
+        Takes some extra arguments exactly as they come from self.__call__() to
+        handle cases where users specify them as arguments instead of as
+        attributes of their image object.
+        """
+
+        if isinstance(self.image, np.ndarray):
+            img = self.image
+        elif isinstance(self.image, u.quantity.Quantity):
+            img = self.image.value
+        else:  # NDData, including CCDData and Spectrum1D
+            img = self.image.data
+
+        # mask is set as None when not specified upon creating a Spectrum1D
+        # object, so we must check whether it is absent *and* whether it's
+        # present but set as None
+        if getattr(self.image, 'mask', None) is not None:
+            mask = self.image.mask
+        else:
+            mask = np.ma.masked_invalid(img).mask
+
+        # Process uncertainties, converting to variances when able and throwing
+        # an error when uncertainties are missing or less easily converted
+        if (hasattr(self.image, 'uncertainty')
+                and self.image.uncertainty is not None):
+            if self.image.uncertainty.uncertainty_type == 'var':
+                variance = self.image.uncertainty.array
+            elif self.image.uncertainty.uncertainty_type == 'std':
+                warnings.warn("image NDData object's uncertainty "
+                              "interpreted as standard deviation. if "
+                              "incorrect, use VarianceUncertainty when "
+                              "assigning image object's uncertainty.")
+                variance = self.image.uncertainty.array**2
+            elif self.image.uncertainty.uncertainty_type == 'ivar':
+                variance = 1 / self.image.uncertainty.array
+            else:
+                # other options are InverseVariance and UnknownVariance
+                raise ValueError("image NDData object has unexpected "
+                                 "uncertainty type. instead, try "
+                                 "VarianceUncertainty or StdDevUncertainty.")
+        elif (hasattr(self.image, 'uncertainty')
+              and self.image.uncertainty is None):
+            # ignore variance arg to focus on updating NDData object
+            raise ValueError('image NDData object lacks uncertainty')
+        else:
+            if variance is None:
+                raise ValueError("if image is a numpy or Quantity array, a "
+                                 "variance must be specified. consider "
+                                 "wrapping it into one object by instead "
+                                 "passing an NDData image.")
+            elif self.image.shape != variance.shape:
+                raise ValueError("image and variance shapes must match")
+
+        if np.any(variance < 0):
+            raise ValueError("variance must be fully positive")
+        if np.all(variance == 0):
+            # technically would result in infinities, but since they're all
+            # zeros, we can override ones to simulate an unweighted case
+            variance = np.ones_like(variance)
+        if np.any(variance == 0):
+            # exclude such elements by editing the input mask
+            mask[variance == 0] = True
+            # replace the variances to avoid a divide by zero warning
+            variance[variance == 0] = np.nan
+
+        variance = VarianceUncertainty(variance)
+
+        unit = getattr(self.image, 'unit',
+                       u.Unit(self.unit) if self.unit is not None else u.Unit())
+
+        spectral_axis = getattr(self.image, 'spectral_axis',
+                                (np.arange(img.shape[self.disp_axis])
+                                 if hasattr(self, 'disp_axis')
+                                 else np.arange(img.shape[1])) * u.pix)
+
+        self.image = Spectrum1D(img * unit, spectral_axis=spectral_axis,
+                                uncertainty=variance, mask=mask)
+
     def __call__(self, image=None, trace_object=None,
                  disp_axis=None, crossdisp_axis=None,
                  bkgrd_prof=None,
@@ -347,71 +462,16 @@ class HorneExtract(SpecreduceOperation):
         mask = mask if mask is not None else self.mask
         unit = unit if unit is not None else self.unit
 
-        # handle image and associated data based on image's type
-        if isinstance(image, NDData):
-            # (NDData includes Spectrum1D under its umbrella)
-            img = np.ma.array(image.data, mask=image.mask)
-            unit = image.unit if image.unit is not None else u.Unit()
+        # parse image and replace optional arguments with updated values
+        self._parse_image(variance, mask, unit)
+        variance = self.image.uncertainty.array
+        unit = self.image.unit
 
-            if image.uncertainty is not None:
-                # prioritize NDData's uncertainty over variance argument
-                if image.uncertainty.uncertainty_type == 'var':
-                    variance = image.uncertainty.array
-                elif image.uncertainty.uncertainty_type == 'std':
-                    # NOTE: CCDData defaults uncertainties given as pure arrays
-                    # to std and logs a warning saying so upon object creation.
-                    # should we remind users again here?
-                    warnings.warn("image NDData object's uncertainty "
-                                  "interpreted as standard deviation. if "
-                                  "incorrect, use VarianceUncertainty when "
-                                  "assigning image object's uncertainty.")
-                    variance = image.uncertainty.array**2
-                elif image.uncertainty.uncertainty_type == 'ivar':
-                    variance = 1 / image.uncertainty.array
-                else:
-                    # other options are InverseVariance and UnknownVariance
-                    raise ValueError("image NDData object has unexpected "
-                                     "uncertainty type. instead, try "
-                                     "VarianceUncertainty or StdDevUncertainty.")
-            else:
-                # ignore variance arg to focus on updating NDData object
-                raise ValueError('image NDData object lacks uncertainty')
-
-        else:
-            if variance is None:
-                raise ValueError('if image is a numpy array, a variance must '
-                                 'be specified. consider wrapping it into one '
-                                 'object by instead passing an NDData image.')
-            elif image.shape != variance.shape:
-                raise ValueError('image and variance shapes must match')
-
-            # check optional arguments, filling them in if absent
-            if mask is None:
-                mask = np.ma.masked_invalid(image).mask
-            elif image.shape != mask.shape:
-                raise ValueError('image and mask shapes must match.')
-
-            if isinstance(unit, str):
-                unit = u.Unit(unit)
-            else:
-                unit = unit if unit is not None else u.Unit()
-
-            # create image
-            img = np.ma.array(image, mask=mask)
-
-        if np.all(variance == 0):
-            # technically would result in infinities, but since they're all zeros
-            # we can just do the unweighted case by overriding with all ones
-            variance = np.ones_like(variance)
-
-        if np.any(variance < 0):
-            raise ValueError("variance must be fully positive")
-
-        if np.any(variance == 0):
-            # exclude these elements by editing the input mask
-            img.mask[variance == 0] = True
-            # replace the variances to avoid a divide by zero warning
-            variance[variance == 0] = np.nan
+        # mask any previously uncaught invalid values
+        or_mask = np.logical_or(mask,
+                                np.ma.masked_invalid(self.image.data).mask)
+        img = np.ma.masked_array(self.image.data, or_mask)
+        mask = img.mask
 
         # co-add signal in each image column
         ncols = img.shape[crossdisp_axis]

@@ -4,8 +4,9 @@ import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
-from astropy.nddata import NDData
+from astropy.nddata import NDData, VarianceUncertainty
 from astropy import units as u
+from specutils import Spectrum1D
 
 from specreduce.extract import _ap_weight_image, _to_spectrum1d_pixels
 from specreduce.tracing import Trace, FlatTrace
@@ -54,6 +55,41 @@ class Background:
     disp_axis: int = 1
     crossdisp_axis: int = 0
 
+    def _parse_image(self):
+        """
+        Convert all accepted image types to a consistently formatted Spectrum1D.
+        """
+
+        if isinstance(self.image, np.ndarray):
+            img = self.image
+        elif isinstance(self.image, u.quantity.Quantity):
+            img = self.image.value
+        else:  # NDData, including CCDData and Spectrum1D
+            img = self.image.data
+
+        # mask and uncertainty are set as None when they aren't specified upon
+        # creating a Spectrum1D object, so we must check whether these
+        # attributes are absent *and* whether they are present but set as None
+        if getattr(self.image, 'mask', None) is not None:
+            mask = self.image.mask
+        else:
+            mask = np.ma.masked_invalid(img).mask
+
+        if getattr(self.image, 'uncertainty', None) is not None:
+            uncertainty = self.image.uncertainty
+        else:
+            uncertainty = VarianceUncertainty(np.ones(img.shape))
+
+        unit = getattr(self.image, 'unit', u.Unit('DN'))  # or u.Unit()?
+
+        spectral_axis = getattr(self.image, 'spectral_axis',
+                                (np.arange(img.shape[self.disp_axis])
+                                 if hasattr(self, 'disp_axis')
+                                 else np.arange(img.shape[1])) * u.pix)
+
+        self.image = Spectrum1D(img * unit, spectral_axis=spectral_axis,
+                                uncertainty=uncertainty, mask=mask)
+
     def __post_init__(self):
         """
         Determine the background from an image for subtraction.
@@ -86,6 +122,8 @@ class Background:
                     raise ValueError('trace_object.trace_pos must be >= 1')
             return trace
 
+        self._parse_image()
+
         if self.width < 0:
             raise ValueError("width must be positive")
         if self.width == 0:
@@ -95,12 +133,7 @@ class Background:
         if isinstance(self.traces, Trace):
             self.traces = [self.traces]
 
-        if isinstance(self.image, NDData):
-            # NOTE: should the NDData structure instead be preserved?
-            # (NDData includes Spectrum1D under its umbrella)
-            self.image = self.image.data
-
-        bkg_wimage = np.zeros_like(self.image, dtype=np.float64)
+        bkg_wimage = np.zeros_like(self.image.data, dtype=np.float64)
         for trace in self.traces:
             trace = _to_trace(trace)
             windows_max = trace.trace.data.max() + self.width/2
@@ -131,10 +164,11 @@ class Background:
         self.bkg_wimage = bkg_wimage
 
         if self.statistic == 'average':
-            self.bkg_array = np.average(self.image, weights=self.bkg_wimage,
+            self.bkg_array = np.average(self.image.data,
+                                        weights=self.bkg_wimage,
                                         axis=self.crossdisp_axis)
         elif self.statistic == 'median':
-            med_image = self.image.copy()
+            med_image = self.image.data.copy()
             med_image[np.where(self.bkg_wimage) == 0] = np.nan
             self.bkg_array = np.nanmedian(med_image, axis=self.crossdisp_axis)
         else:

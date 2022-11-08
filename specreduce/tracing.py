@@ -5,9 +5,10 @@ from dataclasses import dataclass, field
 import warnings
 
 from astropy.modeling import Model, fitting, models
-from astropy.nddata import NDData
+from astropy.nddata import NDData, VarianceUncertainty
 from astropy.stats import gaussian_sigma_to_fwhm
 from astropy.utils.decorators import deprecated
+from astropy import units as u
 from specutils import Spectrum1D
 import numpy as np
 
@@ -39,9 +40,39 @@ class Trace:
         return self.trace[i]
 
     def _parse_image(self):
-        if isinstance(self.image, Spectrum1D):
-            # NOTE: should the Spectrum1D structure instead be preserved?
-            self.image = self.image.data
+        """
+        Convert all accepted image types to a consistently formatted Spectrum1D.
+        """
+
+        if isinstance(self.image, np.ndarray):
+            img = self.image
+        elif isinstance(self.image, u.quantity.Quantity):
+            img = self.image.value
+        else:  # NDData, including CCDData and Spectrum1D
+            img = self.image.data
+
+        # mask and uncertainty are set as None when they aren't specified upon
+        # creating a Spectrum1D object, so we must check whether these
+        # attributes are absent *and* whether they are present but set as None
+        if getattr(self.image, 'mask', None) is not None:
+            mask = self.image.mask
+        else:
+            mask = np.ma.masked_invalid(img).mask
+
+        if getattr(self.image, 'uncertainty', None) is not None:
+            uncertainty = self.image.uncertainty
+        else:
+            uncertainty = VarianceUncertainty(np.ones(img.shape))
+
+        unit = getattr(self.image, 'unit', u.Unit('DN'))  # or u.Unit()?
+
+        spectral_axis = getattr(self.image, 'spectral_axis',
+                                (np.arange(img.shape[self._disp_axis])
+                                 if hasattr(self, '_disp_axis')
+                                 else np.arange(img.shape[1])) * u.pix)
+
+        self.image = Spectrum1D(img * unit, spectral_axis=spectral_axis,
+                                uncertainty=uncertainty, mask=mask)
 
     @property
     def shape(self):
@@ -115,7 +146,7 @@ class FlatTrace(Trace):
             Position of the trace
         """
         self.trace_pos = trace_pos
-        self.trace = np.ones_like(self.image[0]) * self.trace_pos
+        self.trace = np.ones_like(self.image.data[0]) * self.trace_pos
         self._bound_trace()
 
 
@@ -215,12 +246,10 @@ class FitTrace(Trace):
     def __post_init__(self):
         super()._parse_image()
 
-        # handle multiple image types and mask uncaught invalid values
-        if isinstance(self.image, NDData):
-            img = np.ma.masked_invalid(np.ma.masked_array(self.image.data,
-                                                          mask=self.image.mask))
-        else:
-            img = np.ma.masked_invalid(self.image)
+        # mask any previously uncaught invalid values
+        or_mask = np.logical_or(self.image.mask,
+                                np.ma.masked_invalid(self.image.data).mask)
+        img = np.ma.masked_array(self.image.data, or_mask)
 
         # validate arguments
         valid_peak_methods = ('gaussian', 'centroid', 'max')
