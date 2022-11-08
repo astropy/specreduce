@@ -4,8 +4,16 @@
 New Features
 ^^^^^^^^^^^^
 
+- The new FitTrace class (see "API Changes" below) introduces the ability to
+take a polynomial trace of an image [#128]
+
 API Changes
 ^^^^^^^^^^^
+
+- Renamed KosmosTrace as FitTrace, a conglomerate class for traces that are fit
+to images instead of predetermined [#128]
+- The default number of bins for a fitted trace is its associated image's number
+of dispersion pixels instead of 20 [#128]
 
 Bug Fixes
 ^^^^^^^^^
@@ -29,14 +37,6 @@ Bug Fixes
   above 1 and erroneously triggered overlapping background errors [#125]
 - Fixed boxcar weighting to handle zero width and edge of image cases [#141]
 
-
-1.1.0
------
-
-New Features
-^^^^^^^^^^^^
-
-- Added ``PolyTrace`` class [#128]
 
 1.1.0
 -----
