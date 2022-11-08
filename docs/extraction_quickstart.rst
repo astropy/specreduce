@@ -16,7 +16,7 @@ the remaining steps of the extraction process.  Supported trace types include:
 
 * `~specreduce.tracing.ArrayTrace`
 * `~specreduce.tracing.FlatTrace`
-* `~specreduce.tracing.KosmosTrace`
+* `~specreduce.tracing.FitTrace`
 
 
 Each of these trace classes takes the 2D spectral image as input, as well as additional information
@@ -47,17 +47,17 @@ or, equivalently::
   bg = specreduce.tracing.Background.one_sided(image, 15, separation=5, width=2)
 
 
-The background image can be accessed via `~specreduce.background.Background.bkg_image` and the 
+The background image can be accessed via `~specreduce.background.Background.bkg_image` and the
 background-subtracted image via `~specreduce.background.Background.sub_image` (or ``image - bg``).
 
-The background and trace steps can be done iteratively, to refine an automated trace using the 
+The background and trace steps can be done iteratively, to refine an automated trace using the
 background-subtracted image as input.
 
 Extraction
 ----------
 
 The `specreduce.extract` module extracts a 1D spectrum from an input 2D spectrum (likely a
-background-extracted spectrum from the previous step) and a defined window, using one of the 
+background-extracted spectrum from the previous step) and a defined window, using one of the
 implemented methods:
 
 * `~specreduce.extract.BoxcarExtract`

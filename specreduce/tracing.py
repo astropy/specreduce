@@ -7,9 +7,10 @@ import warnings
 from astropy.modeling import Model, fitting, models
 from astropy.nddata import CCDData, NDData
 from astropy.stats import gaussian_sigma_to_fwhm
+from astropy.utils.decorators import deprecated
 import numpy as np
 
-__all__ = ['Trace', 'FlatTrace', 'ArrayTrace', 'AutoTrace']
+__all__ = ['Trace', 'FlatTrace', 'ArrayTrace', 'FitTrace']
 
 
 @dataclass
@@ -138,7 +139,7 @@ class ArrayTrace(Trace):
 
 
 @dataclass
-class AutoTrace(Trace):
+class FitTrace(Trace):
     """
     Trace the spectrum aperture in an image.
 
@@ -151,8 +152,7 @@ class AutoTrace(Trace):
 
     Example: ::
 
-        trace = AutoTrace(image, peak_method='gaussian',
-                          guess=trace_pos)
+        trace = FitTrace(image, peak_method='gaussian', guess=trace_pos)
 
     Parameters
     ----------
@@ -162,9 +162,9 @@ class AutoTrace(Trace):
         direction is axis 1.
     bins : int, optional
         The number of bins in the dispersion (wavelength) direction
-        into which to divide the image. If using
-        ``peak_method='gaussian'``, try fewer for better results with
-        faint targets. Minimum bin size is 4. [default: 4]
+        into which to divide the image. If not set, defaults to one bin
+        per dispersion (wavelength) pixel in the given image. If set,
+        requires a minimum of 4 bins. [default: None]
     guess : int, optional
         A guess at the trace's location in the cross-dispersion
         (spatial) direction. If set, overrides the normal max peak
@@ -175,28 +175,25 @@ class AutoTrace(Trace):
         guess position. Useful for tracing faint sources if multiple
         traces are present, but potentially bad if the trace is
         substantially bent or warped. [default: None]
-    trace_model : `~astropy.modeling.Model` or, optional
+    trace_model : one of [`~astropy.modeling.polynomial.Chebyshev1D`,
+                          `~astropy.modeling.polynomial.Legendre1D`,
+                          `~astropy.modeling.polynomial.Polynomial1D`,
+                          `~astropy.modeling.spline.Spline1D`], optional
         The 1-D polynomial model used to fit the trace to the bins' peak
-        pixels. Valid options are ``Spline1D``, ``Legendre1D``,
-        ``Chebyshev1D``, and ``Polynomial1D``. ``Spline1D`` is used with
-        the ``SplineSmoothingFilter`` fitter; the other models are
-        paired with the ``LevMarLSQFitter`` fitter.
-        [default: ``models.Spline1D(degree=3)``]
+        pixels. Spline1D models are fit with Astropy's
+        'SplineSmoothingFitter', while the other models are paired with
+        the 'LevMarLSQFitter'. [default: ``models.Spline1D(degree=3)``]
     peak_method : string, optional
         One of ``gaussian``, ``centroid``, or ``max``.
         ``gaussian``: Fits a gaussian to the window within each bin and
-        adopts the central value as the peak. (Based on the "kosmos"
-        algorithm from James Davenport's same-named repository.)
+        adopts the central value as the peak. May work best with fewer
+        bins on faint targets. (Based on the "kosmos" algorithm from
+        James Davenport's same-named repository.)
         ``centroid``: Takes the centroid of the window within in bin.
         ``max``: Saves the position with the maximum flux in each bin.
         [default: ``gaussian``]
-
-    Possible Improvements
-    ---------------------
-    1) return info about trace width (?)
-    2) add re-fit trace functionality (or break off into other method)
     """
-    bins: int = 4
+    bins: int = None
     guess: float = None
     window: int = None
     trace_model: Model = field(default=models.Spline1D(degree=3))
@@ -227,7 +224,10 @@ class AutoTrace(Trace):
             raise ValueError('dispersion axis must equal 1')
 
         cols = img.shape[self._disp_axis]
-        if self.bins < 4:
+        if self.bins is None:
+            self.bins = cols
+            # self.bins = max(20, img.shape[self._disp_axis] / 4)  # which default?
+        elif self.bins < 4:
             # many of the Astropy model fitters require four points at minimum
             raise ValueError('bins must be >= 4')
         elif self.bins > cols:
@@ -238,11 +238,11 @@ class AutoTrace(Trace):
             warnings.warn('TRACE: Converting bins to int')
             self.bins = int(self.bins)
 
-        valid_models = ["Spline1D", "Legendre1D", "Chebyshev1D", "Polynomial1D"]
-        trace_model_name = type(self.trace_model).name
-        if trace_model_name not in valid_models:
+        valid_models = (models.Spline1D, models.Legendre1D,
+                        models.Chebyshev1D, models.Polynomial1D)
+        if not isinstance(self.trace_model, valid_models):
             raise ValueError("trace_model must be one of "
-                             f"{', '.join(valid_models)}.")
+                             f"{', '.join([m.name for m in valid_models])}.")
 
         if (self.window is not None
             and (self.window > img.shape[self._disp_axis]
@@ -348,7 +348,7 @@ class AutoTrace(Trace):
 
             # use given model to bin y-values; interpolate over all wavelengths
             fitter = (fitting.SplineSmoothingFitter()
-                      if trace_model_name == "Spline1D"
+                      if isinstance(self.trace_model, models.Spline1D)
                       else fitting.LevMarLSQFitter())
             fitted_model = fitter(self.trace_model, x_bins, y_bins)
 
@@ -359,6 +359,16 @@ class AutoTrace(Trace):
             trace_y = np.tile(np.nan, img.shape[self._disp_axis])
 
         self.trace = np.ma.masked_invalid(trace_y)
+
+
+@deprecated('1.3', alternative='FitTrace')
+@dataclass
+class KosmosTrace(FitTrace):
+    """
+    This class is pending deprecation. Please use `FitTrace` instead.
+    """
+    __doc__ += FitTrace.__doc__
+    pass
 
 
 @dataclass

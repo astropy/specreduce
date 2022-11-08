@@ -145,7 +145,7 @@ class Background:
 
         Example: ::
 
-            trace = KosmosTrace(image, guess=trace_pos)
+            trace = FitTrace(image, guess=trace_pos)
             bg = Background.two_sided(image, trace, bkg_sep, width=bkg_width)
 
         Parameters
@@ -178,7 +178,7 @@ class Background:
 
         Example: ::
 
-            trace = KosmosTrace(image, guess=trace_pos)
+            trace = FitTrace(image, guess=trace_pos)
             bg = Background.one_sided(image, trace, bkg_sep, width=bkg_width)
 
         Parameters
