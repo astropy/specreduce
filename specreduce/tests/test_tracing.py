@@ -66,8 +66,9 @@ def test_array_trace():
     assert t_short.shape[0] == IM.shape[1]
 
 
-# test KOSMOS trace algorithm
-def test_kosmos_trace():
+# test fitted traces
+@pytest.mark.filterwarnings("ignore:Model is linear in parameters")
+def test_fit_trace():
     # create image (process adapted from compare_extractions.ipynb)
     np.random.seed(7)
     nrows = 200
@@ -96,10 +97,13 @@ def test_kosmos_trace():
     t.shift(shift_out)
     assert t.trace.mask.all(), 'invalid values not masked'
 
-    # test peak_method options
-    tg = FitTrace(img, bins=20, peak_method='gaussian')
-    tc = FitTrace(img, bins=20, peak_method='centroid')
-    tm = FitTrace(img, bins=20, peak_method='max')
+    # test peak_method and trace_model options
+    tg = FitTrace(img, bins=20,
+                  peak_method='gaussian', trace_model=models.Legendre1D(3))
+    tc = FitTrace(img, bins=20,
+                  peak_method='centroid', trace_model=models.Chebyshev1D(2))
+    tm = FitTrace(img, bins=20,
+                  peak_method='max', trace_model=models.Spline1D(degree=3))
     # traces should all be close to 100
     # (values may need to be updated on changes to seed, noise, etc.)
     assert np.max(abs(tg.trace-100)) < sigma_pix
@@ -115,6 +119,14 @@ def test_kosmos_trace():
     guess = int(nrows/2)
     img_win_nans = img.copy()
     img_win_nans[guess - window:guess + window] = np.nan
+
+    # ensure float bin values trigger a warning but no issues otherwise
+    with pytest.warns(UserWarning, match='TRACE: Converting bins to int'):
+        FitTrace(img, bins=20., trace_model=models.Polynomial1D(2))
+
+    # ensure non-equipped models are rejected
+    with pytest.raises(ValueError, match=r'trace_model must be one of*'):
+        FitTrace(img, trace_model=models.Hermite1D(3))
 
     # ensure a low bin number is rejected
     with pytest.raises(ValueError, match='bins must be >= 4'):
