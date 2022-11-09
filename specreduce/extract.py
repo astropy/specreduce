@@ -117,6 +117,34 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
     return wimage
 
 
+def _align_along_trace(img, array_trace, disp_axis=1, crossdisp_axis=0):
+    """
+    Given an arbitrary trace ``array_trace`` (an np.ndarray), roll
+    all columns of ``nddata`` to shift the NDData's pixels nearest
+    to the trace to the center of the spatial dimension of the
+    NDData.
+    """
+    # TODO: this workflow does not support extraction for >2D spectra
+    if not (disp_axis == 1 and crossdisp_axis == 0):
+        # take the transpose to ensure the rows are the cross-disp axis:
+        img = img.T
+
+    n_rows = img.shape[0]
+
+    # indices of all columns, in their original order
+    rows = np.broadcast_to(np.arange(img.shape[0])[:, None], img.shape)
+    cols = np.broadcast_to(np.arange(img.shape[1]), img.shape)
+
+    # we want to "roll" each column so that the trace sits in
+    # the central row of the final image
+    shifts = array_trace.astype(int) - n_rows // 2
+
+    # we wrap the indices so we don't index out of bounds
+    shifted_rows = np.mod(rows + shifts[None, :], img.shape[0])
+
+    return img[shifted_rows, cols]
+
+
 @dataclass
 class BoxcarExtract(SpecreduceOperation):
     """
@@ -462,6 +490,23 @@ class HorneExtract(SpecreduceOperation):
         img = np.ma.masked_array(self.image.data, or_mask)
         mask = img.mask
 
+        # If the trace is not flat, shift the rows in each column
+        # so the image is aligned along the trace:
+        if isinstance(trace_object, FlatTrace):
+            mean_init_guess = trace_object.trace
+        else:
+            img = _align_along_trace(
+                img,
+                trace_object.trace,
+                disp_axis=disp_axis,
+                crossdisp_axis=crossdisp_axis
+            )
+            # Choose the initial guess for the mean of
+            # the Gaussian profile:
+            mean_init_guess = np.broadcast_to(
+                img.shape[crossdisp_axis] // 2, img.shape[disp_axis]
+            )
+
         # co-add signal in each image column
         ncols = img.shape[crossdisp_axis]
         xd_pixels = np.arange(ncols)  # y plot dir / x spec dir
@@ -483,9 +528,9 @@ class HorneExtract(SpecreduceOperation):
         norms = []
         for col_pix in range(img.shape[disp_axis]):
             # set gaussian model's mean as column's corresponding trace value
-            fit_ext_kernel.mean_0 = trace_object.trace[col_pix]
-            # NOTE: support for variable FWHMs forthcoming and would be here
 
+            # NOTE: support for variable FWHMs forthcoming and would be here
+            fit_ext_kernel.mean_0 = mean_init_guess[col_pix]
             # fit compound model to column
             fitted_col = fit_ext_kernel(xd_pixels)
 
