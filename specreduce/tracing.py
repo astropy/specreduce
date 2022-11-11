@@ -350,10 +350,10 @@ class FitTrace(Trace):
             fitter = (fitting.SplineSmoothingFitter()
                       if isinstance(self.trace_model, models.Spline1D)
                       else fitting.LevMarLSQFitter())
-            fitted_model = fitter(self.trace_model, x_bins, y_bins)
+            self.trace_model_fit = fitter(self.trace_model, x_bins, y_bins)
 
             trace_x = np.arange(img.shape[self._disp_axis])
-            trace_y = fitted_model(trace_x)
+            trace_y = self.trace_model_fit(trace_x)
         else:
             warnings.warn("TRACE ERROR: No valid points found in trace")
             trace_y = np.tile(np.nan, img.shape[self._disp_axis])
