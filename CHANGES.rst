@@ -12,8 +12,8 @@ API Changes
 
 - Renamed KosmosTrace as FitTrace, a conglomerate class for traces that are fit
 to images instead of predetermined [#128]
-- The default number of bins for a fitted trace is its associated image's number
-of dispersion pixels instead of 20 [#128]
+- The default number of bins for FitTrace is now its associated image's number
+of dispersion pixels instead of 20. Its default peak_method is now 'max'. [#128]
 
 Bug Fixes
 ^^^^^^^^^
