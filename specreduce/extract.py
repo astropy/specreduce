@@ -117,9 +117,9 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
     return wimage
 
 
-def _align_along_trace(img, array_trace, disp_axis=1, crossdisp_axis=0):
+def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):
     """
-    Given an arbitrary trace ``array_trace`` (an np.ndarray), roll
+    Given an arbitrary trace ``trace_array`` (an np.ndarray), roll
     all columns of ``nddata`` to shift the NDData's pixels nearest
     to the trace to the center of the spatial dimension of the
     NDData.
@@ -129,18 +129,18 @@ def _align_along_trace(img, array_trace, disp_axis=1, crossdisp_axis=0):
         # take the transpose to ensure the rows are the cross-disp axis:
         img = img.T
 
-    n_rows = img.shape[0]
+    n_rows, n_cols = img.shape
 
     # indices of all columns, in their original order
-    rows = np.broadcast_to(np.arange(img.shape[0])[:, None], img.shape)
-    cols = np.broadcast_to(np.arange(img.shape[1]), img.shape)
+    rows = np.broadcast_to(np.arange(n_rows)[:, None], img.shape)
+    cols = np.broadcast_to(np.arange(n_cols), img.shape)
 
     # we want to "roll" each column so that the trace sits in
     # the central row of the final image
-    shifts = array_trace.astype(int) - n_rows // 2
+    shifts = trace_array.astype(int) - n_rows // 2
 
     # we wrap the indices so we don't index out of bounds
-    shifted_rows = np.mod(rows + shifts[None, :], img.shape[0])
+    shifted_rows = np.mod(rows + shifts[None, :], n_rows)
 
     return img[shifted_rows, cols]
 
@@ -528,9 +528,10 @@ class HorneExtract(SpecreduceOperation):
         norms = []
         for col_pix in range(img.shape[disp_axis]):
             # set gaussian model's mean as column's corresponding trace value
+            fit_ext_kernel.mean_0 = mean_init_guess[col_pix]
 
             # NOTE: support for variable FWHMs forthcoming and would be here
-            fit_ext_kernel.mean_0 = mean_init_guess[col_pix]
+
             # fit compound model to column
             fitted_col = fit_ext_kernel(xd_pixels)
 
