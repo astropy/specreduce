@@ -5,11 +5,12 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from astropy.nddata import NDData
+from astropy.units import UnitTypeError
 from astropy import units as u
 from specutils import Spectrum1D
 
 from specreduce.core import _ImageParser
-from specreduce.extract import _ap_weight_image, _to_spectrum1d_pixels
+from specreduce.extract import _ap_weight_image
 from specreduce.tracing import Trace, FlatTrace
 
 __all__ = ['Background']
@@ -155,8 +156,10 @@ class Background(_ImageParser):
         Parameters
         ----------
         image : `~astropy.nddata.NDData`-like or array-like
-            image with 2-D spectral image data
-        trace_object: Trace
+            Image with 2-D spectral image data. Assumes cross-dispersion
+            (spatial) direction is axis 0 and dispersion (wavelength)
+            direction is axis 1.
+        trace_object: `~specreduce.tracing.Trace`
             estimated trace of the spectrum to center the background traces
         separation: float
             separation from ``trace_object`` for the background regions
@@ -171,6 +174,7 @@ class Background(_ImageParser):
         crossdisp_axis : int
             cross-dispersion axis
         """
+        image = cls._parse_image(cls, image)
         kwargs['traces'] = [trace_object-separation, trace_object+separation]
         return cls(image=image, **kwargs)
 
@@ -188,8 +192,10 @@ class Background(_ImageParser):
         Parameters
         ----------
         image : `~astropy.nddata.NDData`-like or array-like
-            image with 2-D spectral image data
-        trace_object: Trace
+            Image with 2-D spectral image data. Assumes cross-dispersion
+            (spatial) direction is axis 0 and dispersion (wavelength)
+            direction is axis 1.
+        trace_object: `~specreduce.tracing.Trace`
             estimated trace of the spectrum to center the background traces
         separation: float
             separation from ``trace_object`` for the background, positive will be
@@ -205,6 +211,7 @@ class Background(_ImageParser):
         crossdisp_axis : int
             cross-dispersion axis
         """
+        image = cls._parse_image(cls, image)
         kwargs['traces'] = [trace_object+separation]
         return cls(image=image, **kwargs)
 
@@ -214,18 +221,20 @@ class Background(_ImageParser):
 
         Parameters
         ----------
-        image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will extract
-            the background from ``image`` used to initialize the class.
+        image : `~astropy.nddata.NDData`-like or array-like, optional
+            Image with 2-D spectral image data. Assumes cross-dispersion
+            (spatial) direction is axis 0 and dispersion (wavelength)
+            direction is axis 1. If None, will extract the background
+            from ``image`` used to initialize the class. [default: None]
 
         Returns
         -------
-        array with same shape as ``image``.
+        Spectrum1D object with same shape as ``image``.
         """
-        if image is None:
-            image = self.image
-
-        return np.tile(self.bkg_array, (image.shape[0], 1))
+        image = self._parse_image(image)
+        return Spectrum1D(np.tile(self.bkg_array,
+                                  (image.shape[0], 1)) * image.unit,
+                          spectral_axis=image.spectral_axis)
 
     def bkg_spectrum(self, image=None):
         """
@@ -233,9 +242,11 @@ class Background(_ImageParser):
 
         Parameters
         ----------
-        image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will extract
-            the background from ``image`` used to initialize the class.
+        image : `~astropy.nddata.NDData`-like or array-like, optional
+            Image with 2-D spectral image data. Assumes cross-dispersion
+            (spatial) direction is axis 0 and dispersion (wavelength)
+            direction is axis 1. If None, will extract the background
+            from ``image`` used to initialize the class. [default: None]
 
         Returns
         -------
@@ -244,10 +255,15 @@ class Background(_ImageParser):
             units as the input image (or u.DN if none were provided) and
             the spectral axis expressed in pixel units.
         """
-        bkg_image = self.bkg_image(image=image)
+        bkg_image = self.bkg_image(image)
 
-        ext1d = np.sum(bkg_image, axis=self.crossdisp_axis)
-        return _to_spectrum1d_pixels(ext1d * getattr(image, 'unit', u.DN))
+        try:
+            return bkg_image.collapse(np.sum, axis=self.crossdisp_axis)
+        except UnitTypeError:
+            # can't collapse with a spectral axis in pixels because
+            # SpectralCoord only allows frequency/wavelength equivalent units...
+            ext1d = np.sum(bkg_image.flux, axis=self.crossdisp_axis)
+            return Spectrum1D(ext1d, bkg_image.spectral_axis)
 
     def sub_image(self, image=None):
         """
@@ -263,14 +279,12 @@ class Background(_ImageParser):
         -------
         array with same shape as ``image``
         """
-        if image is None:
-            image = self.image
+        image = self._parse_image(image)
 
-        if isinstance(image, NDData):
-            # https://docs.astropy.org/en/stable/nddata/mixins/ndarithmetic.html
-            return image.subtract(self.bkg_image(image)*image.unit)
-        else:
-            return image - self.bkg_image(image)
+        # https://docs.astropy.org/en/stable/nddata/mixins/ndarithmetic.html
+        # (compare_wcs argument needed to avoid TypeError from SpectralCoord
+        #  when image's spectral axis is in pixels)
+        return image.subtract(self.bkg_image(image), compare_wcs=None)
 
     def sub_spectrum(self, image=None):
         """
@@ -291,8 +305,13 @@ class Background(_ImageParser):
         """
         sub_image = self.sub_image(image=image)
 
-        ext1d = np.sum(sub_image, axis=self.crossdisp_axis)
-        return _to_spectrum1d_pixels(ext1d * getattr(image, 'unit', u.DN))
+        try:
+            return sub_image.collapse(np.sum, axis=self.crossdisp_axis)
+        except UnitTypeError:
+            # can't collapse with a spectral axis in pixels because
+            # SpectralCoord only allows frequency/wavelength equivalent units...
+            ext1d = np.sum(sub_image.flux, axis=self.crossdisp_axis)
+            return Spectrum1D(ext1d, spectral_axis=sub_image.spectral_axis)
 
     def __rsub__(self, image):
         """

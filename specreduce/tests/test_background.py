@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 import astropy.units as u
-from astropy.nddata import CCDData
+from astropy.nddata import CCDData, VarianceUncertainty
 from specutils import Spectrum1D
 
 from specreduce.background import Background
@@ -16,7 +16,8 @@ from specreduce.tracing import FlatTrace, ArrayTrace
 image = np.ones(shape=(30, 10))
 for j in range(image.shape[0]):
     image[j, ::] *= j
-image = CCDData(image, unit=u.Jy)
+image = Spectrum1D(image * u.DN,
+                   uncertainty=VarianceUncertainty(np.ones_like(image)))
 
 
 def test_background():
@@ -45,8 +46,8 @@ def test_background():
     sub1 = image - bg1
     sub2 = bg1.sub_image(image)
     sub3 = bg1.sub_image()
-    assert np.allclose(sub1, sub2)
-    assert np.allclose(sub1, sub3)
+    assert np.allclose(sub1.flux, sub2.flux)
+    assert np.allclose(sub1.flux, sub3.flux)
 
     bkg_spec = bg1.bkg_spectrum()
     assert isinstance(bkg_spec, Spectrum1D)
@@ -54,7 +55,7 @@ def test_background():
     assert isinstance(sub_spec, Spectrum1D)
     # test that width==0 results in no background
     bg = Background.two_sided(image, trace, bkg_sep, width=0)
-    assert np.all(bg.bkg_image() == 0)
+    assert np.all(bg.bkg_image().flux == 0)
 
 
 def test_warnings_errors():
