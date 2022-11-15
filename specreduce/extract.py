@@ -117,12 +117,6 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
     return wimage
 
 
-def _to_spectrum1d_pixels(fluxes):
-    # TODO: add wavelength units, uncertainty and mask to spectrum1D object
-    return Spectrum1D(spectral_axis=np.arange(len(fluxes)) * u.pixel,
-                      flux=fluxes)
-
-
 @dataclass
 class BoxcarExtract(SpecreduceOperation):
     """
@@ -515,7 +509,8 @@ class HorneExtract(SpecreduceOperation):
         extraction = result * norms
 
         # convert the extraction to a Spectrum1D object
-        return _to_spectrum1d_pixels(extraction * unit)
+        return Spectrum1D(extraction * unit,
+                          spectral_axis=self.image.spectral_axis)
 
 
 @dataclass
