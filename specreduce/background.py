@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 import numpy as np
 from astropy.nddata import NDData
 from astropy.units import UnitTypeError
-from astropy import units as u
 from specutils import Spectrum1D
 
 from specreduce.core import _ImageParser

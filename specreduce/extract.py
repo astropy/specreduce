@@ -9,7 +9,7 @@ from astropy import units as u
 from astropy.modeling import Model, models, fitting
 from astropy.nddata import NDData, VarianceUncertainty
 
-from specreduce.core import _ImageParser, SpecreduceOperation
+from specreduce.core import SpecreduceOperation
 from specreduce.tracing import Trace, FlatTrace
 from specutils import Spectrum1D
 

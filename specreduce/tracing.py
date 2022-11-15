@@ -5,11 +5,9 @@ from dataclasses import dataclass, field
 import warnings
 
 from astropy.modeling import Model, fitting, models
-from astropy.nddata import NDData, VarianceUncertainty
+from astropy.nddata import NDData
 from astropy.stats import gaussian_sigma_to_fwhm
 from astropy.utils.decorators import deprecated
-from astropy import units as u
-from specutils import Spectrum1D
 import numpy as np
 
 from specreduce.core import _ImageParser

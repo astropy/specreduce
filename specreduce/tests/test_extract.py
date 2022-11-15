@@ -144,7 +144,6 @@ def test_horne_variance_errors():
     # single negative value raises error
     err = image.uncertainty.array
     err[0][0] = -1
-    mask = np.zeros_like(image)
     with pytest.raises(ValueError, match='variance must be fully positive'):
         # remember variance, mask, and unit args are only checked if image
         # object doesn't have those attributes (e.g., numpy and Quantity arrays)
