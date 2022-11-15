@@ -12,6 +12,8 @@ from astropy import units as u
 from specutils import Spectrum1D
 import numpy as np
 
+from specreduce.core import _ImageParser
+
 __all__ = ['Trace', 'FlatTrace', 'ArrayTrace', 'FitTrace']
 
 
@@ -38,41 +40,6 @@ class Trace:
 
     def __getitem__(self, i):
         return self.trace[i]
-
-    def _parse_image(self):
-        """
-        Convert all accepted image types to a consistently formatted Spectrum1D.
-        """
-
-        if isinstance(self.image, np.ndarray):
-            img = self.image
-        elif isinstance(self.image, u.quantity.Quantity):
-            img = self.image.value
-        else:  # NDData, including CCDData and Spectrum1D
-            img = self.image.data
-
-        # mask and uncertainty are set as None when they aren't specified upon
-        # creating a Spectrum1D object, so we must check whether these
-        # attributes are absent *and* whether they are present but set as None
-        if getattr(self.image, 'mask', None) is not None:
-            mask = self.image.mask
-        else:
-            mask = np.ma.masked_invalid(img).mask
-
-        if getattr(self.image, 'uncertainty', None) is not None:
-            uncertainty = self.image.uncertainty
-        else:
-            uncertainty = VarianceUncertainty(np.ones(img.shape))
-
-        unit = getattr(self.image, 'unit', u.Unit('DN'))  # or u.Unit()?
-
-        spectral_axis = getattr(self.image, 'spectral_axis',
-                                (np.arange(img.shape[self._disp_axis])
-                                 if hasattr(self, '_disp_axis')
-                                 else np.arange(img.shape[1])) * u.pix)
-
-        self.image = Spectrum1D(img * unit, spectral_axis=spectral_axis,
-                                uncertainty=uncertainty, mask=mask)
 
     @property
     def shape(self):
@@ -116,7 +83,7 @@ class Trace:
 
 
 @dataclass
-class FlatTrace(Trace):
+class FlatTrace(Trace, _ImageParser):
     """
     Trace that is constant along the axis being traced.
 
@@ -132,7 +99,7 @@ class FlatTrace(Trace):
     trace_pos: float
 
     def __post_init__(self):
-        super()._parse_image()
+        self.image = self._parse_image(self.image)
 
         self.set_position(self.trace_pos)
 
@@ -151,7 +118,7 @@ class FlatTrace(Trace):
 
 
 @dataclass
-class ArrayTrace(Trace):
+class ArrayTrace(Trace, _ImageParser):
     """
     Define a trace given an array of trace positions.
 
@@ -163,7 +130,7 @@ class ArrayTrace(Trace):
     trace: np.ndarray
 
     def __post_init__(self):
-        super()._parse_image()
+        self.image = self._parse_image(self.image)
 
         nx = self.image.shape[1]
         nt = len(self.trace)
@@ -180,7 +147,7 @@ class ArrayTrace(Trace):
 
 
 @dataclass
-class FitTrace(Trace):
+class FitTrace(Trace, _ImageParser):
     """
     Trace the spectrum aperture in an image.
 
@@ -244,7 +211,7 @@ class FitTrace(Trace):
     _disp_axis = 1
 
     def __post_init__(self):
-        super()._parse_image()
+        self.image = self._parse_image(self.image)
 
         # mask any previously uncaught invalid values
         or_mask = np.logical_or(self.image.mask,

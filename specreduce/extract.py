@@ -9,7 +9,7 @@ from astropy import units as u
 from astropy.modeling import Model, models, fitting
 from astropy.nddata import NDData, VarianceUncertainty
 
-from specreduce.core import SpecreduceOperation
+from specreduce.core import _ImageParser, SpecreduceOperation
 from specreduce.tracing import Trace, FlatTrace
 from specutils import Spectrum1D
 
@@ -164,41 +164,6 @@ class BoxcarExtract(SpecreduceOperation):
     def spectrum(self):
         return self.__call__()
 
-    def _parse_image(self):
-        """
-        Convert all accepted image types to a consistently formatted Spectrum1D.
-        """
-
-        if isinstance(self.image, np.ndarray):
-            img = self.image
-        elif isinstance(self.image, u.quantity.Quantity):
-            img = self.image.value
-        else:  # NDData, including CCDData and Spectrum1D
-            img = self.image.data
-
-        # mask and uncertainty are set as None when they aren't specified upon
-        # creating a Spectrum1D object, so we must check whether these
-        # attributes are absent *and* whether they are present but set as None
-        if getattr(self.image, 'mask', None) is not None:
-            mask = self.image.mask
-        else:
-            mask = np.ma.masked_invalid(img).mask
-
-        if getattr(self.image, 'uncertainty', None) is not None:
-            uncertainty = self.image.uncertainty
-        else:
-            uncertainty = VarianceUncertainty(np.ones(img.shape))
-
-        unit = getattr(self.image, 'unit', u.Unit('DN'))  # or u.Unit()?
-
-        spectral_axis = getattr(self.image, 'spectral_axis',
-                                (np.arange(img.shape[self.disp_axis])
-                                 if hasattr(self, 'disp_axis')
-                                 else np.arange(img.shape[1])) * u.pix)
-
-        self.image = Spectrum1D(img * unit, spectral_axis=spectral_axis,
-                                uncertainty=uncertainty, mask=mask)
-
     def __call__(self, image=None, trace_object=None, width=None,
                  disp_axis=None, crossdisp_axis=None):
         """
@@ -231,12 +196,7 @@ class BoxcarExtract(SpecreduceOperation):
         crossdisp_axis = crossdisp_axis if crossdisp_axis is not None else self.crossdisp_axis
 
         # handle image processing based on its type
-        if isinstance(image, Spectrum1D):
-            img = image.data
-            unit = image.unit
-        else:
-            img = image
-            unit = getattr(image, 'unit', u.DN)
+        self.image = self._parse_image(image)
 
         # TODO: this check can be removed if/when implemented as a check in FlatTrace
         if isinstance(trace_object, FlatTrace):
@@ -252,11 +212,11 @@ class BoxcarExtract(SpecreduceOperation):
             width,
             disp_axis,
             crossdisp_axis,
-            img.shape)
+            self.image.shape)
 
         # extract
-        ext1d = np.sum(img * wimg, axis=crossdisp_axis) * unit
-        return _to_spectrum1d_pixels(ext1d)
+        ext1d = np.sum(self.image.data * wimg, axis=crossdisp_axis)
+        return _to_spectrum1d_pixels(ext1d * self.image.unit)
 
 
 @dataclass
