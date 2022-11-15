@@ -175,10 +175,10 @@ class FitTrace(Trace):
         guess position. Useful for tracing faint sources if multiple
         traces are present, but potentially bad if the trace is
         substantially bent or warped. [default: None]
-    trace_model : one of [`~astropy.modeling.polynomial.Chebyshev1D`,
-                          `~astropy.modeling.polynomial.Legendre1D`,
-                          `~astropy.modeling.polynomial.Polynomial1D`,
-                          `~astropy.modeling.spline.Spline1D`], optional
+    trace_model : one of `~astropy.modeling.polynomial.Chebyshev1D`,\
+            `~astropy.modeling.polynomial.Legendre1D`,\
+            `~astropy.modeling.polynomial.Polynomial1D`,\
+            or `~astropy.modeling.spline.Spline1D`, optional
         The 1-D polynomial model used to fit the trace to the bins' peak
         pixels. Spline1D models are fit with Astropy's
         'SplineSmoothingFitter', while the other models are fit with the
