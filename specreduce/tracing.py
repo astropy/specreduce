@@ -164,7 +164,8 @@ class FitTrace(Trace):
         The number of bins in the dispersion (wavelength) direction
         into which to divide the image. If not set, defaults to one bin
         per dispersion (wavelength) pixel in the given image. If set,
-        requires a minimum of 4 bins. [default: None]
+        requires at least 4 or N bins for a degree N ``trace_model``,
+        whichever is greater. [default: None]
     guess : int, optional
         A guess at the trace's location in the cross-dispersion
         (spatial) direction. If set, overrides the normal max peak
@@ -223,13 +224,22 @@ class FitTrace(Trace):
         if self._disp_axis != 1:
             raise ValueError('dispersion axis must equal 1')
 
+        valid_models = (models.Spline1D, models.Legendre1D,
+                        models.Chebyshev1D, models.Polynomial1D)
+        if not isinstance(self.trace_model, valid_models):
+            raise ValueError("trace_model must be one of "
+                             f"{', '.join([m.name for m in valid_models])}.")
+
         cols = img.shape[self._disp_axis]
+        model_deg = self.trace_model.degree
         if self.bins is None:
             self.bins = cols
-            # self.bins = max(20, img.shape[self._disp_axis] / 4)  # which default?
         elif self.bins < 4:
             # many of the Astropy model fitters require four points at minimum
             raise ValueError('bins must be >= 4')
+        elif self.bins <= model_deg:
+            raise ValueError(f"bins must be > {model_deg} for "
+                             f"a degree {model_deg} model.")
         elif self.bins > cols:
             raise ValueError(f"bins must be <= {cols}, the length of the "
                              "image's spatial direction")
@@ -237,12 +247,6 @@ class FitTrace(Trace):
         if not isinstance(self.bins, int):
             warnings.warn('TRACE: Converting bins to int')
             self.bins = int(self.bins)
-
-        valid_models = (models.Spline1D, models.Legendre1D,
-                        models.Chebyshev1D, models.Polynomial1D)
-        if not isinstance(self.trace_model, valid_models):
-            raise ValueError("trace_model must be one of "
-                             f"{', '.join([m.name for m in valid_models])}.")
 
         if (self.window is not None
             and (self.window > img.shape[self._disp_axis]
