@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from astropy.nddata import NDData
-from astropy.units import UnitTypeError
+from astropy import units as u
 from specutils import Spectrum1D
 
 from specreduce.core import _ImageParser
@@ -258,7 +258,7 @@ class Background(_ImageParser):
 
         try:
             return bkg_image.collapse(np.sum, axis=self.crossdisp_axis)
-        except UnitTypeError:
+        except u.UnitTypeError:
             # can't collapse with a spectral axis in pixels because
             # SpectralCoord only allows frequency/wavelength equivalent units...
             ext1d = np.sum(bkg_image.flux, axis=self.crossdisp_axis)
@@ -280,10 +280,14 @@ class Background(_ImageParser):
         """
         image = self._parse_image(image)
 
+        # a compare_wcs argument is needed for Spectrum1D.subtract() in order to
+        # avoid a TypeError from SpectralCoord when image's spectral axis is in
+        # pixels. it is not needed when image's spectral axis has physical units
+        kwargs = ({'compare_wcs': None} if image.spectral_axis.unit == u.pix
+                  else {})
+
         # https://docs.astropy.org/en/stable/nddata/mixins/ndarithmetic.html
-        # (compare_wcs argument needed to avoid TypeError from SpectralCoord
-        #  when image's spectral axis is in pixels)
-        return image.subtract(self.bkg_image(image), compare_wcs=None)
+        return image.subtract(self.bkg_image(image), **kwargs)
 
     def sub_spectrum(self, image=None):
         """
@@ -306,7 +310,7 @@ class Background(_ImageParser):
 
         try:
             return sub_image.collapse(np.sum, axis=self.crossdisp_axis)
-        except UnitTypeError:
+        except u.UnitTypeError:
             # can't collapse with a spectral axis in pixels because
             # SpectralCoord only allows frequency/wavelength equivalent units...
             ext1d = np.sum(sub_image.flux, axis=self.crossdisp_axis)
@@ -316,4 +320,6 @@ class Background(_ImageParser):
         """
         Subtract the background from an image.
         """
+        # NOTE: will not be called until specutils PR #988 is merged, released,
+        # and pinned here
         return self.sub_image(image)

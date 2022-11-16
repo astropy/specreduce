@@ -18,6 +18,9 @@ for j in range(image.shape[0]):
     image[j, ::] *= j
 image = Spectrum1D(image * u.DN,
                    uncertainty=VarianceUncertainty(np.ones_like(image)))
+image_um = Spectrum1D(image.flux,
+                      spectral_axis=np.arange(image.data.shape[1]) * u.um,
+                      uncertainty=VarianceUncertainty(np.ones_like(image.data)))
 
 
 def test_background():
@@ -29,12 +32,21 @@ def test_background():
     trace = FlatTrace(image, trace_pos)
     bkg_sep = 5
     bkg_width = 2
-    # all the following should be equivalent:
+
+    # all the following should be equivalent, whether image's spectral axis
+    # is in pixels or physical units:
     bg1 = Background(image, [trace-bkg_sep, trace+bkg_sep], width=bkg_width)
     bg2 = Background.two_sided(image, trace, bkg_sep, width=bkg_width)
     bg3 = Background.two_sided(image, trace_pos, bkg_sep, width=bkg_width)
     assert np.allclose(bg1.bkg_array, bg2.bkg_array)
     assert np.allclose(bg1.bkg_array, bg3.bkg_array)
+
+    bg4 = Background(image_um, [trace-bkg_sep, trace+bkg_sep], width=bkg_width)
+    bg5 = Background.two_sided(image_um, trace, bkg_sep, width=bkg_width)
+    bg6 = Background.two_sided(image_um, trace_pos, bkg_sep, width=bkg_width)
+    assert np.allclose(bg1.bkg_array, bg4.bkg_array)
+    assert np.allclose(bg1.bkg_array, bg5.bkg_array)
+    assert np.allclose(bg1.bkg_array, bg6.bkg_array)
 
     # test that creating a one_sided background works
     Background.one_sided(image, trace, bkg_sep, width=bkg_width)
@@ -50,6 +62,14 @@ def test_background():
     sub3 = bg1.sub_image()
     # assert np.allclose(sub1.flux, sub2.flux)
     assert np.allclose(sub2.flux, sub3.flux)
+
+    # NOTE: uncomment sub4 test once Spectrum1D and Background subtraction works
+    # sub4 = image_um - bg4
+    sub5 = bg4.sub_image(image_um)
+    sub6 = bg4.sub_image()
+    assert np.allclose(sub2.flux, sub5.flux)
+    # assert np.allclose(sub4.flux, sub5.flux)
+    assert np.allclose(sub5.flux, sub6.flux)
 
     bkg_spec = bg1.bkg_spectrum()
     assert isinstance(bkg_spec, Spectrum1D)
