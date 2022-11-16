@@ -128,9 +128,13 @@ def test_fit_trace():
     with pytest.raises(ValueError, match=r'trace_model must be one of*'):
         FitTrace(img, trace_model=models.Hermite1D(3))
 
-    # ensure a low bin number is rejected
+    # ensure a bin number below 4 is rejected
     with pytest.raises(ValueError, match='bins must be >= 4'):
         FitTrace(img, bins=3)
+
+    # ensure a bin number below degree of trace model is rejected
+    with pytest.raises(ValueError, match='bins must be > '):
+        FitTrace(img, bins=4, trace_model=models.Chebyshev1D(5))
 
     # ensure number of bins greater than number of dispersion pixels is rejected
     with pytest.raises(ValueError, match=r'bins must be <*'):

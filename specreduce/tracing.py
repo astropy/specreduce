@@ -183,7 +183,7 @@ class FitTrace(Trace):
         The 1-D polynomial model used to fit the trace to the bins' peak
         pixels. Spline1D models are fit with Astropy's
         'SplineSmoothingFitter', while the other models are fit with the
-        'LevMarLSQFitter'. [default: ``models.Polynomial1D(degree=2)``]
+        'LevMarLSQFitter'. [default: ``models.Polynomial1D(degree=1)``]
     peak_method : string, optional
         One of ``gaussian``, ``centroid``, or ``max``.
         ``gaussian``: Fits a gaussian to the window within each bin and
@@ -197,7 +197,7 @@ class FitTrace(Trace):
     bins: int = None
     guess: float = None
     window: int = None
-    trace_model: Model = field(default=models.Polynomial1D(degree=2))
+    trace_model: Model = field(default=models.Polynomial1D(degree=1))
     peak_method: str = 'max'
     _crossdisp_axis = 0
     _disp_axis = 1
