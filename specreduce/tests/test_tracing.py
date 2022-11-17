@@ -3,7 +3,7 @@ import pytest
 
 from astropy.modeling import models
 from specreduce.utils.synth_data import make_2dspec_image
-from specreduce.tracing import Trace, FlatTrace, ArrayTrace, KosmosTrace
+from specreduce.tracing import Trace, FlatTrace, ArrayTrace, FitTrace
 
 IM = make_2dspec_image()
 
@@ -66,8 +66,9 @@ def test_array_trace():
     assert t_short.shape[0] == IM.shape[1]
 
 
-# test KOSMOS trace algorithm
-def test_kosmos_trace():
+# test fitted traces
+@pytest.mark.filterwarnings("ignore:Model is linear in parameters")
+def test_fit_trace():
     # create image (process adapted from compare_extractions.ipynb)
     np.random.seed(7)
     nrows = 200
@@ -82,7 +83,7 @@ def test_kosmos_trace():
     img = col_model(index_arr.T) + noise
 
     # calculate trace on normal image
-    t = KosmosTrace(img)
+    t = FitTrace(img, bins=20)
 
     # test shifting
     shift_up = int(-img.shape[0]/4)
@@ -96,17 +97,20 @@ def test_kosmos_trace():
     t.shift(shift_out)
     assert t.trace.mask.all(), 'invalid values not masked'
 
-    # test peak_method options
-    tg = KosmosTrace(img, peak_method='gaussian')
-    tc = KosmosTrace(img, peak_method='centroid')
-    tm = KosmosTrace(img, peak_method='max')
+    # test peak_method and trace_model options
+    tg = FitTrace(img, bins=20,
+                  peak_method='gaussian', trace_model=models.Legendre1D(3))
+    tc = FitTrace(img, bins=20,
+                  peak_method='centroid', trace_model=models.Chebyshev1D(2))
+    tm = FitTrace(img, bins=20,
+                  peak_method='max', trace_model=models.Spline1D(degree=3))
     # traces should all be close to 100
     # (values may need to be updated on changes to seed, noise, etc.)
     assert np.max(abs(tg.trace-100)) < sigma_pix
     assert np.max(abs(tc.trace-100)) < 3 * sigma_pix
     assert np.max(abs(tm.trace-100)) < 6 * sigma_pix
     with pytest.raises(ValueError):
-        t = KosmosTrace(img, peak_method='invalid')
+        t = FitTrace(img, peak_method='invalid')
 
     # create same-shaped variations of image with invalid values
     img_all_nans = np.tile(np.nan, (nrows, ncols))
@@ -116,17 +120,29 @@ def test_kosmos_trace():
     img_win_nans = img.copy()
     img_win_nans[guess - window:guess + window] = np.nan
 
-    # ensure a low bin number is rejected
+    # ensure float bin values trigger a warning but no issues otherwise
+    with pytest.warns(UserWarning, match='TRACE: Converting bins to int'):
+        FitTrace(img, bins=20., trace_model=models.Polynomial1D(2))
+
+    # ensure non-equipped models are rejected
+    with pytest.raises(ValueError, match=r'trace_model must be one of*'):
+        FitTrace(img, trace_model=models.Hermite1D(3))
+
+    # ensure a bin number below 4 is rejected
     with pytest.raises(ValueError, match='bins must be >= 4'):
-        KosmosTrace(img, bins=3)
+        FitTrace(img, bins=3)
+
+    # ensure a bin number below degree of trace model is rejected
+    with pytest.raises(ValueError, match='bins must be > '):
+        FitTrace(img, bins=4, trace_model=models.Chebyshev1D(5))
 
     # ensure number of bins greater than number of dispersion pixels is rejected
     with pytest.raises(ValueError, match=r'bins must be <*'):
-        KosmosTrace(img, bins=ncols)
+        FitTrace(img, bins=ncols + 1)
 
     # error on trace of otherwise valid image with all-nan window around guess
     try:
-        KosmosTrace(img_win_nans, guess=guess, window=window)
+        FitTrace(img_win_nans, guess=guess, window=window)
     except ValueError as e:
         print(f"All-NaN window error message: {e}")
     else:
@@ -134,7 +150,7 @@ def test_kosmos_trace():
 
     # error on trace of all-nan image
     try:
-        KosmosTrace(img_all_nans)
+        FitTrace(img_all_nans)
     except ValueError as e:
         print(f"All-NaN image error message: {e}")
     else:
