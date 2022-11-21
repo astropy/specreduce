@@ -2,12 +2,9 @@ import numpy as np
 import pytest
 
 import astropy.units as u
-<<<<<<< HEAD
 from astropy.nddata import CCDData, VarianceUncertainty, UnknownUncertainty
-=======
-from astropy.nddata import CCDData
 from astropy.tests.helper import assert_quantity_allclose
->>>>>>> 12316d2 (Adding test coverage for Horne extraction with non-flat traces)
+from astropy.utils.exceptions import AstropyUserWarning
 
 from specreduce.extract import (
     BoxcarExtract, HorneExtract, OptimalExtract, _align_along_trace
@@ -184,17 +181,19 @@ def test_horne_non_flat_trace():
     # ensure that mask is correctly unrolled back to its original alignment:
     np.testing.assert_allclose(unrolled, original)
 
-    # Extract the spectrum from the non-flat image+trace
-    extract_non_flat = HorneExtract(
-        rolled, ArrayTrace(rolled, exact_trace),
-        variance=err, mask=mask, unit=u.Jy
-    )()
+    # These synthetic extractions don't fit well with a Gaussian, so will pass warning:
+    with pytest.warns(AstropyUserWarning, match="The fit may be unsuccessful"):
+        # Extract the spectrum from the non-flat image+trace
+        extract_non_flat = HorneExtract(
+            rolled, ArrayTrace(rolled, exact_trace),
+            variance=err, mask=mask, unit=u.Jy
+        )()
 
-    # Also extract the spectrum from the image after alignment with a flat trace
-    extract_flat = HorneExtract(
-        unrolled, FlatTrace(unrolled, n_rows // 2),
-        variance=err, mask=mask, unit=u.Jy
-    )()
+        # Also extract the spectrum from the image after alignment with a flat trace
+        extract_flat = HorneExtract(
+            unrolled, FlatTrace(unrolled, n_rows // 2),
+            variance=err, mask=mask, unit=u.Jy
+        )()
 
     # ensure both extractions are equivalent:
     assert_quantity_allclose(extract_non_flat.flux, extract_flat.flux)
