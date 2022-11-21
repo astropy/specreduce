@@ -70,7 +70,7 @@ class _ImageParser:
         else:
             uncertainty = VarianceUncertainty(np.ones(img.shape))
 
-        unit = getattr(image, 'unit', u.Unit('DN'))  # or u.Unit()?
+        unit = getattr(image, 'unit', u.Unit('DN'))
 
         spectral_axis = getattr(image, 'spectral_axis',
                                 np.arange(img.shape[disp_axis]) * u.pix)

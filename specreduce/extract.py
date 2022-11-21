@@ -258,7 +258,7 @@ class HorneExtract(SpecreduceOperation):
     unit : `~astropy.units.Unit` or str, optional
         (Only used if ``image`` is not an NDData object.)
         The associated unit for the data in ``image``. If blank,
-        fluxes are interpreted as unitless. [default: None]
+        fluxes are interpreted in DN. [default: None]
 
     """
     image: NDData
@@ -307,7 +307,7 @@ class HorneExtract(SpecreduceOperation):
         unit : `~astropy.units.Unit` or str, optional
             (Only used if ``image`` is not an NDData object.)
             The associated unit for the data in ``image``. If blank,
-            fluxes are interpreted as unitless.
+            fluxes are interpreted in DN.
         disp_axis : int, optional
             The index of the image's dispersion axis. Should not be
             changed until operations can handle variable image
@@ -381,7 +381,7 @@ class HorneExtract(SpecreduceOperation):
         variance = VarianceUncertainty(variance)
 
         unit = getattr(image, 'unit',
-                       u.Unit(unit) if unit is not None else u.Unit())
+                       u.Unit(unit) if unit is not None else u.Unit('DN'))
 
         spectral_axis = getattr(image, 'spectral_axis',
                                 np.arange(img.shape[disp_axis]) * u.pix)
@@ -434,7 +434,7 @@ class HorneExtract(SpecreduceOperation):
         unit : `~astropy.units.Unit` or str, optional
             (Only used if ``image`` is not an NDData object.)
             The associated unit for the data in ``image``. If blank,
-            fluxes are interpreted as unitless.
+            fluxes are interpreted in DN.
 
 
         Returns

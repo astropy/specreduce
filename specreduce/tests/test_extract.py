@@ -116,10 +116,10 @@ def test_horne_image_validation():
         ext = extract(image=image.data, variance=err, mask=mask)
 
     # an array-type image given without mask and unit arguments is fine
-    # and produces an extraction with unitless flux and spectral axis in pixels
+    # and produces an extraction with flux in DN and spectral axis in pixels
     err = np.ones_like(image)
     ext = extract(image=image.data, variance=err, mask=None, unit=None)
-    assert ext.unit == u.Unit()
+    assert ext.unit == u.Unit('DN')
     assert np.all(ext.spectral_axis
                   == np.arange(image.shape[extract.disp_axis]) * u.pix)
 
