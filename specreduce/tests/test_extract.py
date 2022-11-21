@@ -177,7 +177,6 @@ def test_horne_non_flat_trace():
     # all zeros are treated as non-weighted (give non-zero fluxes)
     err = 0.1 * np.ones_like(rolled)
     mask = np.zeros_like(rolled).astype(bool)
-    extract = HorneExtract(rolled, exact_trace, variance=err, mask=mask, unit=u.Jy)
 
     # unroll the trace using the Horne extract utility function for alignment:
     unrolled = _align_along_trace(rolled, n_rows // 2 - trace_offset)
