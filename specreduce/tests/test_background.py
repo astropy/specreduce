@@ -38,15 +38,15 @@ def test_background():
     bg1 = Background(image, [trace-bkg_sep, trace+bkg_sep], width=bkg_width)
     bg2 = Background.two_sided(image, trace, bkg_sep, width=bkg_width)
     bg3 = Background.two_sided(image, trace_pos, bkg_sep, width=bkg_width)
-    assert np.allclose(bg1.bkg_array, bg2.bkg_array)
-    assert np.allclose(bg1.bkg_array, bg3.bkg_array)
+    assert np.allclose(bg1.bkg_image().flux, bg2.bkg_image().flux)
+    assert np.allclose(bg1.bkg_image().flux, bg3.bkg_image().flux)
 
     bg4 = Background(image_um, [trace-bkg_sep, trace+bkg_sep], width=bkg_width)
     bg5 = Background.two_sided(image_um, trace, bkg_sep, width=bkg_width)
     bg6 = Background.two_sided(image_um, trace_pos, bkg_sep, width=bkg_width)
-    assert np.allclose(bg1.bkg_array, bg4.bkg_array)
-    assert np.allclose(bg1.bkg_array, bg5.bkg_array)
-    assert np.allclose(bg1.bkg_array, bg6.bkg_array)
+    assert np.allclose(bg1.bkg_image().flux, bg4.bkg_image().flux)
+    assert np.allclose(bg1.bkg_image().flux, bg5.bkg_image().flux)
+    assert np.allclose(bg1.bkg_image().flux, bg6.bkg_image().flux)
 
     # test that creating a one_sided background works
     Background.one_sided(image, trace, bkg_sep, width=bkg_width)

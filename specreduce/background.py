@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from astropy.nddata import NDData
+from astropy.utils.decorators import deprecated_attribute
 from astropy import units as u
 from specutils import Spectrum1D
 
@@ -56,6 +57,9 @@ class Background(_ImageParser):
     disp_axis: int = 1
     crossdisp_axis: int = 0
 
+    # TO-DO: update bkg_array with Spectrum1D alternative (is bkg_image enough?)
+    bkg_array = deprecated_attribute('bkg_array', '1.3')
+
     def __post_init__(self):
         """
         Determine the background from an image for subtraction.
@@ -93,7 +97,7 @@ class Background(_ImageParser):
         if self.width < 0:
             raise ValueError("width must be positive")
         if self.width == 0:
-            self.bkg_array = np.zeros(self.image.shape[self.disp_axis])
+            self._bkg_array = np.zeros(self.image.shape[self.disp_axis])
             return
 
         if isinstance(self.traces, Trace):
@@ -130,13 +134,13 @@ class Background(_ImageParser):
         self.bkg_wimage = bkg_wimage
 
         if self.statistic == 'average':
-            self.bkg_array = np.average(self.image.data,
-                                        weights=self.bkg_wimage,
-                                        axis=self.crossdisp_axis)
+            self._bkg_array = np.average(self.image.data,
+                                         weights=self.bkg_wimage,
+                                         axis=self.crossdisp_axis)
         elif self.statistic == 'median':
             med_image = self.image.data.copy()
             med_image[np.where(self.bkg_wimage) == 0] = np.nan
-            self.bkg_array = np.nanmedian(med_image, axis=self.crossdisp_axis)
+            self._bkg_array = np.nanmedian(med_image, axis=self.crossdisp_axis)
         else:
             raise ValueError("statistic must be 'average' or 'median'")
 
@@ -231,7 +235,7 @@ class Background(_ImageParser):
         Spectrum1D object with same shape as ``image``.
         """
         image = self._parse_image(image)
-        return Spectrum1D(np.tile(self.bkg_array,
+        return Spectrum1D(np.tile(self._bkg_array,
                                   (image.shape[0], 1)) * image.unit,
                           spectral_axis=image.spectral_axis)
 
