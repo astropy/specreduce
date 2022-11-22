@@ -55,20 +55,17 @@ def test_background():
     bg = Background(image, trace, width=bkg_width)
 
     # test that image subtraction works
-    # NOTE: uncomment sub1 test once Spectrum1D and Background subtraction works
-    # (meaning specutils PR #988 is merged, released, and pinned here)
-    # sub1 = image - bg1
+    sub1 = image - bg1
     sub2 = bg1.sub_image(image)
     sub3 = bg1.sub_image()
-    # assert np.allclose(sub1.flux, sub2.flux)
+    assert np.allclose(sub1.flux, sub2.flux)
     assert np.allclose(sub2.flux, sub3.flux)
 
-    # NOTE: uncomment sub4 test once Spectrum1D and Background subtraction works
-    # sub4 = image_um - bg4
+    sub4 = image_um - bg4
     sub5 = bg4.sub_image(image_um)
     sub6 = bg4.sub_image()
-    assert np.allclose(sub2.flux, sub5.flux)
-    # assert np.allclose(sub4.flux, sub5.flux)
+    assert np.allclose(sub1.flux, sub4.flux)
+    assert np.allclose(sub4.flux, sub5.flux)
     assert np.allclose(sub5.flux, sub6.flux)
 
     bkg_spec = bg1.bkg_spectrum()

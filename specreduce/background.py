@@ -324,6 +324,4 @@ class Background(_ImageParser):
         """
         Subtract the background from an image.
         """
-        # NOTE: will not be called until specutils PR #988 is merged, released,
-        # and pinned here
         return self.sub_image(image)
