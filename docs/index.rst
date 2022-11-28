@@ -6,14 +6,7 @@ The `specreduce <https://specreduce.readthedocs.io/en/latest/index.html>`_ packa
 aims to provide a data reduction toolkit for optical
 and infrared spectroscopy, on which applications such as pipeline processes for
 specific instruments can be built. The scope of its functionality is limited to
-basic spectroscopic reduction, with basic *image* processing steps (such as
-bias subtraction) instead covered by `ccdproc <https://ccdproc.readthedocs.io/en/latest/>`_
-and other packages, data analysis by `specutils <https://specutils.readthedocs.io/en/latest/>`_,
-and visualization by `matplotlib <https://matplotlib.org/>`_. A few
-examples will nevertheless be provided of its usage in conjunction with these
-complementary packages.
-
-Specreduce is currently useful mainly for the following three tasks:
+basic spectroscopic reduction, currently encompassing the following three tasks:
 
 #. Determining the trace of a spectrum dispersed in a 2D image, either by setting a flat
    trace or fitting a spline, polynomial, or other model to the positions of the dispersed
@@ -26,6 +19,12 @@ Specreduce is currently useful mainly for the following three tasks:
    generate a 1D spectrum.
 
 Further details about these capabilities are detailed in the sections linked below.
+Beyond these tasks, basic *image* processing steps (such as bias subtraction) are covered by
+`ccdproc <https://ccdproc.readthedocs.io/en/latest/>`_
+and other packages, data analysis by `specutils <https://specutils.readthedocs.io/en/latest/>`_,
+and visualization by `matplotlib <https://matplotlib.org/>`_. A few
+examples will be provided of using ``specreduce`` in conjunction with these
+complementary packages.
 
 .. note::
 
