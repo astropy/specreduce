@@ -7,7 +7,7 @@ import numpy as np
 
 from astropy import units as u
 from astropy.modeling import Model, models, fitting
-from astropy.nddata import NDData
+from astropy.nddata import NDData, VarianceUncertainty
 
 from specreduce.core import SpecreduceOperation
 from specreduce.tracing import Trace, FlatTrace
@@ -117,12 +117,6 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
     return wimage
 
 
-def _to_spectrum1d_pixels(fluxes):
-    # TODO: add wavelength units, uncertainty and mask to spectrum1D object
-    return Spectrum1D(spectral_axis=np.arange(len(fluxes)) * u.pixel,
-                      flux=fluxes)
-
-
 @dataclass
 class BoxcarExtract(SpecreduceOperation):
     """
@@ -137,15 +131,15 @@ class BoxcarExtract(SpecreduceOperation):
 
     Parameters
     ----------
-    image : nddata-compatible image
+    image : `~astropy.nddata.NDData`-like or array-like, required
         image with 2-D spectral image data
-    trace_object : Trace
+    trace_object : Trace, required
         trace object
-    width : float
+    width : float, optional
         width of extraction aperture in pixels
-    disp_axis : int
+    disp_axis : int, optional
         dispersion axis
-    crossdisp_axis : int
+    crossdisp_axis : int, optional
         cross-dispersion axis
 
     Returns
@@ -171,15 +165,15 @@ class BoxcarExtract(SpecreduceOperation):
 
         Parameters
         ----------
-        image : nddata-compatible image
+        image : `~astropy.nddata.NDData`-like or array-like, required
             image with 2-D spectral image data
-        trace_object : Trace
+        trace_object : Trace, required
             trace object
-        width : float
+        width : float, optional
             width of extraction aperture in pixels [default: 5]
-        disp_axis : int
+        disp_axis : int, optional
             dispersion axis [default: 1]
-        crossdisp_axis : int
+        crossdisp_axis : int, optional
             cross-dispersion axis [default: 0]
 
 
@@ -195,6 +189,9 @@ class BoxcarExtract(SpecreduceOperation):
         disp_axis = disp_axis if disp_axis is not None else self.disp_axis
         crossdisp_axis = crossdisp_axis if crossdisp_axis is not None else self.crossdisp_axis
 
+        # handle image processing based on its type
+        self.image = self._parse_image(image)
+
         # TODO: this check can be removed if/when implemented as a check in FlatTrace
         if isinstance(trace_object, FlatTrace):
             if trace_object.trace_pos < 1:
@@ -204,16 +201,17 @@ class BoxcarExtract(SpecreduceOperation):
             raise ValueError("width must be positive")
 
         # weight image to use for extraction
-        wimage = _ap_weight_image(
+        wimg = _ap_weight_image(
             trace_object,
             width,
             disp_axis,
             crossdisp_axis,
-            image.shape)
+            self.image.shape)
 
         # extract
-        ext1d = np.sum(image * wimage, axis=crossdisp_axis)
-        return _to_spectrum1d_pixels(ext1d * getattr(image, 'unit', u.DN))
+        ext1d = np.sum(self.image.data * wimg, axis=crossdisp_axis)
+        return Spectrum1D(ext1d * self.image.unit,
+                          spectral_axis=self.image.spectral_axis)
 
 
 @dataclass
@@ -225,7 +223,7 @@ class HorneExtract(SpecreduceOperation):
     Parameters
     ----------
 
-    image : `~astropy.nddata.NDData` or array-like, required
+    image : `~astropy.nddata.NDData`-like or array-like, required
         The input 2D spectrum from which to extract a source. An
         NDData object must specify uncertainty and a mask. An array
         requires use of the ``variance``, ``mask``, & ``unit`` arguments.
@@ -260,7 +258,7 @@ class HorneExtract(SpecreduceOperation):
     unit : `~astropy.units.Unit` or str, optional
         (Only used if ``image`` is not an NDData object.)
         The associated unit for the data in ``image``. If blank,
-        fluxes are interpreted as unitless. [default: None]
+        fluxes are interpreted in DN. [default: None]
 
     """
     image: NDData
@@ -277,6 +275,120 @@ class HorneExtract(SpecreduceOperation):
     def spectrum(self):
         return self.__call__()
 
+    def _parse_image(self, image,
+                     variance=None, mask=None, unit=None, disp_axis=1):
+        """
+        Convert all accepted image types to a consistently formatted
+        Spectrum1D object.
+
+        HorneExtract needs its own version of this method because it is
+        more stringent in its requirements for input images. The extra
+        arguments are needed to handle cases where these parameters were
+        specified as arguments and those where they came as attributes
+        of the image object.
+
+        Parameters
+        ----------
+        image : `~astropy.nddata.NDData`-like or array-like, required
+            The image to be parsed. If None, defaults to class' own
+            image attribute.
+        variance : `~numpy.ndarray`, optional
+            (Only used if ``image`` is not an NDData object.)
+            The associated variances for each pixel in the image. Must
+            have the same dimensions as ``image``. If all zeros, the variance
+            will be ignored and treated as all ones.  If any zeros, those
+            elements will be excluded via masking.  If any negative values,
+            an error will be raised.
+        mask : `~numpy.ndarray`, optional
+            (Only used if ``image`` is not an NDData object.)
+            Whether to mask each pixel in the image. Must have the same
+            dimensions as ``image``. If blank, all non-NaN pixels are
+            unmasked.
+        unit : `~astropy.units.Unit` or str, optional
+            (Only used if ``image`` is not an NDData object.)
+            The associated unit for the data in ``image``. If blank,
+            fluxes are interpreted in DN.
+        disp_axis : int, optional
+            The index of the image's dispersion axis. Should not be
+            changed until operations can handle variable image
+            orientations. [default: 1]
+        """
+
+        if isinstance(image, np.ndarray):
+            img = image
+        elif isinstance(image, u.quantity.Quantity):
+            img = image.value
+        else:  # NDData, including CCDData and Spectrum1D
+            img = image.data
+
+        # mask is set as None when not specified upon creating a Spectrum1D
+        # object, so we must check whether it is absent *and* whether it's
+        # present but set as None
+        if getattr(image, 'mask', None) is not None:
+            mask = image.mask
+        elif mask is not None:
+            pass
+        else:
+            mask = np.ma.masked_invalid(img).mask
+
+        if img.shape != mask.shape:
+            raise ValueError('image and mask shapes must match.')
+
+        # Process uncertainties, converting to variances when able and throwing
+        # an error when uncertainties are missing or less easily converted
+        if (hasattr(image, 'uncertainty')
+                and image.uncertainty is not None):
+            if image.uncertainty.uncertainty_type == 'var':
+                variance = image.uncertainty.array
+            elif image.uncertainty.uncertainty_type == 'std':
+                warnings.warn("image NDData object's uncertainty "
+                              "interpreted as standard deviation. if "
+                              "incorrect, use VarianceUncertainty when "
+                              "assigning image object's uncertainty.")
+                variance = image.uncertainty.array**2
+            elif image.uncertainty.uncertainty_type == 'ivar':
+                variance = 1 / image.uncertainty.array
+            else:
+                # other options are InverseUncertainty and UnknownUncertainty
+                raise ValueError("image NDData object has unexpected "
+                                 "uncertainty type. instead, try "
+                                 "VarianceUncertainty or StdDevUncertainty.")
+        elif (hasattr(image, 'uncertainty')
+              and image.uncertainty is None):
+            # ignore variance arg to focus on updating NDData object
+            raise ValueError('image NDData object lacks uncertainty')
+        else:
+            if variance is None:
+                raise ValueError("if image is a numpy or Quantity array, a "
+                                 "variance must be specified. consider "
+                                 "wrapping it into one object by instead "
+                                 "passing an NDData image.")
+            elif image.shape != variance.shape:
+                raise ValueError("image and variance shapes must match")
+
+        if np.any(variance < 0):
+            raise ValueError("variance must be fully positive")
+        if np.all(variance == 0):
+            # technically would result in infinities, but since they're all
+            # zeros, we can override ones to simulate an unweighted case
+            variance = np.ones_like(variance)
+        if np.any(variance == 0):
+            # exclude such elements by editing the input mask
+            mask[variance == 0] = True
+            # replace the variances to avoid a divide by zero warning
+            variance[variance == 0] = np.nan
+
+        variance = VarianceUncertainty(variance)
+
+        unit = getattr(image, 'unit',
+                       u.Unit(unit) if unit is not None else u.Unit('DN'))
+
+        spectral_axis = getattr(image, 'spectral_axis',
+                                np.arange(img.shape[disp_axis]) * u.pix)
+
+        return Spectrum1D(img * unit, spectral_axis=spectral_axis,
+                          uncertainty=variance, mask=mask)
+
     def __call__(self, image=None, trace_object=None,
                  disp_axis=None, crossdisp_axis=None,
                  bkgrd_prof=None,
@@ -288,7 +400,7 @@ class HorneExtract(SpecreduceOperation):
         Parameters
         ----------
 
-        image : `~astropy.nddata.NDData` or array-like, required
+        image : `~astropy.nddata.NDData`-like or array-like, required
             The input 2D spectrum from which to extract a source. An
             NDData object must specify uncertainty and a mask. An array
             requires use of the ``variance``, ``mask``, & ``unit`` arguments.
@@ -322,7 +434,7 @@ class HorneExtract(SpecreduceOperation):
         unit : `~astropy.units.Unit` or str, optional
             (Only used if ``image`` is not an NDData object.)
             The associated unit for the data in ``image``. If blank,
-            fluxes are interpreted as unitless.
+            fluxes are interpreted in DN.
 
 
         Returns
@@ -339,70 +451,16 @@ class HorneExtract(SpecreduceOperation):
         mask = mask if mask is not None else self.mask
         unit = unit if unit is not None else self.unit
 
-        # handle image and associated data based on image's type
-        if isinstance(image, NDData):
-            img = np.ma.array(image.data, mask=image.mask)
-            unit = image.unit if image.unit is not None else u.Unit()
+        # parse image and replace optional arguments with updated values
+        self.image = self._parse_image(image, variance, mask, unit, disp_axis)
+        variance = self.image.uncertainty.array
+        unit = self.image.unit
 
-            if image.uncertainty is not None:
-                # prioritize NDData's uncertainty over variance argument
-                if image.uncertainty.uncertainty_type == 'var':
-                    variance = image.uncertainty.array
-                elif image.uncertainty.uncertainty_type == 'std':
-                    # NOTE: CCDData defaults uncertainties given as pure arrays
-                    # to std and logs a warning saying so upon object creation.
-                    # should we remind users again here?
-                    warnings.warn("image NDData object's uncertainty "
-                                  "interpreted as standard deviation. if "
-                                  "incorrect, use VarianceUncertainty when "
-                                  "assigning image object's uncertainty.")
-                    variance = image.uncertainty.array**2
-                elif image.uncertainty.uncertainty_type == 'ivar':
-                    variance = 1 / image.uncertainty.array
-                else:
-                    # other options are InverseVariance and UnknownVariance
-                    raise ValueError("image NDData object has unexpected "
-                                     "uncertainty type. instead, try "
-                                     "VarianceUncertainty or StdDevUncertainty.")
-            else:
-                # ignore variance arg to focus on updating NDData object
-                raise ValueError('image NDData object lacks uncertainty')
-
-        else:
-            if variance is None:
-                raise ValueError('if image is a numpy array, a variance must '
-                                 'be specified. consider wrapping it into one '
-                                 'object by instead passing an NDData image.')
-            elif image.shape != variance.shape:
-                raise ValueError('image and variance shapes must match')
-
-            # check optional arguments, filling them in if absent
-            if mask is None:
-                mask = np.ma.masked_invalid(image).mask
-            elif image.shape != mask.shape:
-                raise ValueError('image and mask shapes must match.')
-
-            if isinstance(unit, str):
-                unit = u.Unit(unit)
-            else:
-                unit = unit if unit is not None else u.Unit()
-
-            # create image
-            img = np.ma.array(image, mask=mask)
-
-        if np.all(variance == 0):
-            # technically would result in infinities, but since they're all zeros
-            # we can just do the unweighted case by overriding with all ones
-            variance = np.ones_like(variance)
-
-        if np.any(variance < 0):
-            raise ValueError("variance must be fully positive")
-
-        if np.any(variance == 0):
-            # exclude these elements by editing the input mask
-            img.mask[variance == 0] = True
-            # replace the variances to avoid a divide by zero warning
-            variance[variance == 0] = np.nan
+        # mask any previously uncaught invalid values
+        or_mask = np.logical_or(mask,
+                                np.ma.masked_invalid(self.image.data).mask)
+        img = np.ma.masked_array(self.image.data, or_mask)
+        mask = img.mask
 
         # co-add signal in each image column
         ncols = img.shape[crossdisp_axis]
@@ -451,7 +509,8 @@ class HorneExtract(SpecreduceOperation):
         extraction = result * norms
 
         # convert the extraction to a Spectrum1D object
-        return _to_spectrum1d_pixels(extraction * unit)
+        return Spectrum1D(extraction * unit,
+                          spectral_axis=self.image.spectral_axis)
 
 
 @dataclass

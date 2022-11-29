@@ -13,7 +13,10 @@ API Changes
 - Renamed KosmosTrace as FitTrace, a conglomerate class for traces that are fit
 to images instead of predetermined [#128]
 - The default number of bins for FitTrace is now its associated image's number
-of dispersion pixels instead of 20. Its default peak_method is now 'max'. [#128]
+of dispersion pixels instead of 20. Its default peak_method is now 'max' [#128]
+- All operations now accept Spectrum1D and Quantity-type images. All accepted
+image types are now processed internally as Spectrum1D objects [#144]
+- All operations' ``image`` attributes are now coerced Spectrum1D objects [#144]
 
 Bug Fixes
 ^^^^^^^^^

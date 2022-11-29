@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 import astropy.units as u
-from astropy.nddata import CCDData
+from astropy.nddata import CCDData, VarianceUncertainty, UnknownUncertainty
 
 from specreduce.extract import BoxcarExtract, HorneExtract, OptimalExtract
 from specreduce.tracing import FlatTrace, ArrayTrace
@@ -79,7 +79,7 @@ def test_boxcar_array_trace():
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
 
 
-def test_horne_array_validation():
+def test_horne_image_validation():
     #
     # Test HorneExtract scenarios specific to its use with an image of
     # type `~numpy.ndarray` (instead of the default `~astropy.nddata.NDData`).
@@ -88,47 +88,64 @@ def test_horne_array_validation():
     extract = OptimalExtract(image.data, trace)  # equivalent to HorneExtract
 
     # an array-type image must come with a variance argument
-    with pytest.raises(ValueError, match=r'.*array.*variance.*specified.*'):
+    with pytest.raises(ValueError, match=r'.*variance must be specified.*'):
         ext = extract()
+
+    # an NDData-type image can't have an empty uncertainty attribute
+    with pytest.raises(ValueError, match=r'.*NDData object lacks uncertainty'):
+        ext = extract(image=image)
+
+    # an NDData-type image's uncertainty must be of type VarianceUncertainty
+    # or type StdDevUncertainty
+    with pytest.raises(ValueError, match=r'.*unexpected uncertainty type.*'):
+        err = UnknownUncertainty(np.ones_like(image))
+        image.uncertainty = err
+        ext = extract(image=image)
 
     # an array-type image must have the same dimensions as its variance argument
     with pytest.raises(ValueError, match=r'.*shapes must match.*'):
+        # remember variance, mask, and unit args are only checked if image
+        # object doesn't have those attributes (e.g., numpy and Quantity arrays)
         err = np.ones_like(image[0])
-        ext = extract(variance=err)
+        ext = extract(image=image.data, variance=err)
 
     # an array-type image must have the same dimensions as its mask argument
     with pytest.raises(ValueError, match=r'.*shapes must match.*'):
         err = np.ones_like(image)
         mask = np.zeros_like(image[0])
-        ext = extract(variance=err, mask=mask)
+        ext = extract(image=image.data, variance=err, mask=mask)
 
     # an array-type image given without mask and unit arguments is fine
-    # and produces a unitless result
+    # and produces an extraction with flux in DN and spectral axis in pixels
     err = np.ones_like(image)
-    ext = extract(variance=err)
-    assert ext.unit == u.Unit()
+    ext = extract(image=image.data, variance=err, mask=None, unit=None)
+    assert ext.unit == u.Unit('DN')
+    assert np.all(ext.spectral_axis
+                  == np.arange(image.shape[extract.disp_axis]) * u.pix)
 
 
 def test_horne_variance_errors():
     trace = FlatTrace(image, 3.0)
 
-    # all zeros are treated as non-weighted (give non-zero fluxes)
-    err = np.zeros_like(image)
-    mask = np.zeros_like(image)
-    extract = HorneExtract(image.data, trace, variance=err, mask=mask, unit=u.Jy)
+    # all zeros are treated as non-weighted (i.e., as non-zero fluxes)
+    image.uncertainty = VarianceUncertainty(np.zeros_like(image))
+    image.mask = np.zeros_like(image)
+    extract = HorneExtract(image, trace)
     ext = extract.spectrum
     assert not np.all(ext == 0)
 
-    # single zero value adjusts mask (does not raise error)
+    # single zero value adjusts mask and does not raise error
     err = np.ones_like(image)
-    err[0] = 0
-    mask = np.zeros_like(image)
-    ext = extract(variance=err, mask=mask, unit=u.Jy)
-    assert not np.all(ext == 0)
+    err[0][0] = 0
+    image.uncertainty = VarianceUncertainty(err)
+    ext = extract(image)
+    assert not np.all(ext == 1)
 
     # single negative value raises error
-    err = np.ones_like(image)
-    err[0] = -1
-    mask = np.zeros_like(image)
+    err = image.uncertainty.array
+    err[0][0] = -1
     with pytest.raises(ValueError, match='variance must be fully positive'):
-        ext = extract(variance=err, mask=mask, unit=u.Jy)
+        # remember variance, mask, and unit args are only checked if image
+        # object doesn't have those attributes (e.g., numpy and Quantity arrays)
+        ext = extract(image=image.data, variance=err,
+                      mask=image.mask, unit=u.Jy)

@@ -5,10 +5,12 @@ from dataclasses import dataclass, field
 import warnings
 
 from astropy.modeling import Model, fitting, models
-from astropy.nddata import CCDData, NDData
+from astropy.nddata import NDData
 from astropy.stats import gaussian_sigma_to_fwhm
 from astropy.utils.decorators import deprecated
 import numpy as np
+
+from specreduce.core import _ImageParser
 
 __all__ = ['Trace', 'FlatTrace', 'ArrayTrace', 'FitTrace']
 
@@ -20,7 +22,7 @@ class Trace:
 
     Parameters
     ----------
-    image : `~astropy.nddata.CCDData`
+    image : `~astropy.nddata.NDData`-like or array-like, required
         Image to be traced
 
     Properties
@@ -28,7 +30,7 @@ class Trace:
     shape : tuple
         Shape of the array describing the trace
     """
-    image: CCDData
+    image: NDData
 
     def __post_init__(self):
         self.trace_pos = self.image.shape[0] / 2
@@ -79,7 +81,7 @@ class Trace:
 
 
 @dataclass
-class FlatTrace(Trace):
+class FlatTrace(Trace, _ImageParser):
     """
     Trace that is constant along the axis being traced.
 
@@ -95,6 +97,8 @@ class FlatTrace(Trace):
     trace_pos: float
 
     def __post_init__(self):
+        self.image = self._parse_image(self.image)
+
         self.set_position(self.trace_pos)
 
     def set_position(self, trace_pos):
@@ -107,12 +111,12 @@ class FlatTrace(Trace):
             Position of the trace
         """
         self.trace_pos = trace_pos
-        self.trace = np.ones_like(self.image[0]) * self.trace_pos
+        self.trace = np.ones_like(self.image.data[0]) * self.trace_pos
         self._bound_trace()
 
 
 @dataclass
-class ArrayTrace(Trace):
+class ArrayTrace(Trace, _ImageParser):
     """
     Define a trace given an array of trace positions.
 
@@ -124,6 +128,8 @@ class ArrayTrace(Trace):
     trace: np.ndarray
 
     def __post_init__(self):
+        self.image = self._parse_image(self.image)
+
         nx = self.image.shape[1]
         nt = len(self.trace)
         if nt != nx:
@@ -139,7 +145,7 @@ class ArrayTrace(Trace):
 
 
 @dataclass
-class FitTrace(Trace):
+class FitTrace(Trace, _ImageParser):
     """
     Trace the spectrum aperture in an image.
 
@@ -156,7 +162,7 @@ class FitTrace(Trace):
 
     Parameters
     ----------
-    image : `~astropy.nddata.NDData` or array-like, required
+    image : `~astropy.nddata.NDData`-like or array-like, required
         The image over which to run the trace. Assumes cross-dispersion
         (spatial) direction is axis 0 and dispersion (wavelength)
         direction is axis 1.
@@ -203,12 +209,12 @@ class FitTrace(Trace):
     _disp_axis = 1
 
     def __post_init__(self):
-        # handle multiple image types and mask uncaught invalid values
-        if isinstance(self.image, NDData):
-            img = np.ma.masked_invalid(np.ma.masked_array(self.image.data,
-                                                          mask=self.image.mask))
-        else:
-            img = np.ma.masked_invalid(self.image)
+        self.image = self._parse_image(self.image)
+
+        # mask any previously uncaught invalid values
+        or_mask = np.logical_or(self.image.mask,
+                                np.ma.masked_invalid(self.image.data).mask)
+        img = np.ma.masked_array(self.image.data, or_mask)
 
         # validate arguments
         valid_peak_methods = ('gaussian', 'centroid', 'max')
