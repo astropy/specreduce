@@ -9,8 +9,8 @@ specific instruments can be built. The scope of its functionality is limited to
 basic spectroscopic reduction, currently encompassing the following three tasks:
 
 #. Determining the trace of a spectrum dispersed in a 2D image, either by setting a flat
-   trace or fitting a spline, polynomial, or other model to the positions of the dispersed
-   spectrum.
+   trace, providing a custom trace array, or fitting a spline, polynomial, or other model
+   to the positions of the dispersed spectrum.
 #. Generating a background based on a region on one or both sides of this trace, and making
    available the background image, 1D spectrum of the background, and the
    background-subtracted image.
