@@ -64,6 +64,8 @@ class _ImageParser:
             mask = image.mask
         else:
             mask = np.ma.masked_invalid(img).mask
+            if not mask:  # Could be False
+                mask = None
 
         if getattr(image, 'uncertainty', None) is not None:
             uncertainty = image.uncertainty
