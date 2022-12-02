@@ -75,6 +75,9 @@ class _ImageParser:
         spectral_axis = getattr(image, 'spectral_axis',
                                 np.arange(img.shape[disp_axis]) * u.pix)
 
+        if mask.ndim == np.ma.nomask:
+            mask = np.zeros(img.shape, dtype=bool)  # 0 = good
+
         return Spectrum1D(img * unit, spectral_axis=spectral_axis,
                           uncertainty=uncertainty, mask=mask)
 

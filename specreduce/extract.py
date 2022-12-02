@@ -359,6 +359,9 @@ class HorneExtract(SpecreduceOperation):
         else:
             mask = np.ma.masked_invalid(img).mask
 
+        if mask.ndim == np.ma.nomask:
+            mask = np.zeros(img.shape, dtype=bool)  # 0 = good
+
         if img.shape != mask.shape:
             raise ValueError('image and mask shapes must match.')
 
