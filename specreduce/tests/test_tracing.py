@@ -144,7 +144,7 @@ def test_fit_trace():
     try:
         FitTrace(img_win_nans, guess=guess, window=window)
     except ValueError as e:
-        print(f"All-NaN window error message: {e}")
+        print(f"(expected) All-NaN window error message: {e}")
     else:
         raise RuntimeError('Trace was erroneously calculated on all-NaN window')
 
@@ -152,7 +152,7 @@ def test_fit_trace():
     try:
         FitTrace(img_all_nans)
     except ValueError as e:
-        print(f"All-NaN image error message: {e}")
+        print(f"(expected) All-NaN image error message: {e}")
     else:
         raise RuntimeError('Trace was erroneously calculated on all-NaN image')
 

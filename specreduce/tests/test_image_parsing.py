@@ -9,6 +9,7 @@ from specreduce.extract import HorneExtract
 from specreduce.tracing import FlatTrace
 from specutils import Spectrum1D, SpectralAxis
 
+
 # fetch test image
 fn = download_file('https://stsci.box.com/shared/static/exnkul627fcuhy5akf2gswytud5tazmw.fits',
                    cache=True)
@@ -96,7 +97,7 @@ def test_parse_horne():
             # requires a variance, so it's chosen here to be on equal footing
             # with the general case
             defaults = {'variance': unc_def,
-                        'mask': np.ma.masked_invalid(img).mask,
+                        'mask': ~np.isfinite(img),
                         'unit': getattr(img, 'unit', u.DN)}
 
         col[key] = HorneExtract._parse_image(object, img, **defaults)

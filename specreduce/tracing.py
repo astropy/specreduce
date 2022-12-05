@@ -212,8 +212,7 @@ class FitTrace(Trace, _ImageParser):
         self.image = self._parse_image(self.image)
 
         # mask any previously uncaught invalid values
-        or_mask = np.logical_or(self.image.mask,
-                                np.ma.masked_invalid(self.image.data).mask)
+        or_mask = np.logical_or(self.image.mask, ~np.isfinite(self.image.data))
         img = np.ma.masked_array(self.image.data, or_mask)
 
         # validate arguments
