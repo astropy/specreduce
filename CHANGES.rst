@@ -24,6 +24,8 @@ API Changes
 - All operations' ``image`` attributes are now coerced Spectrum1D
   objects [#144, #154]
 
+- HorneExtract can now handle non-flat traces [#148]
+
 Bug Fixes
 ^^^^^^^^^
 
