@@ -1,4 +1,17 @@
-1.3.0 (unreleased)
+1.4.0 (unreleased)
+------------------
+
+New Features
+^^^^^^^^^^^^
+
+API Changes
+^^^^^^^^^^^
+
+Bug Fixes
+^^^^^^^^^
+
+
+1.3.0 (2022-12-05)
 ------------------
 
 New Features
@@ -23,6 +36,8 @@ API Changes
 
 - All operations' ``image`` attributes are now coerced Spectrum1D
   objects [#144, #154]
+
+- HorneExtract can now handle non-flat traces [#148]
 
 Bug Fixes
 ^^^^^^^^^
