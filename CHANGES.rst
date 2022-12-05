@@ -19,10 +19,10 @@ API Changes
 
 - All operations now accept Spectrum1D and Quantity-type images. All
   accepted image types are now processed internally as Spectrum1D objects
-  [#144]
+  [#144, #154]
 
 - All operations' ``image`` attributes are now coerced Spectrum1D
-  objects [#144]
+  objects [#144, #154]
 
 Bug Fixes
 ^^^^^^^^^
