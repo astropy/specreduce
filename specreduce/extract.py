@@ -357,7 +357,7 @@ class HorneExtract(SpecreduceOperation):
         elif mask is not None:
             pass
         else:
-            mask = np.ma.masked_invalid(img).mask
+            mask = ~np.isfinite(img)
 
         if img.shape != mask.shape:
             raise ValueError('image and mask shapes must match.')
@@ -486,7 +486,7 @@ class HorneExtract(SpecreduceOperation):
 
         # mask any previously uncaught invalid values
         or_mask = np.logical_or(mask,
-                                np.ma.masked_invalid(self.image.data).mask)
+                                ~np.isfinite(self.image.data))
         img = np.ma.masked_array(self.image.data, or_mask)
         mask = img.mask
 
