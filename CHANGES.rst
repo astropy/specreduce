@@ -29,6 +29,9 @@ Bug Fixes
 
 - Fixed passing a single ``Trace`` object to ``Background`` [#146]
 
+- Moved away from creating image masks with numpy's ``mask_inavlid()``
+function after change to upstream API [#155]
+
 
 1.2.0 (2022-10-04)
 ------------------
