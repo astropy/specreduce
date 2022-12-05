@@ -1,4 +1,17 @@
-1.3.0 (unreleased)
+1.4.0 (unreleased)
+------------------
+
+New Features
+^^^^^^^^^^^^
+
+API Changes
+^^^^^^^^^^^
+
+Bug Fixes
+^^^^^^^^^
+
+
+1.3.0 (2022-12-05)
 ------------------
 
 New Features
