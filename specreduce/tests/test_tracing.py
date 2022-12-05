@@ -125,7 +125,7 @@ def test_fit_trace():
         FitTrace(img, bins=20., trace_model=models.Polynomial1D(2))
 
     # ensure non-equipped models are rejected
-    with pytest.raises(ValueError, match=r'trace_model must be one of*'):
+    with pytest.raises(ValueError, match=r'trace_model must be one of'):
         FitTrace(img, trace_model=models.Hermite1D(3))
 
     # ensure a bin number below 4 is rejected
@@ -137,23 +137,15 @@ def test_fit_trace():
         FitTrace(img, bins=4, trace_model=models.Chebyshev1D(5))
 
     # ensure number of bins greater than number of dispersion pixels is rejected
-    with pytest.raises(ValueError, match=r'bins must be <*'):
+    with pytest.raises(ValueError, match=r'bins must be <'):
         FitTrace(img, bins=ncols + 1)
 
     # error on trace of otherwise valid image with all-nan window around guess
-    try:
+    with pytest.raises(ValueError, match='pixels in window region are masked'):
         FitTrace(img_win_nans, guess=guess, window=window)
-    except ValueError as e:
-        print(f"(expected) All-NaN window error message: {e}")
-    else:
-        raise RuntimeError('Trace was erroneously calculated on all-NaN window')
 
     # error on trace of all-nan image
-    try:
+    with pytest.raises(ValueError, match=r'image is fully masked'):
         FitTrace(img_all_nans)
-    except ValueError as e:
-        print(f"(expected) All-NaN image error message: {e}")
-    else:
-        raise RuntimeError('Trace was erroneously calculated on all-NaN image')
 
     # could try to catch warning thrown for all-nan bins
