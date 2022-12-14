@@ -236,8 +236,10 @@ class BoxcarExtract(SpecreduceOperation):
             crossdisp_axis,
             self.image.shape)
 
-        # extract
-        ext1d = np.sum(self.image.data * wimg, axis=crossdisp_axis)
+        # extract, assigning no weight to non-finite pixels outside the window
+        # (non-finite pixels inside the window will still make it into the sum)
+        image_windowed = np.where(wimg, self.image.data*wimg, 0)
+        ext1d = np.sum(image_windowed, axis=crossdisp_axis)
         return Spectrum1D(ext1d * self.image.unit,
                           spectral_axis=self.image.spectral_axis)
 
