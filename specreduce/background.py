@@ -133,14 +133,20 @@ class Background(_ImageParser):
 
         self.bkg_wimage = bkg_wimage
 
+        # mask user-highlighted and invalid values (if any) before taking stats
+        or_mask = (np.logical_or(~np.isfinite(self.image.data), self.image.mask)
+                   if self.image.mask is not None
+                   else ~np.isfinite(self.image.data))
+
         if self.statistic == 'average':
-            self._bkg_array = np.average(self.image.data,
-                                         weights=self.bkg_wimage,
-                                         axis=self.crossdisp_axis)
+            image_ma = np.ma.masked_array(self.image.data, mask=or_mask)
+            self._bkg_array = np.ma.average(image_ma,
+                                            weights=self.bkg_wimage,
+                                            axis=self.crossdisp_axis).data
         elif self.statistic == 'median':
-            med_image = self.image.data.copy()
-            med_image[np.where(self.bkg_wimage) == 0] = np.nan
-            self._bkg_array = np.nanmedian(med_image, axis=self.crossdisp_axis)
+            med_mask = np.logical_or(self.bkg_wimage == 0, or_mask)
+            image_ma = np.ma.masked_array(self.image.data, mask=med_mask)
+            self._bkg_array = np.ma.median(image_ma, axis=self.crossdisp_axis).data
         else:
             raise ValueError("statistic must be 'average' or 'median'")
 
@@ -232,7 +238,7 @@ class Background(_ImageParser):
 
         Returns
         -------
-        Spectrum1D object with same shape as ``image``.
+        `~specutils.Spectrum1D` object with same shape as ``image``.
         """
         image = self._parse_image(image)
         return Spectrum1D(np.tile(self._bkg_array,
@@ -261,11 +267,11 @@ class Background(_ImageParser):
         bkg_image = self.bkg_image(image)
 
         try:
-            return bkg_image.collapse(np.sum, axis=self.crossdisp_axis)
+            return bkg_image.collapse(np.nansum, axis=self.crossdisp_axis)
         except u.UnitTypeError:
             # can't collapse with a spectral axis in pixels because
             # SpectralCoord only allows frequency/wavelength equivalent units...
-            ext1d = np.sum(bkg_image.flux, axis=self.crossdisp_axis)
+            ext1d = np.nansum(bkg_image.flux, axis=self.crossdisp_axis)
             return Spectrum1D(ext1d, bkg_image.spectral_axis)
 
     def sub_image(self, image=None):
@@ -280,7 +286,7 @@ class Background(_ImageParser):
 
         Returns
         -------
-        array with same shape as ``image``
+        `~specutils.Spectrum1D` object with same shape as ``image``.
         """
         image = self._parse_image(image)
 
@@ -313,11 +319,11 @@ class Background(_ImageParser):
         sub_image = self.sub_image(image=image)
 
         try:
-            return sub_image.collapse(np.sum, axis=self.crossdisp_axis)
+            return sub_image.collapse(np.nansum, axis=self.crossdisp_axis)
         except u.UnitTypeError:
             # can't collapse with a spectral axis in pixels because
             # SpectralCoord only allows frequency/wavelength equivalent units...
-            ext1d = np.sum(sub_image.flux, axis=self.crossdisp_axis)
+            ext1d = np.nansum(sub_image.flux, axis=self.crossdisp_axis)
             return Spectrum1D(ext1d, spectral_axis=sub_image.spectral_axis)
 
     def __rsub__(self, image):
