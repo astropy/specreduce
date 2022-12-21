@@ -13,11 +13,11 @@ from specreduce.tracing import FlatTrace, ArrayTrace
 # Test image is comprised of 30 rows with 10 columns each. Row content
 # is row index itself. This makes it easy to predict what should be the
 # value extracted from a region centered at any arbitrary Y position.
-image = np.ones(shape=(30, 10))
-for j in range(image.shape[0]):
-    image[j, ::] *= j
-image = Spectrum1D(image * u.DN,
-                   uncertainty=VarianceUncertainty(np.ones_like(image)))
+img = np.ones(shape=(30, 10))
+for j in range(img.shape[0]):
+    img[j, ::] *= j
+image = Spectrum1D(img * u.DN,
+                   uncertainty=VarianceUncertainty(np.ones_like(img)))
 image_um = Spectrum1D(image.flux,
                       spectral_axis=np.arange(image.data.shape[1]) * u.um,
                       uncertainty=VarianceUncertainty(np.ones_like(image.data)))
@@ -28,7 +28,7 @@ def test_background():
     # Try combinations of extraction center, and even/odd
     # extraction aperture sizes.
     #
-    trace_pos = 15.0
+    trace_pos = 15
     trace = FlatTrace(image, trace_pos)
     bkg_sep = 5
     bkg_width = 2
@@ -72,9 +72,24 @@ def test_background():
     assert isinstance(bkg_spec, Spectrum1D)
     sub_spec = bg1.sub_spectrum()
     assert isinstance(sub_spec, Spectrum1D)
+
     # test that width==0 results in no background
     bg = Background.two_sided(image, trace, bkg_sep, width=0)
     assert np.all(bg.bkg_image().flux == 0)
+
+    # test that any NaNs in input image (whether in or outside the window) don't
+    # propagate to _bkg_array (which affects bkg_image and sub_image methods) or
+    # the final 1D spectra.
+    img[0, 0] = np.nan  # out of window
+    img[trace_pos, 0] = np.nan  # in window
+    stats = ['average', 'median']
+
+    for st in stats:
+        bg = Background(img, trace-bkg_sep, width=bkg_width, statistic=st)
+        assert np.isnan(bg.image.flux).sum() == 2
+        assert np.isnan(bg._bkg_array).sum() == 0
+        assert np.isnan(bg.bkg_spectrum().flux).sum() == 0
+        assert np.isnan(bg.sub_spectrum().flux).sum() == 0
 
 
 def test_warnings_errors():

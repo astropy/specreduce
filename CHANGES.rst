@@ -10,6 +10,14 @@ API Changes
 Bug Fixes
 ^^^^^^^^^
 
+- Output 1D spectra from Background no longer include NaNs. Output 1D
+spectra from BoxcarExtract no longer include NaNs when none are present
+in the extraction window. NaNs in the window will still propagate to
+BoxcarExtract's extracted 1D spectrum. [#159]
+
+- Backgrounds using median statistic properly ignore zero-weighted pixels
+[#159]
+
 
 1.3.0 (2022-12-05)
 ------------------
@@ -47,6 +55,7 @@ Bug Fixes
 - Moved away from creating image masks with numpy's ``mask_invalid()``
   function after change to upstream API. This will make specreduce
   be compatible with numpy 1.24 or later. [#155]
+
 
 1.2.0 (2022-10-04)
 ------------------
