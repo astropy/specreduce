@@ -13,7 +13,7 @@ Bug Fixes
 - Output 1D spectra from Background no longer include NaNs. Output 1D
 spectra from BoxcarExtract no longer include NaNs when none are present
 in the extraction window. NaNs in the window will still propagate to
-Boxcar1D's extracted 1D spectrum. [#159]
+BoxcarExtract's extracted 1D spectrum. [#159]
 
 - Backgrounds using median statistic properly ignore zero-weighted pixels
 [#159]
