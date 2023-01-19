@@ -1,5 +1,7 @@
 from astropy.modeling.models import Linear1D, Gaussian1D
 import astropy.units as u
+from functools import cached_property
+import numpy as np
 from specutils import SpectralRegion
 from specutils.fitting import fit_lines
 
@@ -10,7 +12,7 @@ Starting from Kyle's proposed pseudocode from https://github.com/astropy/specred
 
 class CalibrationLine():
 
-    def __init__(input_spectrum, wavelength, pixel, refinement_method=None,
+    def __init__(self, input_spectrum, wavelength, pixel, refinement_method=None,
                  refinement_kwargs={}):
         """
         input_spectrum: `~specutils.Spectrum1D`
@@ -53,26 +55,30 @@ class CalibrationLine():
        # We could also have a type-check for ``wavelength`` above, this just feels more verbose
        return cls(...)
 
-    def _do_refinement(input_spectrum):
+    def _do_refinement(self, input_spectrum):
             if self.refinement_method == 'gaussian':
                 window_width = self.refinement_kwargs.get('range')
                 window = SpectralRegion((self.pixel-window_width)*u.pix,
                                         (self.pixel+window_width)*u.pix)
 
                 # Use specutils.fit_lines to do model fitting. Define window in u.pix based on kwargs
-                input_model = Gaussian1D(mean=self.pixel, amplitude = self.input_spectrum[pixel],
-                                         stddev=3)
+                input_model = Gaussian1D(mean=self.pixel, stddev=3,
+                                         amplitude = self.input_spectrum.flux[self.pixel])
 
                 fitted_model = fit_lines(self.input_spectrum, input_model, window=window)
-                new_pixel = fitted_model.mean
+                new_pixel = fitted_model.mean.value
 
             elif self.refinement_method == 'min':
                 window_width = self.refinement_kwargs.get('range')
-                new_pixel = np.argmin(self.input_spectrum[self.pixel-window_width:self.pixel+window_width+1])
+                new_pixel = np.argmin(self.input_spectrum.flux[self.pixel-window_width:
+                                                               self.pixel+window_width+1])
+                new_pixel += self.pixel - window_width
 
-            elif self.refinement_method = 'max':
+            elif self.refinement_method == 'max':
                 window_width = self.refinement_kwargs.get('range')
-                new_pixel = np.argmax(self.input_spectrum[self.pixel-window_width:self.pixel+window_width+1])
+                new_pixel = np.argmax(self.input_spectrum.flux[self.pixel-window_width:
+                                                               self.pixel+window_width+1])
+                new_pixel += self.pixel - window_width
 
             return new_pixel
 
@@ -80,7 +86,7 @@ class CalibrationLine():
         # finds the center of the line according to refinement_method/kwargs and returns
         # either the pixel value or a CalibrationLine object with pixel changed to the refined value
         input_spectrum = self.input_spectrum if input_spectrum is None else input_spectrum
-        refined_pixel = _do_refinement(input_spectrum, self.refinement_method, **self.refinement_kwargs)
+        refined_pixel = self._do_refinement(input_spectrum)
         if return_object:
             return CalibrationLine(input_spectrum, self.wavelength, refined_pixel, ...)
 
@@ -118,12 +124,12 @@ class WavelengthCalibration1D():
 
 
     @classmethod
-    def autoidentify(cls, input_spectrum, line_list, model=Linear1D, ...):
+    def autoidentify(cls, input_spectrum, line_list, model=Linear1D):
         # line_list could be a string ("common stellar") or an object
         # this builds a list of CalibrationLine objects and passes to __init__
         return cls(...)
 
-    @property 
+    @property
     def refined_lines(self):
         return [l.with_refined_pixel for l in self.lines]
 
@@ -135,22 +141,29 @@ class WavelengthCalibration1D():
     @cached_property
     def wcs(self):
         # computes and returns WCS after fitting self.model to self.refined_pixels
+        inputs = np.array(self.refined_pixels)
+
         return WCS(...)
 
-    def __call__(self, apply_to_spectrum=None):
+    def apply_to_spectrum(self, spectrum=None):
        # returns spectrum1d with wavelength calibration applied
-       # actual line refinement and WCS solution should already be done so that this can be called on multiple science sources
-       apply_to_spectrum = self.input_spectrum if apply_to_spectrum is None else apply_to_spectrum
-       apply_to_spectrum.wcs = apply_to_spectrum  # might need a deepcopy!
-       return apply_to_spectrum 
+       # actual line refinement and WCS solution should already be done so that this can
+       # ibe called on multiple science sources
+       spectrum = self.input_spectrum if apply_to_spectrum is None else apply_to_spectrum
+       spectrum.wcs = self.wcs  # might need a deepcopy!
+       return spectrum
 
 
-class WavelengthCalibration2D(input_spectrum, trace, lines, model=Linear1D,
-                              default_refinement_method=None, default_refinement_kwargs={}):
+class WavelengthCalibration2D():
     # input_spectrum must be 2-dimensional
+
     # lines are coerced to CalibrationLine objects if passed as tuples with default_refinement_method and default_refinement_kwargs as defaults
+    def __init__(input_spectrum, trace, lines, model=Linear1D,
+                 default_refinement_method=None, default_refinement_kwargs={}):
+        pass
+
     @classmethod
-    def autoidentify(cls, input_spectrum, trace, line_list, model=Linear1D, ...):
+    def autoidentify(cls, input_spectrum, trace, line_list, model=Linear1D):
         # does this do 2D identification, or just search a 1d spectrum exactly at the trace?
         # or should we require using WavelengthCalibration1D.autoidentify?
         return cls(...)
@@ -173,10 +186,10 @@ class WavelengthCalibration2D(input_spectrum, trace, lines, model=Linear1D,
        # actual line refinement and WCS solution should already be done so that this can be called on multiple science sources
        apply_to_spectrum = self.input_spectrum if apply_to_spectrum is None else apply_to_spectrum
        apply_to_spectrum.wcs = apply_to_spectrum  # might need a deepcopy!
-       return apply_to_spectrum 
+       return apply_to_spectrum
 
 
-
+'''
 # various supported syntaxes for creating a calibration object (do we want this much flexibility?):
 cal1d = WavelengthCalibration1D(spec1d_lamp, (CalibrationLine(5500, 20), CalibrationLine(6200, 32)))
 cal1d = WavelengthCalibration1D(spec1d_lamp, (CalibrationLine.by_name('H_alpha', 20, 'uphill'), CalibrationLine.by_name('Lyman_alpha', 32, 'max', {'range': 10})))
@@ -184,7 +197,7 @@ cal1d = WavelengthCalibration1D(spec1d_lamp, ((5500, 20), ('Lyman_alpha', 32)))
 cal1d = WavelengthCalibration1D(spec1d_lamp, ((5500, 20), (6000, 30)), default_refinement_method='gaussian')
 cal1d = WavelengthCalibration1D.autoidentify(spec1d_lamp, common_stellar_line_list)
 
-# once we have that object, we can access the fitted wavelength solution via the WCS and apply it to 
+# once we have that object, we can access the fitted wavelength solution via the WCS and apply it to
 # a spectrum (either the same or separate from the spectrum used for fitting)
 targ_wcs = cal1d.wcs
 spec1d_targ1_cal = cal1d(spec1d_targ1)
@@ -196,3 +209,4 @@ spec1d_targ2_cal = cal1d(spec1d_targ2)
 cal2d = WavelengthCalibration2D(spec2d_lamp, trace_lamp, ((5500, 20), (6000, 30)))
 cal2d = WavelengthCalibration2D(spec2d_lamp, trace_lamp, cal1d.refined_lines)
 spec2d_targ_cal = cal2d(spec2d_targ, trace_targ?)
+'''
