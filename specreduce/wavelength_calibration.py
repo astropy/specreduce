@@ -88,6 +88,8 @@ class CalibrationLine():
     def refine(self, input_spectrum=None, return_object=False):
         # finds the center of the line according to refinement_method/kwargs and returns
         # either the pixel value or a CalibrationLine object with pixel changed to the refined value
+        if self.refinement_method is None:
+            return self.pixel
         input_spectrum = self.input_spectrum if input_spectrum is None else input_spectrum
         refined_pixel = self._do_refinement(input_spectrum)
         if return_object:
@@ -105,18 +107,22 @@ class CalibrationLine():
         # returns a copy of this object, but with the pixel updated to the refined value
         return self.refine(return_object=True)
 
+    def __str__(self):
+        return(f"CalibrationLine: ({self.wavelength}, {self.pixel})")
+
 
 class WavelengthCalibration1D():
 
-    def __init__(input_spectrum, lines, model=Linear1D, spectral_unit=u.Angstrom,
+    def __init__(self, input_spectrum, lines, model=Linear1D, spectral_unit=u.Angstrom,
                  fitter=LMLSQFitter(calc_uncertainties=True),
                  default_refinement_method=None, default_refinement_kwargs={}):
         """
         input_spectrum: `~specutils.Spectrum1D`
             A one-dimensional Spectrum1D calibration spectrum from an arc lamp or similar.
-        lines:
-            List of lines to anchor the wavelength solution fit. coerced to CalibrationLine
-            objects if passed as tuples with default_refinement_method and default_refinement_kwargs as defaults
+        lines: str, list
+            List of lines to anchor the wavelength solution fit. List items are coerced to
+            CalibrationLine objects if passed as tuples of (pixel, wavelength) with
+            default_refinement_method and default_refinement_kwargs as defaults.
         model: `~astropy.modeling.Model`
             The model to fit for the wavelength solution. Defaults to a linear model.
         default_refinement_method: str, optional
@@ -139,9 +145,18 @@ class WavelengthCalibration1D():
             raise ValueError("You must define 'direction' in default_refinement_kwargs to use "
                              "gradient refinement")
 
+        self.lines = []
         if isinstance(lines, str):
             if lines in self.available_line_lists:
                 raise ValueError(f"Line list '{lines}' is not an available line list.")
+        else:
+            for line in lines:
+                if isinstance(line, CalibrationLine):
+                    self.lines.append(line)
+                else:
+                    self.lines.append(CalibrationLine(self.input_spectrum, line[1], line[0],
+                                      self.default_refinement_method,
+                                      self.default_refinement_kwargs))
 
 
     @classmethod
@@ -169,7 +184,7 @@ class WavelengthCalibration1D():
         self.model = fitter(self.model, x, y)
 
         # Build a GWCS pipeline from the fitted model
-        pixel_frame = cf.SpectralFrame(axes_names=["x",], unit=[u.pix,])
+        pixel_frame = cf.CoordinateFrame(1, "SPECTRAL", [0,], axes_names=["x",], unit=[u.pix,])
         spectral_frame = cf.SpectralFrame(axes_names=["wavelength",], unit=[self.spectral_unit,])
 
         pipeline = [(pixel_frame, model),(spectral_frame, None)]
@@ -220,26 +235,3 @@ class WavelengthCalibration2D():
        apply_to_spectrum = self.input_spectrum if apply_to_spectrum is None else apply_to_spectrum
        apply_to_spectrum.wcs = apply_to_spectrum  # might need a deepcopy!
        return apply_to_spectrum
-
-
-'''
-# various supported syntaxes for creating a calibration object (do we want this much flexibility?):
-cal1d = WavelengthCalibration1D(spec1d_lamp, (CalibrationLine(5500, 20), CalibrationLine(6200, 32)))
-cal1d = WavelengthCalibration1D(spec1d_lamp, (CalibrationLine.by_name('H_alpha', 20, 'uphill'), CalibrationLine.by_name('Lyman_alpha', 32, 'max', {'range': 10})))
-cal1d = WavelengthCalibration1D(spec1d_lamp, ((5500, 20), ('Lyman_alpha', 32)))
-cal1d = WavelengthCalibration1D(spec1d_lamp, ((5500, 20), (6000, 30)), default_refinement_method='gaussian')
-cal1d = WavelengthCalibration1D.autoidentify(spec1d_lamp, common_stellar_line_list)
-
-# once we have that object, we can access the fitted wavelength solution via the WCS and apply it to
-# a spectrum (either the same or separate from the spectrum used for fitting)
-targ_wcs = cal1d.wcs
-spec1d_targ1_cal = cal1d(spec1d_targ1)
-spec1d_targ2_cal = cal1d(spec1d_targ2)
-
-
-# we sould either start a 2D calibration the same way (except also passing the trace) or by passing
-# the refined lines from the 1D calibration as the starting point
-cal2d = WavelengthCalibration2D(spec2d_lamp, trace_lamp, ((5500, 20), (6000, 30)))
-cal2d = WavelengthCalibration2D(spec2d_lamp, trace_lamp, cal1d.refined_lines)
-spec2d_targ_cal = cal2d(spec2d_targ, trace_targ?)
-'''
