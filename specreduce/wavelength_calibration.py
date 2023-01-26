@@ -1,6 +1,9 @@
 from astropy.modeling.models import Linear1D, Gaussian1D
+from astropy.modeling.fitting import LMLSQFitter
 import astropy.units as u
 from functools import cached_property
+from gwcs import wcs
+from gwcs import coordinate_frames as cf
 import numpy as np
 from specutils import SpectralRegion
 from specutils.fitting import fit_lines
@@ -105,8 +108,9 @@ class CalibrationLine():
 
 class WavelengthCalibration1D():
 
-    def __init__(input_spectrum, lines, model=Linear1D,
-                              default_refinement_method=None, default_refinement_kwargs={}):
+    def __init__(input_spectrum, lines, model=Linear1D, spectral_unit=u.Angstrom,
+                 fitter=LMLSQFitter(calc_uncertainties=True),
+                 default_refinement_method=None, default_refinement_kwargs={}):
         """
         input_spectrum: `~specutils.Spectrum1D`
             A one-dimensional Spectrum1D calibration spectrum from an arc lamp or similar.
@@ -120,7 +124,24 @@ class WavelengthCalibration1D():
         default_refinement_kwargs: dict, optional
             words
         """
+        self.input_spectrum = input_spectrum
         self.model = model
+        self.spectral_unit = spectral_unit
+        self.default_refinement_method = default_refinement_method
+        self.default_refinement_kwargs = default_refinement_kwargs
+
+        if self.default_refinement_method in ("gaussian", "min", "max"):
+            if 'range' not in self.default_refinement_kwargs:
+                raise ValueError(f"You must define 'range' in default_refinement_kwargs to use "
+                                  "{self.refinement_method} refinement.")
+        elif (self.default_refinement_method == "gradient" and 'direction' not in
+                self.default_refinement_kwargs):
+            raise ValueError("You must define 'direction' in default_refinement_kwargs to use "
+                             "gradient refinement")
+
+        if isinstance(lines, str):
+            if lines in self.available_line_lists:
+                raise ValueError(f"Line list '{lines}' is not an available line list.")
 
 
     @classmethod
@@ -141,9 +162,21 @@ class WavelengthCalibration1D():
     @cached_property
     def wcs(self):
         # computes and returns WCS after fitting self.model to self.refined_pixels
-        inputs = np.array(self.refined_pixels)
+        x = np.array(self.refined_pixels)[:,0]
+        y = np.array(self.refined_pixels)[:,1]
 
-        return WCS(...)
+        # Fit the model
+        self.model = fitter(self.model, x, y)
+
+        # Build a GWCS pipeline from the fitted model
+        pixel_frame = cf.SpectralFrame(axes_names=["x",], unit=[u.pix,])
+        spectral_frame = cf.SpectralFrame(axes_names=["wavelength",], unit=[self.spectral_unit,])
+
+        pipeline = [(pixel_frame, model),(spectral_frame, None)]
+
+        wcsobj = wcs.WCS(pipeline)
+
+        return wcsobj
 
     def apply_to_spectrum(self, spectrum=None):
        # returns spectrum1d with wavelength calibration applied
