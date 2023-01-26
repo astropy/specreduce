@@ -5,7 +5,7 @@ from functools import cached_property
 from gwcs import wcs
 from gwcs import coordinate_frames as cf
 import numpy as np
-from specutils import SpectralRegion
+from specutils import SpectralRegion, Spectrum1D
 from specutils.fitting import fit_lines
 
 
@@ -93,7 +93,9 @@ class CalibrationLine():
         input_spectrum = self.input_spectrum if input_spectrum is None else input_spectrum
         refined_pixel = self._do_refinement(input_spectrum)
         if return_object:
-            return CalibrationLine(input_spectrum, self.wavelength, refined_pixel, ...)
+            return CalibrationLine(input_spectrum, self.wavelength, refined_pixel, 
+                                   refinement_method=self.refinement_method,
+                                   refinement_kwargs=self.refinement_kwargs)
 
         return refined_pixel
 
@@ -110,10 +112,13 @@ class CalibrationLine():
     def __str__(self):
         return(f"CalibrationLine: ({self.wavelength}, {self.pixel})")
 
+    def __repr__(self):
+        return(f"CalibrationLine({self.wavelength}, {self.pixel})")
+
 
 class WavelengthCalibration1D():
 
-    def __init__(self, input_spectrum, lines, model=Linear1D, spectral_unit=u.Angstrom,
+    def __init__(self, input_spectrum, lines, model=Linear1D(), spectral_unit=u.Angstrom,
                  fitter=LMLSQFitter(calc_uncertainties=True),
                  default_refinement_method=None, default_refinement_kwargs={}):
         """
@@ -133,6 +138,7 @@ class WavelengthCalibration1D():
         self.input_spectrum = input_spectrum
         self.model = model
         self.spectral_unit = spectral_unit
+        self.fitter = fitter
         self.default_refinement_method = default_refinement_method
         self.default_refinement_kwargs = default_refinement_kwargs
 
@@ -177,17 +183,17 @@ class WavelengthCalibration1D():
     @cached_property
     def wcs(self):
         # computes and returns WCS after fitting self.model to self.refined_pixels
-        x = np.array(self.refined_pixels)[:,0]
-        y = np.array(self.refined_pixels)[:,1]
+        x = [line[1] for line in self.refined_pixels] * u.pix
+        y = [line[0].value for line in self.refined_pixels] * self.spectral_unit
 
         # Fit the model
-        self.model = fitter(self.model, x, y)
+        self.model = self.fitter(self.model, x, y)
 
         # Build a GWCS pipeline from the fitted model
         pixel_frame = cf.CoordinateFrame(1, "SPECTRAL", [0,], axes_names=["x",], unit=[u.pix,])
         spectral_frame = cf.SpectralFrame(axes_names=["wavelength",], unit=[self.spectral_unit,])
 
-        pipeline = [(pixel_frame, model),(spectral_frame, None)]
+        pipeline = [(pixel_frame, self.model),(spectral_frame, None)]
 
         wcsobj = wcs.WCS(pipeline)
 
@@ -196,10 +202,11 @@ class WavelengthCalibration1D():
     def apply_to_spectrum(self, spectrum=None):
        # returns spectrum1d with wavelength calibration applied
        # actual line refinement and WCS solution should already be done so that this can
-       # ibe called on multiple science sources
-       spectrum = self.input_spectrum if apply_to_spectrum is None else apply_to_spectrum
-       spectrum.wcs = self.wcs  # might need a deepcopy!
-       return spectrum
+       # be called on multiple science sources
+       spectrum = self.input_spectrum if spectrum is None else spectrum
+       updated_spectrum = Spectrum1D(spectrum.flux, wcs=self.wcs, mask=spectrum.mask,
+                                     uncertainty=spectrum.uncertainty)
+       return updated_spectrum
 
 
 class WavelengthCalibration2D():
