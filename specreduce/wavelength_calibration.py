@@ -9,10 +9,6 @@ from specutils import SpectralRegion, Spectrum1D
 from specutils.fitting import fit_lines
 
 
-"""
-Starting from Kyle's proposed pseudocode from https://github.com/astropy/specreduce/pull/152
-"""
-
 class CalibrationLine():
 
     def __init__(self, input_spectrum, wavelength, pixel, refinement_method=None,
@@ -45,7 +41,7 @@ class CalibrationLine():
         if self.refinement_method in ("gaussian", "min", "max"):
             if 'range' not in self.refinement_kwargs:
                 raise ValueError(f"You must define 'range' in refinement_kwargs to use "
-                                  "{self.refinement_method} refinement.")
+                                 f"{self.refinement_method} refinement.")
         elif self.refinement_method == "gradient" and 'direction' not in self.refinement_kwargs:
             raise ValueError("You must define 'direction' in refinement_kwargs to use "
                              "gradient refinement")
@@ -53,37 +49,36 @@ class CalibrationLine():
     @classmethod
     def by_name(cls, input_spectrum, line_name, pixel,
                 refinement_method=None, refinement_kwargs={}):
-	   # this does wavelength lookup and passes that wavelength to __init__ allowing the user
-       # to call CalibrationLine.by_name(spectrum, 'H_alpha', pixel=40)
-       # We could also have a type-check for ``wavelength`` above, this just feels more verbose
-       return cls(...)
+        # this will do wavelength lookup and passes that wavelength to __init__ allowing the user
+        # to call CalibrationLine.by_name(spectrum, 'H_alpha', pixel=40)
+        # We could also have a type-check for ``wavelength`` above, this just feels more verbose
+        return cls(...)
 
     def _do_refinement(self, input_spectrum):
-            if self.refinement_method == 'gaussian':
-                window_width = self.refinement_kwargs.get('range')
-                window = SpectralRegion((self.pixel-window_width)*u.pix,
-                                        (self.pixel+window_width)*u.pix)
+        if self.refinement_method == 'gaussian':
+            window_width = self.refinement_kwargs.get('range')
+            window = SpectralRegion((self.pixel-window_width)*u.pix,
+                                    (self.pixel+window_width)*u.pix)
 
-                # Use specutils.fit_lines to do model fitting. Define window in u.pix based on kwargs
-                input_model = Gaussian1D(mean=self.pixel, stddev=3,
-                                         amplitude = self.input_spectrum.flux[self.pixel])
+            input_model = Gaussian1D(mean=self.pixel, stddev=3,
+                                     amplitude=self.input_spectrum.flux[self.pixel])
 
-                fitted_model = fit_lines(self.input_spectrum, input_model, window=window)
-                new_pixel = fitted_model.mean.value
+            fitted_model = fit_lines(self.input_spectrum, input_model, window=window)
+            new_pixel = fitted_model.mean.value
 
-            elif self.refinement_method == 'min':
-                window_width = self.refinement_kwargs.get('range')
-                new_pixel = np.argmin(self.input_spectrum.flux[self.pixel-window_width:
-                                                               self.pixel+window_width+1])
-                new_pixel += self.pixel - window_width
+        elif self.refinement_method == 'min':
+            window_width = self.refinement_kwargs.get('range')
+            new_pixel = np.argmin(self.input_spectrum.flux[self.pixel-window_width:
+                                                           self.pixel+window_width+1])
+            new_pixel += self.pixel - window_width
 
-            elif self.refinement_method == 'max':
-                window_width = self.refinement_kwargs.get('range')
-                new_pixel = np.argmax(self.input_spectrum.flux[self.pixel-window_width:
-                                                               self.pixel+window_width+1])
-                new_pixel += self.pixel - window_width
+        elif self.refinement_method == 'max':
+            window_width = self.refinement_kwargs.get('range')
+            new_pixel = np.argmax(self.input_spectrum.flux[self.pixel-window_width:
+                                                           self.pixel+window_width+1])
+            new_pixel += self.pixel - window_width
 
-            return new_pixel
+        return new_pixel
 
     def refine(self, input_spectrum=None, return_object=False):
         # finds the center of the line according to refinement_method/kwargs and returns
@@ -93,7 +88,7 @@ class CalibrationLine():
         input_spectrum = self.input_spectrum if input_spectrum is None else input_spectrum
         refined_pixel = self._do_refinement(input_spectrum)
         if return_object:
-            return CalibrationLine(input_spectrum, self.wavelength, refined_pixel, 
+            return CalibrationLine(input_spectrum, self.wavelength, refined_pixel,
                                    refinement_method=self.refinement_method,
                                    refinement_kwargs=self.refinement_kwargs)
 
@@ -110,10 +105,10 @@ class CalibrationLine():
         return self.refine(return_object=True)
 
     def __str__(self):
-        return(f"CalibrationLine: ({self.wavelength}, {self.pixel})")
+        return f"CalibrationLine: ({self.wavelength}, {self.pixel})"
 
     def __repr__(self):
-        return(f"CalibrationLine({self.wavelength}, {self.pixel})")
+        return f"CalibrationLine({self.wavelength}, {self.pixel})"
 
 
 class WavelengthCalibration1D():
@@ -144,8 +139,8 @@ class WavelengthCalibration1D():
 
         if self.default_refinement_method in ("gaussian", "min", "max"):
             if 'range' not in self.default_refinement_kwargs:
-                raise ValueError(f"You must define 'range' in default_refinement_kwargs to use "
-                                  "{self.refinement_method} refinement.")
+                raise ValueError("You must define 'range' in default_refinement_kwargs to use "
+                                 f"{self.refinement_method} refinement.")
         elif (self.default_refinement_method == "gradient" and 'direction' not in
                 self.default_refinement_kwargs):
             raise ValueError("You must define 'direction' in default_refinement_kwargs to use "
@@ -164,7 +159,6 @@ class WavelengthCalibration1D():
                                       self.default_refinement_method,
                                       self.default_refinement_kwargs))
 
-
     @classmethod
     def autoidentify(cls, input_spectrum, line_list, model=Linear1D):
         # line_list could be a string ("common stellar") or an object
@@ -173,12 +167,12 @@ class WavelengthCalibration1D():
 
     @property
     def refined_lines(self):
-        return [l.with_refined_pixel for l in self.lines]
+        return [line.with_refined_pixel for line in self.lines]
 
     @property
     def refined_pixels(self):
         # useful for plotting over spectrum to change input lines/refinement options
-        return [(l.wavelength, l.refined_pixel) for l in self.lines]
+        return [(line.wavelength, line.refined_pixel) for line in self.lines]
 
     @cached_property
     def wcs(self):
@@ -193,29 +187,32 @@ class WavelengthCalibration1D():
         pixel_frame = cf.CoordinateFrame(1, "SPECTRAL", [0,], axes_names=["x",], unit=[u.pix,])
         spectral_frame = cf.SpectralFrame(axes_names=["wavelength",], unit=[self.spectral_unit,])
 
-        pipeline = [(pixel_frame, self.model),(spectral_frame, None)]
+        pipeline = [(pixel_frame, self.model), (spectral_frame, None)]
 
         wcsobj = wcs.WCS(pipeline)
 
         return wcsobj
 
     def apply_to_spectrum(self, spectrum=None):
-       # returns spectrum1d with wavelength calibration applied
-       # actual line refinement and WCS solution should already be done so that this can
-       # be called on multiple science sources
-       spectrum = self.input_spectrum if spectrum is None else spectrum
-       updated_spectrum = Spectrum1D(spectrum.flux, wcs=self.wcs, mask=spectrum.mask,
-                                     uncertainty=spectrum.uncertainty)
-       return updated_spectrum
+        # returns spectrum1d with wavelength calibration applied
+        # actual line refinement and WCS solution should already be done so that this can
+        # be called on multiple science sources
+        spectrum = self.input_spectrum if spectrum is None else spectrum
+        updated_spectrum = Spectrum1D(spectrum.flux, wcs=self.wcs, mask=spectrum.mask,
+                                      uncertainty=spectrum.uncertainty)
+        return updated_spectrum
 
 
+'''
+# WavelengthCalibration2D is a planned future feature
 class WavelengthCalibration2D():
     # input_spectrum must be 2-dimensional
 
-    # lines are coerced to CalibrationLine objects if passed as tuples with default_refinement_method and default_refinement_kwargs as defaults
+    # lines are coerced to CalibrationLine objects if passed as tuples with
+    # default_refinement_method and default_refinement_kwargs as defaults
     def __init__(input_spectrum, trace, lines, model=Linear1D,
                  default_refinement_method=None, default_refinement_kwargs={}):
-        pass
+        return NotImplementedError("2D wavelength calibration is not yet implemented")
 
     @classmethod
     def autoidentify(cls, input_spectrum, trace, line_list, model=Linear1D):
@@ -225,20 +222,24 @@ class WavelengthCalibration2D():
 
     @property
     def refined_lines(self):
-        return [[(l.wavelength, l.refine(input_spectrum.get_row(row), return_object=False)) for l in self.lines] for row in rows]
+        return [[(l.wavelength, l.refine(input_spectrum.get_row(row), return_object=False))
+                 for l in self.lines] for row in rows]
 
     @property
     def refined_pixels(self):
-        return [[(l.wavelength, l.refine(input_spectrum.get_row(row), return_object=True)) for l in self.lines] for row in rows]
+        return [[(l.wavelength, l.refine(input_spectrum.get_row(row), return_object=True))
+                 for l in self.lines] for row in rows]
 
     @cached_property
     def wcs(self):
         # computes and returns WCS after fitting self.model to self.refined_pixels
-        return WCS(...)
+        pass
 
     def __call__(self, apply_to_spectrum=None):
-       # returns spectrum1d with wavelength calibration applied
-       # actual line refinement and WCS solution should already be done so that this can be called on multiple science sources
-       apply_to_spectrum = self.input_spectrum if apply_to_spectrum is None else apply_to_spectrum
-       apply_to_spectrum.wcs = apply_to_spectrum  # might need a deepcopy!
-       return apply_to_spectrum
+        # returns spectrum1d with wavelength calibration applied
+        # actual line refinement and WCS solution should already be done so that this
+        # can be called on multiple science sources
+        apply_to_spectrum = self.input_spectrum if apply_to_spectrum is None else apply_to_spectrum
+        apply_to_spectrum.wcs = apply_to_spectrum  # might need a deepcopy!
+        return apply_to_spectrum
+'''
