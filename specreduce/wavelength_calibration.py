@@ -121,7 +121,7 @@ class WavelengthCalibration1D():
             A one-dimensional Spectrum1D calibration spectrum from an arc lamp or similar.
         lines: str, list
             List of lines to anchor the wavelength solution fit. List items are coerced to
-            CalibrationLine objects if passed as tuples of (pixel, wavelength) with
+            CalibrationLine objects if passed as tuples of (wavelength, pixel) with
             default_refinement_method and default_refinement_kwargs as defaults.
         model: `~astropy.modeling.Model`
             The model to fit for the wavelength solution. Defaults to a linear model.
@@ -155,7 +155,7 @@ class WavelengthCalibration1D():
                 if isinstance(line, CalibrationLine):
                     self.lines.append(line)
                 else:
-                    self.lines.append(CalibrationLine(self.input_spectrum, line[1], line[0],
+                    self.lines.append(CalibrationLine(self.input_spectrum, line[0], line[1],
                                       self.default_refinement_method,
                                       self.default_refinement_kwargs))
 
