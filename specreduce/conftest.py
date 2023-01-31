@@ -6,6 +6,10 @@
 import os
 
 from astropy.version import version as astropy_version
+import astropy.units as u
+import numpy as np
+import pytest
+from specutils import Spectrum1D
 
 # For Astropy 3.0 and later, we can use the standalone pytest plugin
 if astropy_version < '3.0':
@@ -19,6 +23,33 @@ else:
     except ImportError:
         ASTROPY_HEADER = False
 
+@pytest.fixture
+def spec1d():
+    np.random.seed(7)
+    flux = np.random.random(50)*u.Jy
+    sa = np.arange(0, 50)*u.pix
+    spec = Spectrum1D(flux, spectral_axis=sa)
+    return spec
+
+@pytest.fixture
+def spec1d_with_emission_line():
+    np.random.seed(7)
+    sa = np.arange(0, 200)*u.pix
+    flux = (np.random.randn(200) +
+             10*np.exp(-0.01*((sa.value-130)**2)) +
+             sa.value/100) * u.Jy
+    spec = Spectrum1D(flux, spectral_axis=sa)
+    return spec
+
+@pytest.fixture
+def spec1d_with_absorption_line():
+    np.random.seed(7)
+    sa = np.arange(0, 200)*u.pix
+    flux = (np.random.randn(200) -
+             10*np.exp(-0.01*((sa.value-130)**2)) +
+             sa.value/100) * u.Jy
+    spec = Spectrum1D(flux, spectral_axis=sa)
+    return spec
 
 def pytest_configure(config):
 

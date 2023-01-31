@@ -78,6 +78,9 @@ class CalibrationLine():
                                                            self.pixel+window_width+1])
             new_pixel += self.pixel - window_width
 
+        else:
+            raise ValueError(f"Refinement method {self.refinement_method} is not implemented")
+
         return new_pixel
 
     def refine(self, input_spectrum=None, return_object=False):
