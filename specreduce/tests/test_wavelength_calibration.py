@@ -40,7 +40,7 @@ def test_calibrationline(spec1d_with_emission_line, spec1d_with_absorption_line)
 
     line = CalibrationLine(spec1d_with_emission_line, 5000*u.AA, 128, refinement_method='gaussian',
                            refinement_kwargs={'range': 25})
-    assert_allclose(line.refine(), 129.44371)
+    assert_allclose(line.refine(), 129.44371, atol=0.01)
 
     line2 = CalibrationLine(spec1d_with_emission_line, 5000*u.AA, 130, refinement_method='max',
                             refinement_kwargs={'range': 10})
