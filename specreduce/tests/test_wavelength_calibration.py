@@ -1,17 +1,16 @@
-import numpy as np
 from numpy.testing import assert_allclose
 import pytest
 
 import astropy.units as u
 from astropy.tests.helper import assert_quantity_allclose
 from astropy.utils.exceptions import AstropyUserWarning
-from specutils import Spectrum1D
 
 from specreduce.wavelength_calibration import CalibrationLine, WavelengthCalibration1D
 
+
 def test_linear_from_list(spec1d):
     test = WavelengthCalibration1D(spec1d, [(5000*u.AA, 0), (5100*u.AA, 10),
-                                          (5198*u.AA, 20), (5305*u.AA, 30)])
+                                            (5198*u.AA, 20), (5305*u.AA, 30)])
     with pytest.warns(AstropyUserWarning, match="Model is linear in parameters"):
         spec2 = test.apply_to_spectrum(spec1d)
 
@@ -28,6 +27,7 @@ def test_linear_from_calibrationline(spec1d):
 
     assert_quantity_allclose(spec2.spectral_axis[0], 4998.8*u.AA)
     assert_quantity_allclose(spec2.spectral_axis[-1], 5495.169999*u.AA)
+
 
 def test_calibrationline(spec1d_with_emission_line, spec1d_with_absorption_line):
     with pytest.raises(ValueError, match="You must define 'range' in refinement_kwargs"):
