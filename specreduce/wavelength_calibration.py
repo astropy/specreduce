@@ -1,5 +1,5 @@
 from astropy.modeling.models import Linear1D, Gaussian1D
-from astropy.modeling.fitting import LMLSQFitter
+from astropy.modeling.fitting import LMLSQFitter, LinearLSQFitter
 import astropy.units as u
 from functools import cached_property
 from gwcs import wcs
@@ -37,6 +37,7 @@ class CalibrationLine():
         self.pixel = pixel
         self.refinement_method = refinement_method
         self.refinement_kwargs = refinement_kwargs
+        self._cached_properties = ['refined_pixel', 'with_refined_pixel']
 
         if self.refinement_method in ("gaussian", "min", "max"):
             if 'range' not in self.refinement_kwargs:
@@ -45,6 +46,16 @@ class CalibrationLine():
         elif self.refinement_method == "gradient" and 'direction' not in self.refinement_kwargs:
             raise ValueError("You must define 'direction' in refinement_kwargs to use "
                              "gradient refinement")
+
+    def _clear_cache(self, *attrs):
+        """
+        provide convenience function to clearing the cache for cached_properties
+        """
+        if not len(attrs):
+            attrs = self._cached_properties
+        for attr in attrs:
+            if attr in self.__dict__:
+                del self.__dict__[attr]
 
     @classmethod
     def by_name(cls, input_spectrum, line_name, pixel,
@@ -117,8 +128,7 @@ class CalibrationLine():
 class WavelengthCalibration1D():
 
     def __init__(self, input_spectrum, lines, model=Linear1D(), spectral_unit=u.Angstrom,
-                 fitter=LMLSQFitter(calc_uncertainties=True),
-                 default_refinement_method=None, default_refinement_kwargs={}):
+                 fitter=None, default_refinement_method=None, default_refinement_kwargs={}):
         """
         input_spectrum: `~specutils.Spectrum1D`
             A one-dimensional Spectrum1D calibration spectrum from an arc lamp or similar.
@@ -136,9 +146,18 @@ class WavelengthCalibration1D():
         self.input_spectrum = input_spectrum
         self.model = model
         self.spectral_unit = spectral_unit
-        self.fitter = fitter
         self.default_refinement_method = default_refinement_method
         self.default_refinement_kwargs = default_refinement_kwargs
+        self._cached_properties = ['wcs',]
+
+        if fitter is None:
+            print("Got here")
+            if self.model.linear:
+                self.fitter = LinearLSQFitter(calc_uncertainties=True)
+            else:
+                self.fitter = LMLSQFitter(calc_uncertainties=True)
+        else:
+            self.fitter = fitter
 
         if self.default_refinement_method in ("gaussian", "min", "max"):
             if 'range' not in self.default_refinement_kwargs:
@@ -161,6 +180,16 @@ class WavelengthCalibration1D():
                     self.lines.append(CalibrationLine(self.input_spectrum, line[0], line[1],
                                       self.default_refinement_method,
                                       self.default_refinement_kwargs))
+
+    def _clear_cache(self, *attrs):
+        """
+        provide convenience function to clearing the cache for cached_properties
+        """
+        if not len(attrs):
+            attrs = self._cached_properties
+        for attr in attrs:
+            if attr in self.__dict__:
+                del self.__dict__[attr]
 
     @property
     def refined_lines(self):
