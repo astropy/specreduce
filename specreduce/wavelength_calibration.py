@@ -102,7 +102,7 @@ class CalibrationLine():
         # returns the refined pixel for self.input_spectrum
         return self.refine()
 
-    @property
+    @cached_property
     def with_refined_pixel(self):
         # returns a copy of this object, but with the pixel updated to the refined value
         return self.refine(return_object=True)
@@ -161,12 +161,6 @@ class WavelengthCalibration1D():
                     self.lines.append(CalibrationLine(self.input_spectrum, line[0], line[1],
                                       self.default_refinement_method,
                                       self.default_refinement_kwargs))
-
-    @classmethod
-    def autoidentify(cls, input_spectrum, line_list, model=Linear1D):
-        # line_list could be a string ("common stellar") or an object
-        # this builds a list of CalibrationLine objects and passes to __init__
-        return cls(...)
 
     @property
     def refined_lines(self):

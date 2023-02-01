@@ -2,6 +2,7 @@ from numpy.testing import assert_allclose
 import pytest
 
 import astropy.units as u
+from astropy.modeling.models import Polynomial1D
 from astropy.tests.helper import assert_quantity_allclose
 from astropy.utils.exceptions import AstropyUserWarning
 
@@ -27,6 +28,17 @@ def test_linear_from_calibrationline(spec1d):
 
     assert_quantity_allclose(spec2.spectral_axis[0], 4998.8*u.AA)
     assert_quantity_allclose(spec2.spectral_axis[-1], 5495.169999*u.AA)
+
+def test_poly_from_calibrationline(spec1d):
+    # This test is mostly to prove that you can use other models
+    lines = [CalibrationLine(spec1d, 5005*u.AA, 0), CalibrationLine(spec1d, 5110*u.AA, 10),
+             CalibrationLine(spec1d, 5214*u.AA, 20), CalibrationLine(spec1d, 5330*u.AA, 30),
+             CalibrationLine(spec1d, 5438*u.AA, 40)]
+    test = WavelengthCalibration1D(spec1d, lines, model=Polynomial1D(2))
+    with pytest.warns(AstropyUserWarning, match="Model is linear in parameters"):
+        spec2 = test.apply_to_spectrum(spec1d)
+        
+    assert_allclose(test.model.parameters, [5.00477143e+03, 1.03457143e+01, 1.28571429e-02])
 
 
 def test_calibrationline(spec1d_with_emission_line, spec1d_with_absorption_line):
