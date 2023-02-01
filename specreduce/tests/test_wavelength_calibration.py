@@ -58,3 +58,20 @@ def test_calibrationline(spec1d_with_emission_line, spec1d_with_absorption_line)
     line3 = CalibrationLine(spec1d_with_absorption_line, 5000*u.AA, 128, refinement_method='min',
                             refinement_kwargs={'range': 10})
     assert line3.refine() == 130
+
+
+def test_replace_spectrum(spec1d, spec1d_with_emission_line):
+    lines = [CalibrationLine(spec1d, 5000*u.AA, 0), CalibrationLine(spec1d, 5100*u.AA, 10),
+             CalibrationLine(spec1d, 5198*u.AA, 20), CalibrationLine(spec1d, 5305*u.AA, 30)]
+    test = WavelengthCalibration1D(spec1d, lines)
+    # Accessing this property causes fits the model and caches the resulting WCS
+    test.wcs
+    assert "wcs" in test.__dict__
+    for line in test.lines:
+        assert "refined_pixel" in line.__dict__
+
+    # Replace the input spectrum, which should clear the cached properties
+    test.input_spectrum = spec1d_with_emission_line
+    assert "wcs" not in test.__dict__
+    for line in test.lines:
+        assert "refined_pixel" not in line.__dict__

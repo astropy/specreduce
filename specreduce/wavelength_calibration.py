@@ -32,7 +32,7 @@ class CalibrationLine():
             of line center to include on either side of gaussian fit is set by int ``range``.
             Gradient descent/ascent is determined by setting ``direction`` to 'min' or 'max'.
         """
-        self.input_spectrum = input_spectrum
+        self._input_spectrum = input_spectrum
         self.wavelength = wavelength
         self.pixel = pixel
         self.refinement_method = refinement_method
@@ -118,6 +118,16 @@ class CalibrationLine():
         # returns a copy of this object, but with the pixel updated to the refined value
         return self.refine(return_object=True)
 
+    @property
+    def input_spectrum(self):
+        return self._input_spectrum
+
+    @input_spectrum.setter
+    def input_spectrum(self, new_spectrum):
+        # We want to clear the refined locations if a new calibration spectrum is provided
+        self._clear_cache()
+        self._input_spectrum = new_spectrum
+
     def __str__(self):
         return f"CalibrationLine: ({self.wavelength}, {self.pixel})"
 
@@ -143,7 +153,7 @@ class WavelengthCalibration1D():
         default_refinement_kwargs: dict, optional
             words
         """
-        self.input_spectrum = input_spectrum
+        self._input_spectrum = input_spectrum
         self.model = model
         self.spectral_unit = spectral_unit
         self.default_refinement_method = default_refinement_method
@@ -151,7 +161,6 @@ class WavelengthCalibration1D():
         self._cached_properties = ['wcs',]
 
         if fitter is None:
-            print("Got here")
             if self.model.linear:
                 self.fitter = LinearLSQFitter(calc_uncertainties=True)
             else:
@@ -190,6 +199,18 @@ class WavelengthCalibration1D():
         for attr in attrs:
             if attr in self.__dict__:
                 del self.__dict__[attr]
+
+    @property
+    def input_spectrum(self):
+        return self._input_spectrum
+
+    @input_spectrum.setter
+    def input_spectrum(self, new_spectrum):
+        # We want to clear the refined locations if a new calibration spectrum is provided
+        self._clear_cache()
+        for line in self.lines:
+            line.input_spectrum = new_spectrum
+        self._input_spectrum = new_spectrum
 
     @property
     def refined_lines(self):
