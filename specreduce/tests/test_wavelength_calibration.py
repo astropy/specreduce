@@ -39,13 +39,6 @@ def test_poly_from_calibrationline(spec1d):
 
 
 def test_calibrationline(spec1d_with_emission_line, spec1d_with_absorption_line):
-    with pytest.raises(ValueError, match="You must define 'range' in refinement_kwargs"):
-        line = CalibrationLine(spec1d_with_emission_line, 5000*u.AA, 128,
-                               refinement_method='gaussian')
-
-    with pytest.raises(ValueError, match="You must define 'direction' in refinement_kwargs"):
-        line = CalibrationLine(spec1d_with_emission_line, 5000*u.AA, 128,
-                               refinement_method='gradient')
 
     line = CalibrationLine(spec1d_with_emission_line, 5000*u.AA, 128, refinement_method='gaussian',
                            refinement_kwargs={'range': 25})

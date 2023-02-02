@@ -41,11 +41,8 @@ class CalibrationLine():
 
         if self.refinement_method in ("gaussian", "min", "max"):
             if 'range' not in self.refinement_kwargs:
-                raise ValueError(f"You must define 'range' in refinement_kwargs to use "
-                                 f"{self.refinement_method} refinement.")
-        elif self.refinement_method == "gradient" and 'direction' not in self.refinement_kwargs:
-            raise ValueError("You must define 'direction' in refinement_kwargs to use "
-                             "gradient refinement")
+                # We may want to adjust this default based on real calibration spectra
+                self.refinement_kwargs['range'] = 10
 
     def _clear_cache(self, *attrs):
         """
@@ -170,12 +167,8 @@ class WavelengthCalibration1D():
 
         if self.default_refinement_method in ("gaussian", "min", "max"):
             if 'range' not in self.default_refinement_kwargs:
-                raise ValueError("You must define 'range' in default_refinement_kwargs to use "
-                                 f"{self.refinement_method} refinement.")
-        elif (self.default_refinement_method == "gradient" and 'direction' not in
-                self.default_refinement_kwargs):
-            raise ValueError("You must define 'direction' in default_refinement_kwargs to use "
-                             "gradient refinement")
+                # We may want to adjust this default based on real calibration spectra
+                self.default_refinement_method['range'] = 10
 
         self.lines = []
         if isinstance(lines, str):
