@@ -4,7 +4,6 @@ import pytest
 import astropy.units as u
 from astropy.nddata import CCDData, VarianceUncertainty, UnknownUncertainty
 from astropy.tests.helper import assert_quantity_allclose
-from astropy.utils.exceptions import AstropyUserWarning
 
 from specreduce.extract import (
     BoxcarExtract, HorneExtract, OptimalExtract, _align_along_trace
@@ -128,6 +127,8 @@ def test_horne_image_validation():
                   == np.arange(image.shape[extract.disp_axis]) * u.pix)
 
 
+# ignore Astropy warning for extractions that aren't best fit with a Gaussian:
+@pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
 def test_horne_variance_errors():
     trace = FlatTrace(image, 3.0)
 
@@ -155,6 +156,7 @@ def test_horne_variance_errors():
                       mask=image.mask, unit=u.Jy)
 
 
+@pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
 def test_horne_non_flat_trace():
     # create a synthetic "2D spectrum" and its non-flat trace
     n_rows, n_cols = (10, 50)
@@ -181,19 +183,17 @@ def test_horne_non_flat_trace():
     # ensure that mask is correctly unrolled back to its original alignment:
     np.testing.assert_allclose(unrolled, original)
 
-    # These synthetic extractions don't fit well with a Gaussian, so will pass warning:
-    with pytest.warns(AstropyUserWarning, match="The fit may be unsuccessful"):
-        # Extract the spectrum from the non-flat image+trace
-        extract_non_flat = HorneExtract(
-            rolled, ArrayTrace(rolled, exact_trace),
-            variance=err, mask=mask, unit=u.Jy
-        )()
+    # Extract the spectrum from the non-flat image+trace
+    extract_non_flat = HorneExtract(
+        rolled, ArrayTrace(rolled, exact_trace),
+        variance=err, mask=mask, unit=u.Jy
+    )()
 
-        # Also extract the spectrum from the image after alignment with a flat trace
-        extract_flat = HorneExtract(
-            unrolled, FlatTrace(unrolled, n_rows // 2),
-            variance=err, mask=mask, unit=u.Jy
-        )()
+    # Also extract the spectrum from the image after alignment with a flat trace
+    extract_flat = HorneExtract(
+        unrolled, FlatTrace(unrolled, n_rows // 2),
+        variance=err, mask=mask, unit=u.Jy
+    )()
 
     # ensure both extractions are equivalent:
     assert_quantity_allclose(extract_non_flat.flux, extract_flat.flux)
