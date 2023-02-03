@@ -156,14 +156,7 @@ class WavelengthCalibration1D():
         self.default_refinement_method = default_refinement_method
         self.default_refinement_kwargs = default_refinement_kwargs
         self._cached_properties = ['wcs',]
-
-        if fitter is None:
-            if self.model.linear:
-                self.fitter = LinearLSQFitter(calc_uncertainties=True)
-            else:
-                self.fitter = LMLSQFitter(calc_uncertainties=True)
-        else:
-            self.fitter = fitter
+        self.fitter = fitter
 
         if self.default_refinement_method in ("gaussian", "min", "max"):
             if 'range' not in self.default_refinement_kwargs:
@@ -237,6 +230,12 @@ class WavelengthCalibration1D():
         # computes and returns WCS after fitting self.model to self.refined_pixels
         x = [line[1] for line in self.refined_pixels] * u.pix
         y = [line[0].value for line in self.refined_pixels] * self.spectral_unit
+
+        if self.fitter is None:
+            if self.model.linear:
+                self.fitter = LinearLSQFitter(calc_uncertainties=True)
+            else:
+                self.fitter = LMLSQFitter(calc_uncertainties=True)
 
         # Fit the model
         self._model = self.fitter(self._model, x, y)
