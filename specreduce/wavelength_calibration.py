@@ -232,13 +232,16 @@ class WavelengthCalibration1D():
         y = [line[0].value for line in self.refined_pixels] * self.spectral_unit
 
         if self.fitter is None:
+            # Flexible defaulting if self.fitter is None
             if self.model.linear:
-                self.fitter = LinearLSQFitter(calc_uncertainties=True)
+                fitter = LinearLSQFitter(calc_uncertainties=True)
             else:
-                self.fitter = LMLSQFitter(calc_uncertainties=True)
+                fitter = LMLSQFitter(calc_uncertainties=True)
+        else:
+            fitter = self.fitter
 
         # Fit the model
-        self._model = self.fitter(self._model, x, y)
+        self._model = fitter(self._model, x, y)
 
         # Build a GWCS pipeline from the fitted model
         pixel_frame = cf.CoordinateFrame(1, "SPECTRAL", [0,], axes_names=["x",], unit=[u.pix,])
