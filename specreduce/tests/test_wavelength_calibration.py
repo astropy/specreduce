@@ -1,5 +1,4 @@
 from numpy.testing import assert_allclose
-import pytest
 
 import astropy.units as u
 from astropy.modeling.models import Polynomial1D

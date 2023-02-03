@@ -151,7 +151,7 @@ class WavelengthCalibration1D():
             words
         """
         self._input_spectrum = input_spectrum
-        self.model = model
+        self._model = model
         self.spectral_unit = spectral_unit
         self.default_refinement_method = default_refinement_method
         self.default_refinement_kwargs = default_refinement_kwargs
@@ -170,18 +170,18 @@ class WavelengthCalibration1D():
                 # We may want to adjust this default based on real calibration spectra
                 self.default_refinement_method['range'] = 10
 
-        self.lines = []
+        self._lines = []
         if isinstance(lines, str):
             if lines in self.available_line_lists:
                 raise ValueError(f"Line list '{lines}' is not an available line list.")
         else:
             for line in lines:
                 if isinstance(line, CalibrationLine):
-                    self.lines.append(line)
+                    self._lines.append(line)
                 else:
-                    self.lines.append(CalibrationLine(self.input_spectrum, line[0], line[1],
-                                      self.default_refinement_method,
-                                      self.default_refinement_kwargs))
+                    self._lines.append(CalibrationLine(self.input_spectrum, line[0], line[1],
+                                       self.default_refinement_method,
+                                       self.default_refinement_kwargs))
 
     def _clear_cache(self, *attrs):
         """
@@ -206,6 +206,24 @@ class WavelengthCalibration1D():
         self._input_spectrum = new_spectrum
 
     @property
+    def lines(self):
+        return self._lines
+
+    @lines.setter
+    def lines(self, new_lines):
+        self._clear_cache()
+        self._lines = new_lines
+
+    @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, new_model):
+        self._clear_cache()
+        self._model = new_model
+
+    @property
     def refined_lines(self):
         return [line.with_refined_pixel for line in self.lines]
 
@@ -221,7 +239,7 @@ class WavelengthCalibration1D():
         y = [line[0].value for line in self.refined_pixels] * self.spectral_unit
 
         # Fit the model
-        self.model = self.fitter(self.model, x, y)
+        self._model = self.fitter(self._model, x, y)
 
         # Build a GWCS pipeline from the fitted model
         pixel_frame = cf.CoordinateFrame(1, "SPECTRAL", [0,], axes_names=["x",], unit=[u.pix,])
