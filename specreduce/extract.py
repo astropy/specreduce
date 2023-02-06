@@ -535,42 +535,50 @@ class HorneExtract(SpecreduceOperation):
 
         # use compound model to fit a kernel to each fully finite image column
         # NOTE: infers Gaussian1D source profile; needs generalization for others
-        col_mask = np.logical_or.reduce(or_mask, axis=crossdisp_axis, dtype=bool)
+        col_mask = np.logical_or.reduce(or_mask, axis=crossdisp_axis)
+        nonf_col = [np.nan] * img.shape[crossdisp_axis]
 
         kernel_vals = []
         norms = []
         for col_pix in range(img.shape[disp_axis]):
+            # for now, skip columns with any non-finite values
+            # NOTE: fit and other kernel operations should support masking again
+            # once a fix is in for renormalizing columns with non-finite values
+            if col_mask[col_pix]:
+                kernel_vals.append(nonf_col)
+                norms.append(np.nan)
+                continue
+
             # else, set compound model's mean to column's matching trace value
             fit_ext_kernel.mean_0 = mean_init_guess[col_pix]
 
             # NOTE: support for variable FWHMs forthcoming and would be here
 
-            # fit compound model to column and mask rows with non-finite values
-            fitted_col = np.ma.masked_array(fit_ext_kernel(xd_pixels),
-                                            mask=col_mask[col_pix])
+            # fit compound model to column
+            fitted_col = fit_ext_kernel(xd_pixels)
 
             # save result and normalization
             kernel_vals.append(fitted_col)
             norms.append(fit_ext_kernel.amplitude_0
                          * fit_ext_kernel.stddev_0 * np.sqrt(2*np.pi))
 
-        # transform fit-specific information while preserving mask
-        kernel_vals = np.ma.vstack(kernel_vals).T
+        # transform fit-specific information
+        kernel_vals = np.vstack(kernel_vals).T
         norms = np.array(norms)
 
-        # calculate kernel normalization, masking NaNs
-        g_x = np.ma.sum(kernel_vals**2 / variance, axis=crossdisp_axis)
+        # calculate kernel normalization
+        g_x = np.sum(kernel_vals**2 / variance, axis=crossdisp_axis)
 
         # sum by column weights
-        weighted_img = np.ma.divide(img * kernel_vals, variance)
-        result = np.ma.sum(weighted_img, axis=crossdisp_axis) / g_x
+        weighted_img = np.divide(img * kernel_vals, variance)
+        result = np.sum(weighted_img, axis=crossdisp_axis) / g_x
 
         # multiply kernel normalization into the extracted signal
         extraction = result * norms
 
         # convert the extraction to a Spectrum1D object
         return Spectrum1D(extraction * unit,
-                          spectral_axis=self.image.spectral_axis, mask=col_mask)
+                          spectral_axis=self.image.spectral_axis)
 
 
 @dataclass
