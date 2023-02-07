@@ -7,3 +7,4 @@ from ._astropy_init import *   # noqa
 # ----------------------------------------------------------------------------
 
 from specreduce.core import *  # noqa
+from specreduce.wavelength_calibration import * # noqa

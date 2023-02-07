@@ -4,7 +4,7 @@ import astropy.units as u
 from astropy.modeling.models import Polynomial1D
 from astropy.tests.helper import assert_quantity_allclose
 
-from specreduce.wavelength_calibration import CalibrationLine, WavelengthCalibration1D
+from specreduce import CalibrationLine, WavelengthCalibration1D
 
 
 def test_linear_from_list(spec1d):

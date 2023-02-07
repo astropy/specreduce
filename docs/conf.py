@@ -174,7 +174,8 @@ intersphinx_mapping.update(
     {
         'astropy': ('https://docs.astropy.org/en/stable/', None),
         'ccdproc': ('https://ccdproc.readthedocs.io/en/stable/', None),
-        'specutils': ('https://specutils.readthedocs.io/en/stable/', None)
+        'specutils': ('https://specutils.readthedocs.io/en/stable/', None),
+        'gwcs': ('https://gwcs.readthedocs.io/en/stable/', None)
     }
 )
 #

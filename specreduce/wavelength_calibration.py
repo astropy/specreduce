@@ -9,6 +9,9 @@ from specutils import SpectralRegion, Spectrum1D
 from specutils.fitting import fit_lines
 
 
+__all__ = ['CalibrationLine', 'WavelengthCalibration1D']
+
+
 class CalibrationLine():
 
     def __init__(self, input_spectrum, wavelength, pixel, refinement_method=None,

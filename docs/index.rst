@@ -50,6 +50,7 @@ Calibration
 .. toctree::
     :maxdepth: 1
 
+    wavelength_calibration.rst
     extinction.rst
     specphot_standards.rst
 
