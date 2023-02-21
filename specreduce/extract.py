@@ -359,7 +359,8 @@ class HorneExtract(SpecreduceOperation):
         elif mask is not None:
             pass
         else:
-            mask = ~np.isfinite(img)
+            # if user provides no mask at all, don't mask anywhere
+            mask = np.zeros_like(img)
 
         if img.shape != mask.shape:
             raise ValueError('image and mask shapes must match.')
@@ -484,13 +485,15 @@ class HorneExtract(SpecreduceOperation):
         # parse image and replace optional arguments with updated values
         self.image = self._parse_image(image, variance, mask, unit, disp_axis)
         variance = self.image.uncertainty.array
+        mask = self.image.mask
         unit = self.image.unit
 
-        # mask any previously uncaught invalid values
-        or_mask = np.logical_or(mask,
+        img = np.ma.masked_array(self.image.data, mask=mask)
+
+        # create separate mask including any previously uncaught non-finite
+        # values for purposes of calculating fit
+        or_mask = np.logical_or(img.mask,
                                 ~np.isfinite(self.image.data))
-        img = np.ma.masked_array(self.image.data, or_mask)
-        mask = img.mask
 
         # If the trace is not flat, shift the rows in each column
         # so the image is aligned along the trace:
@@ -510,26 +513,43 @@ class HorneExtract(SpecreduceOperation):
             )
 
         # co-add signal in each image column
-        ncols = img.shape[crossdisp_axis]
-        xd_pixels = np.arange(ncols)  # y plot dir / x spec dir
-        coadd = img.sum(axis=disp_axis) / ncols
+        nrows = img.shape[crossdisp_axis]
+        xd_pixels = np.arange(nrows)  # counted in y dir on plot (or x in spec)
 
-        # fit source profile, using Gaussian model as a template
+        row_mask = np.logical_or.reduce(or_mask, axis=disp_axis)
+        coadd = np.ma.masked_array(np.sum(img, axis=disp_axis) / nrows,
+                                   mask=row_mask)
+        # (mask rows with non-finite sums for fit to work later on)
+
+        # fit source profile to brightest row, using Gaussian model as template
         # NOTE: could add argument for users to provide their own model
         gauss_prof = models.Gaussian1D(amplitude=coadd.max(),
                                        mean=coadd.argmax(), stddev=2)
 
-        # Fit extraction kernel to column with combined gaussian/bkgrd model
+        # Fit extraction kernel to column's finite values with combined model
+        # (must exclude masked indices manually; LevMarLSQFitter does not)
         ext_prof = gauss_prof + bkgrd_prof
         fitter = fitting.LevMarLSQFitter()
-        fit_ext_kernel = fitter(ext_prof, xd_pixels, coadd)
+        fit_ext_kernel = fitter(ext_prof,
+                                xd_pixels[~row_mask], coadd[~row_mask])
 
-        # use compound model to fit a kernel to each image column
+        # use compound model to fit a kernel to each fully finite image column
         # NOTE: infers Gaussian1D source profile; needs generalization for others
+        col_mask = np.logical_or.reduce(or_mask, axis=crossdisp_axis)
+        nonf_col = [np.nan] * img.shape[crossdisp_axis]
+
         kernel_vals = []
         norms = []
         for col_pix in range(img.shape[disp_axis]):
-            # set gaussian model's mean as column's corresponding trace value
+            # for now, skip columns with any non-finite values
+            # NOTE: fit and other kernel operations should support masking again
+            # once a fix is in for renormalizing columns with non-finite values
+            if col_mask[col_pix]:
+                kernel_vals.append(nonf_col)
+                norms.append(np.nan)
+                continue
+
+            # else, set compound model's mean to column's matching trace value
             fit_ext_kernel.mean_0 = mean_init_guess[col_pix]
 
             # NOTE: support for variable FWHMs forthcoming and would be here
@@ -543,15 +563,15 @@ class HorneExtract(SpecreduceOperation):
                          * fit_ext_kernel.stddev_0 * np.sqrt(2*np.pi))
 
         # transform fit-specific information
-        kernel_vals = np.array(kernel_vals).T
+        kernel_vals = np.vstack(kernel_vals).T
         norms = np.array(norms)
 
-        # calculate kernel normalization, masking NaNs
-        g_x = np.ma.sum(kernel_vals**2 / variance, axis=crossdisp_axis)
+        # calculate kernel normalization
+        g_x = np.sum(kernel_vals**2 / variance, axis=crossdisp_axis)
 
         # sum by column weights
-        weighted_img = np.ma.divide(img * kernel_vals, variance)
-        result = np.ma.sum(weighted_img, axis=crossdisp_axis) / g_x
+        weighted_img = np.divide(img * kernel_vals, variance)
+        result = np.sum(weighted_img, axis=crossdisp_axis) / g_x
 
         # multiply kernel normalization into the extracted signal
         extraction = result * norms
