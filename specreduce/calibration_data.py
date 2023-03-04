@@ -3,7 +3,6 @@ Utilities for defining, loading, and handling spectroscopic calibration data
 """
 
 import os
-import pkg_resources
 import warnings
 
 import astropy.units as u
@@ -16,25 +15,12 @@ from specutils import Spectrum1D
 
 __all__ = [
     'get_reference_file_path',
+    'get_pypeit_data_path',
     'load_MAST_calspec',
     'load_onedstds',
     'AtmosphericExtinction',
     'AtmosphericTransmission'
 ]
-
-"""
-If specreduce_data is not available, we'll fall back to downloading and optionally caching it using
-`~astropy.utils.data`.
-"""
-LOCAL_DATA = True
-try:
-    import specreduce_data  # noqa
-except ModuleNotFoundError:
-    warnings.warn(
-        "Can't import specreduce_data package. Falling back to downloading data...",
-        AstropyUserWarning
-    )
-    LOCAL_DATA = False
 
 SUPPORTED_EXTINCTION_MODELS = [
     "kpno",
@@ -62,11 +48,123 @@ SPECPHOT_DATASETS = [
     "spechayescal"
 ]
 
+PYPEIT_ARC_LINELISTS = [
+    'Ne_IR_MOSFIRE',
+    'ArII',
+    'CdI',
+    'OH_MOSFIRE_H',
+    'OH_triplespec',
+    'Ar_IR_MOSFIRE',
+    'OH_GNIRS',
+    'ThAr_XSHOOTER_VIS',
+    'ThAr_MagE',
+    'HgI',
+    'NeI',
+    'XeI',
+    'OH_MODS',
+    'ZnI',
+    'OH_GMOS',
+    'CuI',
+    'ThAr_XSHOOTER_VIS_air',
+    'ThAr_XSHOOTER_UVB',
+    'OH_NIRES',
+    'HeI',
+    'FeI',
+    'OH_MOSFIRE_J',
+    'KrI',
+    'Cd_DeVeny1200',
+    'Ar_IR_GNIRS',
+    'OH_MOSFIRE_Y',
+    'ThAr',
+    'FeII',
+    'OH_XSHOOTER',
+    'OH_FIRE_Echelle',
+    'OH_MOSFIRE_K',
+    'OH_R24000',
+    'Hg_DeVeny1200',
+    'ArI'
+]
 
-def get_reference_file_path(path=None, cache=False, show_progress=False):
+
+def get_reference_file_path(
+        path=None,
+        cache=True,
+        repo_url="https://raw.githubusercontent.com/astropy/specreduce-data",
+        repo_branch="main",
+        repo_data_path="specreduce_data/reference_data",
+        show_progress=False
+):
     """
-    Basic function to take a path to a file and load it via ``pkg_resources`` if
-    the ``specreduce_data`` package is available and load it via GitHub raw user content if not.
+    Utility to load reference data via GitHub raw user content. By default the ``specreduce_data``
+    repository at https://github.com/astropy/specreduce-data is used.
+
+    Parameters
+    ----------
+    path : str or None (default: None)
+        Filename of reference file relative to the reference_data directory within
+        specified package.
+
+    cache : bool (default: False)
+        Set whether file is cached if file is downloaded.
+
+    repo_url : str (default: https://raw.githubusercontent.com/astropy/specreduce-data)
+        Base repository URL for the reference data.
+
+    repo_branch : str (default: main)
+        Branch of repository from which to fetch the reference data.
+
+    repo_data_path : str (default: specreduce_data/reference_data/)
+        Path within the repository where the reference data is located.
+
+    show_progress : bool (default: False)
+        Set whether download progress bar is shown if file is downloaded.
+
+    Returns
+    -------
+    file_path : str or None
+        Local path to reference data file or None if the path cannot be constructed or if the file
+        itself is not valid.
+
+    Examples
+    --------
+    >>> from specreduce.calibration_data import get_reference_file_path
+    >>> kpno_extinction_file = get_reference_file_path("extinction/kpnoextinct.dat")
+    """
+    if path is None:
+        return None
+
+    remote_url = f"{repo_url}/{repo_branch}/{repo_data_path}/{path}"
+    try:
+        file_path = download_file(
+            remote_url,
+            cache=cache,
+            show_progress=show_progress,
+            pkgname='specreduce'
+        )
+    except Exception as e:
+        msg = f"Downloading of {remote_url} failed: {e}"
+        warnings.warn(msg, AstropyUserWarning)
+        return None
+
+    # final sanity check to make sure file_path is actually a file.
+    if os.path.isfile(file_path):
+        return file_path
+    else:
+        warnings.warn(f"Able to construct {file_path}, but it is not a file.")
+        return None
+
+
+def get_pypeit_data_path(
+        path=None,
+        cache=True,
+        repo_url="https://raw.githubusercontent.com/pypeit/pypeit",
+        repo_branch="release",
+        repo_data_path="pypeit/data",
+        show_progress=False
+):
+    """
+    Convenience utility to facilitate access to ``pypeit`` reference data. The data is accessed
+    directly from the release branch on GitHub and downloaded/cached using `~astropy.utils.data.download_file`.
 
     Parameters
     ----------
@@ -88,41 +186,20 @@ def get_reference_file_path(path=None, cache=False, show_progress=False):
 
     Examples
     --------
-    >>> from specreduce.calibration_data import get_reference_file_path
-    >>> kpno_extinction_file = get_reference_file_path("extinction/kpnoextinct.dat")
+    >>> from specreduce.calibration_data import get_pypeit_data_path
+    >>> pypeit_he_linelist = get_pypeit_data_path("arc_lines/lists/HeI_lines.dat")
     """
-    if path is None:
-        return None
-
-    if LOCAL_DATA:
-        file_path = pkg_resources.resource_filename(
-            "specreduce_data",
-            os.path.join("reference_data", path)
-        )
-    else:
-        repo_url = "https://raw.githubusercontent.com/astropy/specreduce-data"
-        remote_url = f"{repo_url}/main/specreduce_data/reference_data/{path}"
-        try:
-            file_path = download_file(
-                remote_url,
-                cache=cache,
-                show_progress=show_progress,
-                pkgname='specreduce'
-            )
-        except Exception as e:
-            msg = f"Downloading of {path} failed: {e}"
-            warnings.warn(msg, AstropyUserWarning)
-            return None
-
-    # final sanity check to make sure file_path is actually a file.
-    if os.path.isfile(file_path):
-        return file_path
-    else:
-        warnings.warn(f"Able to construct {file_path}, but it is not a file.")
-        return None
+    return get_reference_file_path(
+        path=path,
+        cache=cache,
+        repo_url=repo_url,
+        repo_branch=repo_branch,
+        repo_data_path=repo_data_path,
+        show_progress=show_progress
+    )
 
 
-def load_MAST_calspec(filename, remote=True, cache=True, show_progress=False):
+def load_MAST_calspec(filename, cache=True, show_progress=False):
     """
     Load a standard star spectrum from the ``calspec`` database at MAST. These spectra are provided in
     FITS format and are described in detail at:
@@ -135,11 +212,8 @@ def load_MAST_calspec(filename, remote=True, cache=True, show_progress=False):
     Parameters
     ----------
     filename : str
-        FITS filename of the standard star spectrum, e.g. g191b2b_005.fits.
-
-    remote : bool (default = True)
-        If True, download the spectrum from MAST. If False, check if ``filename`` exists and load
-        it.
+        FITS filename of a standard star spectrum, e.g. g191b2b_005.fits. If this is a local file, it will be loaded.
+        If not, then a download from MAST will be attempted.
     cache : bool (default = True)
         Toggle whether downloaded data is cached or not.
     show_progress : bool (default = True)
@@ -151,7 +225,9 @@ def load_MAST_calspec(filename, remote=True, cache=True, show_progress=False):
         If the spectrum can be loaded, return it as a `~specutils.Spectrum1D`.
         Otherwise return None. The spectral_axis units are Å and the flux units are milli-Janskys.
     """
-    if remote:
+    if os.path.isfile(filename):
+        file_path = filename
+    else:
         url = f"https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/{filename}"
         try:
             file_path = download_file(
@@ -161,21 +237,14 @@ def load_MAST_calspec(filename, remote=True, cache=True, show_progress=False):
                 pkgname='specreduce'
             )
         except Exception as e:
-            msg = f"Downloading of {filename} failed: {e}"
-            warnings.warn(msg, AstropyUserWarning)
-            file_path = None
-    else:
-        if os.path.isfile(filename):
-            file_path = filename
-        else:
-            msg = f"Provided filename, {filename}, does not exist or is not a valid file."
+            msg = f"Downloading of {url} failed: {e}"
             warnings.warn(msg, AstropyUserWarning)
             file_path = None
 
     if file_path is None:
         return None
     else:
-        hdr, wave, flux = synphot.specio.read_fits_spec(file_path)
+        _, wave, flux = synphot.specio.read_fits_spec(file_path)
 
         # the calspec data stores flux in synphot's FLAM units. convert to flux units
         # supported directly by astropy.units. mJy is chosen since it's the JWST
@@ -188,9 +257,8 @@ def load_MAST_calspec(filename, remote=True, cache=True, show_progress=False):
 def load_onedstds(dataset="snfactory", specfile="EG131.dat", cache=True, show_progress=False):
     """
     This is a convenience function for loading a standard star spectrum from the 'onedstds'
-    dataset in the ``specreduce_data`` package. If that package is installed, ``pkg_resources``
-    will be used to locate the data files locally. Otherwise they will be downloaded from the
-    repository on github.
+    dataset in the ``specreduce_data`` package. They will be downloaded from the
+    repository on GitHub and cached by default.
 
     Parameters
     ----------
