@@ -5,8 +5,10 @@ Utilities for defining, loading, and handling spectroscopic calibration data
 import os
 import warnings
 
+import numpy as np
+
 import astropy.units as u
-from astropy.table import Table
+from astropy.table import Table, vstack
 from astropy.utils.data import download_file
 from astropy.utils.exceptions import AstropyUserWarning
 
@@ -16,6 +18,7 @@ from specutils import Spectrum1D
 __all__ = [
     'get_reference_file_path',
     'get_pypeit_data_path',
+    'load_pypeit_calibration_lines',
     'load_MAST_calspec',
     'load_onedstds',
     'AtmosphericExtinction',
@@ -48,7 +51,7 @@ SPECPHOT_DATASETS = [
     "spechayescal"
 ]
 
-PYPEIT_ARC_LINELISTS = [
+PYPEIT_CALIBRATION_LINELISTS = [
     'Ne_IR_MOSFIRE',
     'ArII',
     'CdI',
@@ -197,6 +200,63 @@ def get_pypeit_data_path(
         repo_data_path=repo_data_path,
         show_progress=show_progress
     )
+
+
+def load_pypeit_calibration_lines(lamps=None, show_progress=False):
+    """
+    Load reference calibration lines from ``pypeit`` linelists. The ``pypeit`` linelists are well-curated and have
+    been tested across a wide range of spectrographs. The available linelists are defined by
+    ``PYPEIT_CALIBRATION_LINELISTS``.
+
+    Parameters
+    ----------
+    lamps : str or list-like (default: None)
+        Lamp or list of lamps to include in output reference linelist. The parlance of "lamp" is retained
+        here for consistency with its use in ``pypeit`` and elsewhere. In several of the supported cases the
+        "lamp" is the sky itself (e.g. OH lines in the near-IR).
+
+    show_progress : bool (default: False)
+        Show download progress bar
+
+    Returns
+    -------
+    linelist: `~astropy.table.Table`
+        Table containing the combined calibration line list. ``pypeit`` linelists have the following columns:
+        * ``ion``: Ion or molecule generating the line.
+        * ``wave``: Vacuum wavelength of the line in Angstroms.
+        * ``NIST``: Flag denoting if NIST is the ultimate reference for the line's wavelength.
+        * ``Instr``: ``pypeit``-specific instrument flag.
+        * ``amplitude``: Amplitude of the line. Beware, this is somewhat arbitrary and not consistent between lists.
+        * ``Source``: Source of the line information.
+    """
+    if lamps is None:
+        return None
+
+    linelist = None
+
+    if isinstance(lamps, str):
+        lamps = [lamps]
+
+    if isinstance(lamps, (list, tuple, set, np.ndarray)):
+        linelists = []
+        for l in lamps:
+            if l in PYPEIT_CALIBRATION_LINELISTS:
+                list_path = f"arc_lines/lists/{l}_lines.dat"
+                lines_file = get_pypeit_data_path(list_path, show_progress=show_progress)
+                lines_tab = Table.read(lines_file, format='ascii.fixed_width', comment='#')
+                if lines_tab is not None:
+                    linelists.append(lines_tab)
+            else:
+                warnings.warn(f"{l} not in the list of supported calibration line lists: {PYPEIT_CALIBRATION_LINELISTS}.")
+        if len(linelists) == 0:
+            warnings.warn(f"No calibration lines loaded from {lamps}.")
+            linelist = None
+        else:
+            linelist = vstack(linelists)
+    else:
+        raise ValueError(f"Invalid calibration lamps specification, {lamps}. Must be a string or list-like iterable.")
+
+    return linelist
 
 
 def load_MAST_calspec(filename, cache=True, show_progress=False):
