@@ -160,9 +160,6 @@ def get_reference_file_path(
 def get_pypeit_data_path(
         path=None,
         cache=True,
-        repo_url="https://raw.githubusercontent.com/pypeit/pypeit",
-        repo_branch="release",
-        repo_data_path="pypeit/data",
         show_progress=False
 ):
     """
@@ -192,6 +189,10 @@ def get_pypeit_data_path(
     >>> from specreduce.calibration_data import get_pypeit_data_path
     >>> pypeit_he_linelist = get_pypeit_data_path("arc_lines/lists/HeI_lines.dat")
     """
+    repo_url="https://raw.githubusercontent.com/pypeit/pypeit"
+    repo_branch="release"
+    repo_data_path="pypeit/data"
+
     return get_reference_file_path(
         path=path,
         cache=cache,
@@ -202,7 +203,7 @@ def get_pypeit_data_path(
     )
 
 
-def load_pypeit_calibration_lines(lamps=None, show_progress=False):
+def load_pypeit_calibration_lines(lamps=None, cache=True, show_progress=False):
     """
     Load reference calibration lines from ``pypeit`` linelists. The ``pypeit`` linelists are well-curated and have
     been tested across a wide range of spectrographs. The available linelists are defined by
@@ -214,6 +215,9 @@ def load_pypeit_calibration_lines(lamps=None, show_progress=False):
         Lamp or list of lamps to include in output reference linelist. The parlance of "lamp" is retained
         here for consistency with its use in ``pypeit`` and elsewhere. In several of the supported cases the
         "lamp" is the sky itself (e.g. OH lines in the near-IR).
+
+    cache : bool (default: True)
+        Toggle caching of downloaded data
 
     show_progress : bool (default: False)
         Show download progress bar
@@ -242,7 +246,7 @@ def load_pypeit_calibration_lines(lamps=None, show_progress=False):
         for l in lamps:
             if l in PYPEIT_CALIBRATION_LINELISTS:
                 list_path = f"arc_lines/lists/{l}_lines.dat"
-                lines_file = get_pypeit_data_path(list_path, show_progress=show_progress)
+                lines_file = get_pypeit_data_path(list_path, cache=cache, show_progress=show_progress)
                 lines_tab = Table.read(lines_file, format='ascii.fixed_width', comment='#')
                 if lines_tab is not None:
                     linelists.append(lines_tab)
