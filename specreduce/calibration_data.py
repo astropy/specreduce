@@ -8,7 +8,7 @@ import warnings
 import numpy as np
 
 import astropy.units as u
-from astropy.table import Table, vstack
+from astropy.table import Table, vstack, QTable
 from astropy.utils.data import download_file
 from astropy.utils.exceptions import AstropyUserWarning
 
@@ -257,6 +257,9 @@ def load_pypeit_calibration_lines(lamps=None, cache=True, show_progress=False):
             linelist = None
         else:
             linelist = vstack(linelists)
+            # pypeit linelists use vacuum wavelengths in angstroms
+            linelist['wave'] *= u.Angstrom
+            linelist = QTable(linelist)
     else:
         raise ValueError(f"Invalid calibration lamps specification, {lamps}. Must be a string or list-like iterable.")
 
