@@ -77,14 +77,49 @@ def make_2dspec_image(
 def make_2d_arc_image(
     nx=3000,
     ny=1000,
-    extent=[3500, 7000],
     wcs=None,
+    extent=[3500, 7000],
     wave_unit=u.Angstrom,
     background=5,
     line_fwhm=5.,
     linelists=['HeI'],
-    amplitude_scale=1.
+    amplitude_scale=1.,
+    tilt_func=None
 ):
+    """
+    Create synthetic 2D spectroscopic image of reference emission lines, e.g. a calibration arc lamp. Currently,
+    linelists from ``pypeit`` are supported and are selected by string or list of strings that is passed to
+    `~specreduce.calibration_data.load_pypeit_calibration_lines`. If a ``wcs`` is not provided, one is created
+    using ``extent`` and ``wave_unit`` with dispersion along the X axis.
+
+    Parameters
+    ----------
+    nx : int (default=3000)
+        Size of image in X axis which is assumed to be the dispersion axis
+    ny : int (default=1000)
+        Size of image in Y axis which is assumed to be the spatial axis
+    wcs : `~astropy.wcs.WCS` instance or None (default: None)
+        2D WCS to apply to the image. Must have a spectral axis defined along with appropriate spectral wavelength units.
+    extent : 2-element list-like
+        If ``wcs`` is not provided, this defines the beginning and end wavelengths of the dispersion axis.
+    wave_unit : `~astropy.unit.Quantity`
+        If ``wcs`` is not provides, this defines the wavelength units of the dispersion axis.
+    background : int (default=5)
+        Level of constant background in counts
+    line_fwhm : float (default=5)
+        Gaussian FWHM of the lines in pixels
+    linelists : str or list of str (default: ['HeI'])
+        Specification for linelists to load from ``pypeit``
+    amplitude_scale : float (default: 1)
+        Scale factor to apply to amplitudes provides in the linelists
+    tilt_func : `~astropy.modeling.polynomial.Legendre1D` or `~astropy.modeling.polynomial.Chebyshev1D`
+        The tilt function to apply along the cross-dispersion axis to simulate tilted or curved emission lines.
+
+    Returns
+    -------
+    ccd_im : `~astropy.nddata.CCDData`
+        CCDData instance containing synthetic 2D spectroscopic image
+    """
     if wcs is None:
         if extent is None:
             raise ValueError("Must specify either a wavelength extent or a WCS.")
@@ -114,6 +149,15 @@ def make_2d_arc_image(
         disp_axis = 0
     else:
         disp_axis = 1
+
+    if tilt_func is not None:
+        if not isinstance(tilt_func, (models.Legendre1D, models.Chebyshev1D)):
+            raise ValueError("The only tilt functions currently supported are Legendre1D and Chebyshev1D from astropy.models.")
+
+        if disp_axis == 0:
+            xx = xx + tilt_func((yy - ny/2)/ny)
+        else:
+            yy = yy + tilt_func((xx - nx/2)/nx)
 
     linelist = load_pypeit_calibration_lines(linelists)
     line_disp_positions = wcs.spectral.world_to_pixel(linelist['wave'])
