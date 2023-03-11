@@ -118,7 +118,8 @@ def make_2d_arc_image(
         Specification for linelists to load from ``pypeit``
     amplitude_scale : float (default: 1)
         Scale factor to apply to amplitudes provides in the linelists
-    tilt_func : `~astropy.modeling.polynomial.Legendre1D` or `~astropy.modeling.polynomial.Chebyshev1D`
+    tilt_func : `~astropy.modeling.polynomial.Legendre1D`, `~astropy.modeling.polynomial.Chebyshev1D`,
+                `~astropy.modeling.polynomial.Polynomial1D`, or `~astropy.modeling.polynomial.Hermite1D`
         The tilt function to apply along the cross-dispersion axis to simulate tilted or curved emission lines.
 
     Returns
@@ -164,7 +165,7 @@ def make_2d_arc_image(
         wcs.wcs.crval[1] = 0
         wcs.wcs.cdelt[1] = 1
     else:
-        if not wcs.has_spectral:
+        if wcs.spectral.naxis != 1:
             raise ValueError("Provided WCS must have a spectral axis.")
         if wcs.naxis != 2:
             raise ValueError("WCS must have NAXIS=2 for a 2D image.")
@@ -180,30 +181,32 @@ def make_2d_arc_image(
         disp_axis = 1
 
     if tilt_func is not None:
-        if not isinstance(tilt_func, (models.Legendre1D, models.Chebyshev1D)):
-            raise ValueError("The only tilt functions currently supported are Legendre1D and Chebyshev1D from astropy.models.")
+        if not isinstance(tilt_func, (models.Legendre1D, models.Chebyshev1D, models.Polynomial1D, models.Hermite1D)):
+            raise ValueError("The only tilt functions currently supported are 1D polynomials from astropy.models.")
 
         if disp_axis == 0:
             xx = xx + tilt_func((yy - ny/2)/ny)
         else:
             yy = yy + tilt_func((xx - nx/2)/nx)
 
-    linelist = load_pypeit_calibration_lines(linelists)
-    line_disp_positions = wcs.spectral.world_to_pixel(linelist['wave'])
-
     z = background + np.zeros((ny, nx))
 
-    line_sigma = gaussian_fwhm_to_sigma * line_fwhm
-    for line_pos, ampl in zip(line_disp_positions, linelist['amplitude']):
-        line_mod = models.Gaussian1D(
-            amplitude=ampl * amplitude_scale,
-            mean=line_pos,
-            stddev=line_sigma
-        )
-        if disp_axis == 0:
-            z += line_mod(xx)
-        else:
-            z += line_mod(yy)
+    linelist = load_pypeit_calibration_lines(linelists)
+
+    if linelist is not None:
+        line_disp_positions = wcs.spectral.world_to_pixel(linelist['wave'])
+
+        line_sigma = gaussian_fwhm_to_sigma * line_fwhm
+        for line_pos, ampl in zip(line_disp_positions, linelist['amplitude']):
+            line_mod = models.Gaussian1D(
+                amplitude=ampl * amplitude_scale,
+                mean=line_pos,
+                stddev=line_sigma
+            )
+            if disp_axis == 0:
+                z += line_mod(xx)
+            else:
+                z += line_mod(yy)
 
     noisy_image = apply_poisson_noise(z)
 
