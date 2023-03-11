@@ -12,6 +12,11 @@ from astropy.stats import gaussian_fwhm_to_sigma
 
 from specreduce.calibration_data import load_pypeit_calibration_lines
 
+__all__ = [
+    'make_2dspec_image',
+    'make_2d_arc_image'
+]
+
 
 def make_2dspec_image(
     nx=3000,
@@ -90,7 +95,8 @@ def make_2d_arc_image(
     Create synthetic 2D spectroscopic image of reference emission lines, e.g. a calibration arc lamp. Currently,
     linelists from ``pypeit`` are supported and are selected by string or list of strings that is passed to
     `~specreduce.calibration_data.load_pypeit_calibration_lines`. If a ``wcs`` is not provided, one is created
-    using ``extent`` and ``wave_unit`` with dispersion along the X axis.
+    using ``extent`` and ``wave_unit`` with dispersion along the X axis. Currently, only linear dispersion with
+    constant wavelength per pixel is supported.
 
     Parameters
     ----------
@@ -102,7 +108,7 @@ def make_2d_arc_image(
         2D WCS to apply to the image. Must have a spectral axis defined along with appropriate spectral wavelength units.
     extent : 2-element list-like
         If ``wcs`` is not provided, this defines the beginning and end wavelengths of the dispersion axis.
-    wave_unit : `~astropy.unit.Quantity`
+    wave_unit : `~astropy.units.Quantity`
         If ``wcs`` is not provides, this defines the wavelength units of the dispersion axis.
     background : int (default=5)
         Level of constant background in counts
@@ -119,6 +125,29 @@ def make_2d_arc_image(
     -------
     ccd_im : `~astropy.nddata.CCDData`
         CCDData instance containing synthetic 2D spectroscopic image
+
+    Examples
+    --------
+    .. plot::
+        :include-source:
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from astropy.modeling import models
+        import astropy.units as u
+        from specreduce.utils.synth_data import make_2d_arc_image
+
+        model_deg2 = models.Legendre1D(degree=2, c0=50, c1=0, c2=100)
+        im = make_2d_arc_image(
+            linelists=['HeI', 'ArI', 'ArII'],
+            line_fwhm=3,
+            tilt_func=model_deg2
+        )
+        fig = plt.figure(figsize=(10, 6))
+        ax = plt.subplot(projection=im.wcs)
+        wave, pix = ax.coords
+        wave.set_format_unit(u.um)
+        plt.imshow(im)
     """
     if wcs is None:
         if extent is None:

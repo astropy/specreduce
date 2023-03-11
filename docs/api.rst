@@ -9,6 +9,9 @@ API Index
 .. automodapi:: specreduce.core
     :no-inheritance-diagram:
 
+.. automodapi:: specreduce.utils.synth_data
+    :no-inheritance-diagram:
+
 .. automodapi:: specreduce.tracing
     :no-inheritance-diagram:
 
