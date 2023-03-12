@@ -109,8 +109,7 @@ def make_2d_arc_image(
     extent : 2-element list-like
         If ``wcs`` is not provided, this defines the beginning and end wavelengths of the dispersion axis.
     wave_air : bool (default: False)
-        If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths using
-        `~specutils.utils.wcs_utils.vac_to_air`.
+        If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
     wave_unit : `~astropy.units.Quantity`
         If ``wcs`` is not provides, this defines the wavelength units of the dispersion axis.
     background : int (default=5)
@@ -121,8 +120,7 @@ def make_2d_arc_image(
         Specification for linelists to load from ``pypeit``
     amplitude_scale : float (default: 1)
         Scale factor to apply to amplitudes provides in the linelists
-    tilt_func : `~astropy.modeling.polynomial.Legendre1D`, `~astropy.modeling.polynomial.Chebyshev1D`,
-                `~astropy.modeling.polynomial.Polynomial1D`, or `~astropy.modeling.polynomial.Hermite1D`
+    tilt_func : 1D polynomial from `~astropy.modeling.polynomial`
         The tilt function to apply along the cross-dispersion axis to simulate tilted or curved emission lines.
 
     Returns
@@ -132,6 +130,8 @@ def make_2d_arc_image(
 
     Examples
     --------
+    This is an example of modeling a spectrograph whose output is curved in the cross-dispersion direction:
+
     .. plot::
         :include-source:
 
@@ -148,10 +148,89 @@ def make_2d_arc_image(
             tilt_func=model_deg2
         )
         fig = plt.figure(figsize=(10, 6))
-        ax = plt.subplot(projection=im.wcs)
-        wave, pix = ax.coords
-        wave.set_format_unit(u.um)
         plt.imshow(im)
+
+    The FITS WCS standard implements ideal world coordinate functions based on the physics of simple dispersers.
+    This is described in detail by Paper III, https://www.aanda.org/articles/aa/pdf/2006/05/aa3818-05.pdf. This can be used to
+    model a non-linear dispersion relation based on the properties of a spectrograph. This example recreates Figure 5
+    in that paper using a spectrograph with a 450 lines/mm volume phase holographic grism. Standard gratings only use the first
+    three ``PV`` terms:
+
+    .. plot::
+        :include-source:
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from astropy.wcs import WCS
+        import astropy.units as u
+        from specreduce.utils.synth_data import make_2d_arc_image
+
+        non_linear_header = {
+            'CTYPE1': 'AWAV-GRA',  # Grating dispersion function with air wavelengths
+            'CUNIT1': 'Angstrom',  # Dispersion units
+            'CRPIX1': 719.8,       # Reference pixel [pix]
+            'CRVAL1': 7245.2,      # Reference value [Angstrom]
+            'CDELT1': 2.956,       # Linear dispersion [Angstrom/pix]
+            'PV1_0': 4.5e5,        # Grating density [1/m]
+            'PV1_1': 1,            # Diffraction order
+            'PV1_2': 27.0,         # Incident angle [deg]
+            'PV1_3': 1.765,        # Reference refraction
+            'PV1_4': -1.077e6,     # Refraction derivative [1/m]
+            'CTYPE2': 'PIXEL',     # Spatial detector coordinates
+            'CUNIT2': 'pix',       # Spatial units
+            'CRPIX2': 1,           # Reference pixel
+            'CRVAL2': 0,           # Reference value
+            'CDELT2': 1            # Spatial units per pixel
+        }
+
+        linear_header = {
+            'CTYPE1': 'AWAV',  # Grating dispersion function with air wavelengths
+            'CUNIT1': 'Angstrom',  # Dispersion units
+            'CRPIX1': 719.8,       # Reference pixel [pix]
+            'CRVAL1': 7245.2,      # Reference value [Angstrom]
+            'CDELT1': 2.956,       # Linear dispersion [Angstrom/pix]
+            'CTYPE2': 'PIXEL',     # Spatial detector coordinates
+            'CUNIT2': 'pix',       # Spatial units
+            'CRPIX2': 1,           # Reference pixel
+            'CRVAL2': 0,           # Reference value
+            'CDELT2': 1            # Spatial units per pixel
+        }
+
+        non_linear_wcs = WCS(non_linear_header)
+        linear_wcs = WCS(linear_header)
+
+        # this re-creates Paper III, Figure 5
+        pix_array = 200 + np.arange(1400)
+        nlin = non_linear_wcs.spectral.pixel_to_world(pix_array)
+        lin = linear_wcs.spectral.pixel_to_world(pix_array)
+        resid = (nlin - lin).to(u.Angstrom)
+        plt.plot(pix_array, resid)
+        plt.xlabel("Pixel")
+        plt.ylabel("Correction (Angstrom)")
+        plt.show()
+
+        nlin_im = make_2d_arc_image(
+            nx=600,
+            ny=512,
+            linelists=['HeI', 'NeI'],
+            line_fwhm=3,
+            wave_air=True,
+            wcs=non_linear_wcs
+        )
+        lin_im = make_2d_arc_image(
+            nx=600,
+            ny=512,
+            linelists=['HeI', 'NeI'],
+            line_fwhm=3,
+            wave_air=True,
+            wcs=linear_wcs
+        )
+
+        # subtracting the linear simulation from the non-linear one shows how the
+        # positions of lines diverge between the two cases
+        plt.imshow(nlin_im.data - lin_im.data)
+        plt.show()
+
     """
     if wcs is None:
         if extent is None:

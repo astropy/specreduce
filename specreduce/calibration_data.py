@@ -218,8 +218,7 @@ def load_pypeit_calibration_lines(lamps=None, wave_air=False, cache=True, show_p
         "lamp" is the sky itself (e.g. OH lines in the near-IR).
 
     wave_air : bool (default: False)
-        If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths using
-        `~specutils.utils.wcs_utils.vac_to_air`.
+        If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
 
     cache : bool (default: True)
         Toggle caching of downloaded data
