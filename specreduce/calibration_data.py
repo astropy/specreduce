@@ -14,6 +14,7 @@ from astropy.utils.exceptions import AstropyUserWarning
 
 import synphot
 from specutils import Spectrum1D
+from specutils.utils.wcs_utils import vac_to_air
 
 __all__ = [
     'get_reference_file_path',
@@ -203,7 +204,7 @@ def get_pypeit_data_path(
     )
 
 
-def load_pypeit_calibration_lines(lamps=None, cache=True, show_progress=False):
+def load_pypeit_calibration_lines(lamps=None, wave_air=False, cache=True, show_progress=False):
     """
     Load reference calibration lines from ``pypeit`` linelists. The ``pypeit`` linelists are well-curated and have
     been tested across a wide range of spectrographs. The available linelists are defined by
@@ -215,6 +216,10 @@ def load_pypeit_calibration_lines(lamps=None, cache=True, show_progress=False):
         Lamp or list of lamps to include in output reference linelist. The parlance of "lamp" is retained
         here for consistency with its use in ``pypeit`` and elsewhere. In several of the supported cases the
         "lamp" is the sky itself (e.g. OH lines in the near-IR).
+
+    wave_air : bool (default: False)
+        If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths using
+        `~specutils.utils.wcs_utils.vac_to_air`.
 
     cache : bool (default: True)
         Toggle caching of downloaded data
@@ -259,6 +264,8 @@ def load_pypeit_calibration_lines(lamps=None, cache=True, show_progress=False):
             linelist = vstack(linelists)
             # pypeit linelists use vacuum wavelengths in angstroms
             linelist['wave'] *= u.Angstrom
+            if wave_air:
+                linelist['wave'] = vac_to_air(linelist['wave'])
             linelist = QTable(linelist)
     else:
         raise ValueError(f"Invalid calibration lamps specification, {lamps}. Must be a string or list-like iterable.")

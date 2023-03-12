@@ -84,6 +84,7 @@ def make_2d_arc_image(
     ny=1000,
     wcs=None,
     extent=[3500, 7000],
+    wave_air=False,
     wave_unit=u.Angstrom,
     background=5,
     line_fwhm=5.,
@@ -95,8 +96,7 @@ def make_2d_arc_image(
     Create synthetic 2D spectroscopic image of reference emission lines, e.g. a calibration arc lamp. Currently,
     linelists from ``pypeit`` are supported and are selected by string or list of strings that is passed to
     `~specreduce.calibration_data.load_pypeit_calibration_lines`. If a ``wcs`` is not provided, one is created
-    using ``extent`` and ``wave_unit`` with dispersion along the X axis. Currently, only linear dispersion with
-    constant wavelength per pixel is supported.
+    using ``extent`` and ``wave_unit`` with dispersion along the X axis.
 
     Parameters
     ----------
@@ -108,6 +108,9 @@ def make_2d_arc_image(
         2D WCS to apply to the image. Must have a spectral axis defined along with appropriate spectral wavelength units.
     extent : 2-element list-like
         If ``wcs`` is not provided, this defines the beginning and end wavelengths of the dispersion axis.
+    wave_air : bool (default: False)
+        If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths using
+        `~specutils.utils.wcs_utils.vac_to_air`.
     wave_unit : `~astropy.units.Quantity`
         If ``wcs`` is not provides, this defines the wavelength units of the dispersion axis.
     background : int (default=5)
@@ -191,7 +194,7 @@ def make_2d_arc_image(
 
     z = background + np.zeros((ny, nx))
 
-    linelist = load_pypeit_calibration_lines(linelists)
+    linelist = load_pypeit_calibration_lines(linelists, wave_air=wave_air)
 
     if linelist is not None:
         line_disp_positions = wcs.spectral.world_to_pixel(linelist['wave'])

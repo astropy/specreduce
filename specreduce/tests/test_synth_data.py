@@ -67,9 +67,9 @@ def test_make_2d_arc_pass_wcs():
             wcs=wcs
         )
 
-    # test passing valid WCS with dispersion along Y
+    # test passing valid WCS with dispersion along Y while using air wavelengths
     wcs = WCS(naxis=2)
-    wcs.wcs.ctype[1] = 'WAVE'
+    wcs.wcs.ctype[1] = 'AWAV'
     wcs.wcs.ctype[0] = 'PIXEL'
     wcs.wcs.cunit[1] = wave_unit
     wcs.wcs.cunit[0] = u.pixel
@@ -83,6 +83,7 @@ def test_make_2d_arc_pass_wcs():
         ny=nx,
         extent=None,
         wave_unit=None,
+        wave_air=True,
         wcs=wcs
     )
     assert ccdim.data.shape == (3000, 1000)
