@@ -11,7 +11,14 @@ def test_pypeit_single():
     assert line_tab is not None
     if line_tab is not None:
         assert "HeI" in line_tab['ion']
-        assert sorted(list(line_tab.columns)) == ['Instr', 'NIST', 'Source', 'amplitude', 'ion', 'wave']
+        assert sorted(list(line_tab.columns)) == [
+            'Instr',
+            'NIST',
+            'Source',
+            'amplitude',
+            'ion',
+            'wave'
+        ]
 
 
 def test_pypeit_list():

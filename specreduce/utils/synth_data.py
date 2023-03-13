@@ -93,10 +93,11 @@ def make_2d_arc_image(
     tilt_func=None
 ):
     """
-    Create synthetic 2D spectroscopic image of reference emission lines, e.g. a calibration arc lamp. Currently,
-    linelists from ``pypeit`` are supported and are selected by string or list of strings that is passed to
-    `~specreduce.calibration_data.load_pypeit_calibration_lines`. If a ``wcs`` is not provided, one is created
-    using ``extent`` and ``wave_unit`` with dispersion along the X axis.
+    Create synthetic 2D spectroscopic image of reference emission lines, e.g. a calibration
+    arc lamp. Currently, linelists from ``pypeit`` are supported and are selected by string or
+    list of strings that is passed to `~specreduce.calibration_data.load_pypeit_calibration_lines`.
+    If a ``wcs`` is not provided, one is created using ``extent`` and ``wave_unit`` with
+    dispersion along the X axis.
 
     Parameters
     ----------
@@ -105,13 +106,16 @@ def make_2d_arc_image(
     ny : int (default=1000)
         Size of image in Y axis which is assumed to be the spatial axis
     wcs : `~astropy.wcs.WCS` instance or None (default: None)
-        2D WCS to apply to the image. Must have a spectral axis defined along with appropriate spectral wavelength units.
+        2D WCS to apply to the image. Must have a spectral axis defined along with
+        appropriate spectral wavelength units.
     extent : 2-element list-like
-        If ``wcs`` is not provided, this defines the beginning and end wavelengths of the dispersion axis.
+        If ``wcs`` is not provided, this defines the beginning and end wavelengths
+        of the dispersion axis.
     wave_air : bool (default: False)
         If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
     wave_unit : `~astropy.units.Quantity`
-        If ``wcs`` is not provides, this defines the wavelength units of the dispersion axis.
+        If ``wcs`` is not provides, this defines the wavelength units of the
+        dispersion axis.
     background : int (default=5)
         Level of constant background in counts
     line_fwhm : float (default=5)
@@ -121,7 +125,8 @@ def make_2d_arc_image(
     amplitude_scale : float (default: 1)
         Scale factor to apply to amplitudes provides in the linelists
     tilt_func : 1D polynomial from `~astropy.modeling.polynomial`
-        The tilt function to apply along the cross-dispersion axis to simulate tilted or curved emission lines.
+        The tilt function to apply along the cross-dispersion axis to simulate
+        tilted or curved emission lines.
 
     Returns
     -------
@@ -130,7 +135,8 @@ def make_2d_arc_image(
 
     Examples
     --------
-    This is an example of modeling a spectrograph whose output is curved in the cross-dispersion direction:
+    This is an example of modeling a spectrograph whose output is curved in the
+    cross-dispersion direction:
 
     .. plot::
         :include-source:
@@ -150,11 +156,12 @@ def make_2d_arc_image(
         fig = plt.figure(figsize=(10, 6))
         plt.imshow(im)
 
-    The FITS WCS standard implements ideal world coordinate functions based on the physics of simple dispersers.
-    This is described in detail by Paper III, https://www.aanda.org/articles/aa/pdf/2006/05/aa3818-05.pdf. This can be used to
-    model a non-linear dispersion relation based on the properties of a spectrograph. This example recreates Figure 5
-    in that paper using a spectrograph with a 450 lines/mm volume phase holographic grism. Standard gratings only use the first
-    three ``PV`` terms:
+    The FITS WCS standard implements ideal world coordinate functions based on the physics
+    of simple dispersers. This is described in detail by Paper III,
+    https://www.aanda.org/articles/aa/pdf/2006/05/aa3818-05.pdf. This can be used to model a
+    non-linear dispersion relation based on the properties of a spectrograph. This example
+    recreates Figure 5 in that paper using a spectrograph with a 450 lines/mm volume phase
+    holographic grism. Standard gratings only use the first three ``PV`` terms:
 
     .. plot::
         :include-source:
@@ -263,8 +270,14 @@ def make_2d_arc_image(
         disp_axis = 1
 
     if tilt_func is not None:
-        if not isinstance(tilt_func, (models.Legendre1D, models.Chebyshev1D, models.Polynomial1D, models.Hermite1D)):
-            raise ValueError("The only tilt functions currently supported are 1D polynomials from astropy.models.")
+        if not isinstance(
+            tilt_func,
+            (models.Legendre1D, models.Chebyshev1D, models.Polynomial1D, models.Hermite1D)
+        ):
+            raise ValueError(
+                "The only tilt functions currently supported are 1D polynomials "
+                "from astropy.models."
+            )
 
         if disp_axis == 0:
             xx = xx + tilt_func((yy - ny/2)/ny)

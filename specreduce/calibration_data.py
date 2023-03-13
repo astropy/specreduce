@@ -165,7 +165,8 @@ def get_pypeit_data_path(
 ):
     """
     Convenience utility to facilitate access to ``pypeit`` reference data. The data is accessed
-    directly from the release branch on GitHub and downloaded/cached using `~astropy.utils.data.download_file`.
+    directly from the release branch on GitHub and downloaded/cached
+    using `~astropy.utils.data.download_file`.
 
     Parameters
     ----------
@@ -190,9 +191,9 @@ def get_pypeit_data_path(
     >>> from specreduce.calibration_data import get_pypeit_data_path
     >>> pypeit_he_linelist = get_pypeit_data_path("arc_lines/lists/HeI_lines.dat")
     """
-    repo_url="https://raw.githubusercontent.com/pypeit/pypeit"
-    repo_branch="release"
-    repo_data_path="pypeit/data"
+    repo_url = "https://raw.githubusercontent.com/pypeit/pypeit"
+    repo_branch = "release"
+    repo_data_path = "pypeit/data"
 
     return get_reference_file_path(
         path=path,
@@ -206,16 +207,16 @@ def get_pypeit_data_path(
 
 def load_pypeit_calibration_lines(lamps=None, wave_air=False, cache=True, show_progress=False):
     """
-    Load reference calibration lines from ``pypeit`` linelists. The ``pypeit`` linelists are well-curated and have
-    been tested across a wide range of spectrographs. The available linelists are defined by
-    ``PYPEIT_CALIBRATION_LINELISTS``.
+    Load reference calibration lines from ``pypeit`` linelists. The ``pypeit`` linelists are
+    well-curated and have been tested across a wide range of spectrographs. The available
+    linelists are defined by ``PYPEIT_CALIBRATION_LINELISTS``.
 
     Parameters
     ----------
     lamps : str or list-like (default: None)
-        Lamp or list of lamps to include in output reference linelist. The parlance of "lamp" is retained
-        here for consistency with its use in ``pypeit`` and elsewhere. In several of the supported cases the
-        "lamp" is the sky itself (e.g. OH lines in the near-IR).
+        Lamp or list of lamps to include in output reference linelist. The parlance of "lamp"
+        is retained here for consistency with its use in ``pypeit`` and elsewhere. In several
+        of the supported cases the "lamp" is the sky itself (e.g. OH lines in the near-IR).
 
     wave_air : bool (default: False)
         If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
@@ -229,12 +230,13 @@ def load_pypeit_calibration_lines(lamps=None, wave_air=False, cache=True, show_p
     Returns
     -------
     linelist: `~astropy.table.Table`
-        Table containing the combined calibration line list. ``pypeit`` linelists have the following columns:
+        Table containing the combined calibration line list. ``pypeit`` linelists have the
+        following columns:
         * ``ion``: Ion or molecule generating the line.
         * ``wave``: Vacuum wavelength of the line in Angstroms.
         * ``NIST``: Flag denoting if NIST is the ultimate reference for the line's wavelength.
         * ``Instr``: ``pypeit``-specific instrument flag.
-        * ``amplitude``: Amplitude of the line. Beware, this is somewhat arbitrary and not consistent between lists.
+        * ``amplitude``: Amplitude of the line. Beware, not consistent between lists.
         * ``Source``: Source of the line information.
     """
     if lamps is None:
@@ -247,15 +249,26 @@ def load_pypeit_calibration_lines(lamps=None, wave_air=False, cache=True, show_p
 
     if isinstance(lamps, (list, tuple, set, np.ndarray)):
         linelists = []
-        for l in lamps:
-            if l in PYPEIT_CALIBRATION_LINELISTS:
-                list_path = f"arc_lines/lists/{l}_lines.dat"
-                lines_file = get_pypeit_data_path(list_path, cache=cache, show_progress=show_progress)
-                lines_tab = Table.read(lines_file, format='ascii.fixed_width', comment='#')
+        for lamp in lamps:
+            if lamp in PYPEIT_CALIBRATION_LINELISTS:
+                list_path = f"arc_lines/lists/{lamp}_lines.dat"
+                lines_file = get_pypeit_data_path(
+                    list_path,
+                    cache=cache,
+                    show_progress=show_progress
+                )
+                lines_tab = Table.read(
+                    lines_file,
+                    format='ascii.fixed_width',
+                    comment='#'
+                )
                 if lines_tab is not None:
                     linelists.append(lines_tab)
             else:
-                warnings.warn(f"{l} not in the list of supported calibration line lists: {PYPEIT_CALIBRATION_LINELISTS}.")
+                warnings.warn(
+                    f"{lamp} not in the list of supported calibration "
+                    "line lists: {PYPEIT_CALIBRATION_LINELISTS}."
+                )
         if len(linelists) == 0:
             warnings.warn(f"No calibration lines loaded from {lamps}.")
             linelist = None
@@ -267,7 +280,10 @@ def load_pypeit_calibration_lines(lamps=None, wave_air=False, cache=True, show_p
                 linelist['wave'] = vac_to_air(linelist['wave'])
             linelist = QTable(linelist)
     else:
-        raise ValueError(f"Invalid calibration lamps specification, {lamps}. Must be a string or list-like iterable.")
+        raise ValueError(
+            f"Invalid calibration lamps specification, {lamps}. "
+            "Must be a string or list-like iterable."
+        )
 
     return linelist
 

@@ -6,6 +6,7 @@ from astropy.modeling import models
 from astropy.wcs import WCS
 import astropy.units as u
 
+
 def test_make_2dspec_image():
     ccdim = make_2dspec_image(
         nx=3000,
@@ -29,8 +30,8 @@ def test_make_2d_arc_image_defaults():
 
 @pytest.mark.filterwarnings("ignore:No observer defined on WCS")
 def test_make_2d_arc_pass_wcs():
-    nx=3000
-    ny=1000
+    nx = 3000
+    ny = 1000
     wave_unit = u.Angstrom
     extent = [3000, 6000]
 
@@ -106,7 +107,10 @@ def test_make_2d_arc_pass_wcs():
         )
 
     # make sure a non-polynomial tilt_func gets rejected
-    with pytest.raises(ValueError, match='The only tilt functions currently supported are 1D polynomials'):
+    with pytest.raises(
+        ValueError,
+        match='The only tilt functions currently supported are 1D polynomials'
+    ):
         ccdim = make_2d_arc_image(
             tilt_func=models.Gaussian1D
         )

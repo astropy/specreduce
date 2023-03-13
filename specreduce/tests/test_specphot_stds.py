@@ -1,5 +1,3 @@
-from astropy.utils.data import download_file
-
 from ..calibration_data import (
     load_MAST_calspec,
     load_onedstds
