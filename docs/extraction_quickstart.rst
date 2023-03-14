@@ -66,14 +66,26 @@ implemented methods:
 Each of these takes the input image and trace as inputs (see the API above for other required
 and optional parameters)::
 
-    extract = specreduce.extract.BoxcarExtract(image-bg, trace, width=3)
-    spectrum = extract.spectrum
+  extract = specreduce.extract.BoxcarExtract(image-bg, trace, width=3)
 
-The returned ``extract`` object contains all the set options.  The extracted 1D spectrum can be
+or::
+
+  extract = specreduce.extract.HorneExtract(image-bg, trace)
+
+For the Horne algorithm, the input image must include uncertainty and mask.
+These two calls set the options and initialize the object. To extract the spectrum, the
+syntax is::
+
+  spectrum = extract.spectrum
+
+The ``extract`` object contains all the set options.  The extracted 1D spectrum can be
 accessed via the ``spectrum`` property or by calling the ``extract`` object (which also allows
 temporarily overriding any values)::
 
   spectrum2 = extract(width=6)
+
+The Horne algorithm preforms a Gaussian fit on the source, it is thus best suited for cases
+where the source has a Gaussian profile in the cross-dispersion direction.
 
 Example Workflow
 ----------------
