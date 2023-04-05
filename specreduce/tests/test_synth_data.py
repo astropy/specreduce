@@ -1,6 +1,6 @@
 import pytest
 
-from specreduce.utils.synth_data import make_2dspec_image, make_2d_arc_image
+from specreduce.utils.synth_data import make_2d_trace_image, make_2d_arc_image
 from astropy.nddata import CCDData
 from astropy.modeling import models
 from astropy.wcs import WCS
@@ -8,7 +8,7 @@ import astropy.units as u
 
 
 def test_make_2dspec_image():
-    ccdim = make_2dspec_image(
+    ccdim = make_2d_trace_image(
         nx=3000,
         ny=1000,
         background=5,

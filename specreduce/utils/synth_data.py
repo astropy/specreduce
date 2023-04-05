@@ -13,12 +13,12 @@ from astropy.stats import gaussian_fwhm_to_sigma
 from specreduce.calibration_data import load_pypeit_calibration_lines
 
 __all__ = [
-    'make_2dspec_image',
+    'make_2d_trace_image',
     'make_2d_arc_image'
 ]
 
 
-def make_2dspec_image(
+def make_2d_trace_image(
     nx=3000,
     ny=1000,
     background=5,
