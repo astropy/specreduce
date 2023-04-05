@@ -275,8 +275,10 @@ def make_2d_arc_image(
     is_spectral = [a['coordinate_type'] == "spectral" for a in wcs.get_axis_types()]
     if is_spectral[0]:
         disp_axis = 0
-    else:
+    elif is_spectral[1]:
         disp_axis = 1
+    else:
+        raise ValueError("Input WCS must have a spectral axis or wave_unit must be a valid spectral unit.")
 
     if tilt_func is not None:
         if not isinstance(
