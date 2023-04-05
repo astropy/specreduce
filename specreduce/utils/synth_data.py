@@ -84,8 +84,8 @@ def make_2d_arc_image(
     ny=1000,
     wcs=None,
     extent=[3500, 7000],
-    wave_air=False,
     wave_unit=u.Angstrom,
+    wave_air=False,
     background=5,
     line_fwhm=5.,
     linelists=['HeI'],
@@ -111,11 +111,11 @@ def make_2d_arc_image(
     extent : 2-element list-like
         If ``wcs`` is not provided, this defines the beginning and end wavelengths
         of the dispersion axis.
+    wave_unit : `~astropy.units.Unit`
+        If ``wcs`` is not provided, this defines the wavelength units of the
+        dispersion axis.
     wave_air : bool (default: False)
         If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
-    wave_unit : `~astropy.units.Quantity`
-        If ``wcs`` is not provides, this defines the wavelength units of the
-        dispersion axis.
     background : int (default=5)
         Level of constant background in counts
     line_fwhm : float (default=5)
@@ -123,7 +123,7 @@ def make_2d_arc_image(
     linelists : str or list of str (default: ['HeI'])
         Specification for linelists to load from ``pypeit``
     amplitude_scale : float (default: 1)
-        Scale factor to apply to amplitudes provides in the linelists
+        Scale factor to apply to amplitudes provided in the linelists
     tilt_func : 1D polynomial from `~astropy.modeling.polynomial`
         The tilt function to apply along the cross-dispersion axis to simulate
         tilted or curved emission lines.
