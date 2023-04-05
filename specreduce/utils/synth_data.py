@@ -253,6 +253,8 @@ def make_2d_arc_image(
             raise ValueError("Must specify either a wavelength extent or a WCS.")
         if len(extent) != 2:
             raise ValueError("Wavelength extent must be of length 2.")
+        if u.get_physical_type(wave_unit) != 'length':
+            raise ValueError("Wavelength unit must be a length unit.")
         wcs = WCS(naxis=2)
         wcs.wcs.ctype[0] = 'WAVE'
         wcs.wcs.ctype[1] = 'PIXEL'
@@ -275,10 +277,8 @@ def make_2d_arc_image(
     is_spectral = [a['coordinate_type'] == "spectral" for a in wcs.get_axis_types()]
     if is_spectral[0]:
         disp_axis = 0
-    elif is_spectral[1]:
-        disp_axis = 1
     else:
-        raise ValueError("Input WCS must have a spectral axis or wave_unit must be a valid spectral unit.")
+        disp_axis = 1
 
     if tilt_func is not None:
         if not isinstance(

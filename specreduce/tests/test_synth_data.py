@@ -7,7 +7,7 @@ from astropy.wcs import WCS
 import astropy.units as u
 
 
-def test_make_2dspec_image():
+def test_make_2d_trace_image():
     ccdim = make_2d_trace_image(
         nx=3000,
         ny=1000,
@@ -104,6 +104,35 @@ def test_make_2d_arc_pass_wcs():
             extent=None,
             wave_unit=None,
             wcs=wcs
+        )
+
+    # make sure a WCS with no spectral axis gets rejected
+    wcs = WCS(naxis=2)
+    wcs.wcs.ctype[1] = 'PIXEL'
+    wcs.wcs.ctype[0] = 'PIXEL'
+    wcs.wcs.cunit[1] = u.pixel
+    wcs.wcs.cunit[0] = u.pixel
+    wcs.wcs.crval[1] = extent[0]
+    wcs.wcs.cdelt[1] = (extent[1] - extent[0]) / nx
+    wcs.wcs.crval[0] = 0
+    wcs.wcs.cdelt[0] = 1
+
+    with pytest.raises(ValueError, match='Provided WCS must have a spectral axis'):
+        ccdim = make_2d_arc_image(
+            nx=nx,
+            ny=ny,
+            extent=None,
+            wave_unit=None,
+            wcs=wcs
+        )
+
+    # make sure invalid wave_unit is caught
+    with pytest.raises(ValueError, match='Wavelength unit must be a length unit'):
+        ccdim = make_2d_arc_image(
+            nx=nx,
+            ny=ny,
+            extent=[100, 300],
+            wave_unit=u.pixel
         )
 
     # make sure a non-polynomial tilt_func gets rejected
