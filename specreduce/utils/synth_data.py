@@ -344,7 +344,8 @@ def make_2d_spec_image(
     add_noise=True
 ):
     """
-    Make a synthetic 2D spectrum image containing both emission lines and trace of a continuum source.
+    Make a synthetic 2D spectrum image containing both emission lines and
+    a trace of a continuum source.
 
     Parameters
     ----------
