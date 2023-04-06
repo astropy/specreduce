@@ -1,183 +1,119 @@
-from astropy.modeling.models import Linear1D, Gaussian1D
+from astropy.modeling.models import Linear1D
 from astropy.modeling.fitting import LMLSQFitter, LinearLSQFitter
+from astropy.table import QTable, hstack
 import astropy.units as u
 from functools import cached_property
 from gwcs import wcs
 from gwcs import coordinate_frames as cf
 import numpy as np
-from specutils import SpectralRegion, Spectrum1D
-from specutils.fitting import fit_lines
+from specutils import Spectrum1D
 
 
-__all__ = ['CalibrationLine', 'WavelengthCalibration1D']
+__all__ = ['WavelengthCalibration1D']
 
 
-class CalibrationLine():
+def get_available_catalogs():
+    """
+    ToDo: Decide in what format to store calibration line catalogs (e.g., for lamps)
+          and write this function to determine the list of available catalog names.
+    """
+    return []
 
-    def __init__(self, input_spectrum, wavelength, pixel, refinement_method=None,
-                 refinement_kwargs={}):
-        """
-        input_spectrum: `~specutils.Spectrum1D`
-            A one-dimensional Spectrum1D calibration spectrum from an arc lamp or similar.
-        wavelength: `astropy.units.Quantity`
-            The rest wavelength of the line.
-        pixel: int
-            Initial guess of the integer pixel location of the line center in the spectrum.
-        refinement_method: str, optional
-            None: use the actual provided pixel values as anchors for the fit without refining
-            their location.
-            'gradient': Simple gradient descent/ascent to nearest min/max value. Direction
-            defined by ``direction`` in refinement_kwargs.
-            'min'/'max': find min/max within pixel range provided by ``range`` kwarg.
-            'gaussian': fit gaussian to spectrum within pixel range provided by ``range`` kwarg.
-        refinement_kwargs: dict, optional
-            Keywords to set the parameters for line location refinement. Distance on either side
-            of line center to include on either side of gaussian fit is set by int ``range``.
-            Gradient descent/ascent is determined by setting ``direction`` to 'min' or 'max'.
-        """
-        self._input_spectrum = input_spectrum
-        self.wavelength = wavelength
-        self.pixel = pixel
-        self.refinement_method = refinement_method
-        self.refinement_kwargs = refinement_kwargs
-        self._cached_properties = ['refined_pixel', 'with_refined_pixel']
 
-        if self.refinement_method in ("gaussian", "min", "max"):
-            if 'range' not in self.refinement_kwargs:
-                # We may want to adjust this default based on real calibration spectra
-                self.refinement_kwargs['range'] = 10
-
-    def _clear_cache(self, *attrs):
-        """
-        provide convenience function to clearing the cache for cached_properties
-        """
-        if not len(attrs):
-            attrs = self._cached_properties
-        for attr in attrs:
-            if attr in self.__dict__:
-                del self.__dict__[attr]
-
-    @classmethod
-    def by_name(cls, input_spectrum, line_name, pixel,
-                refinement_method=None, refinement_kwargs={}):
-        # this will do wavelength lookup and passes that wavelength to __init__ allowing the user
-        # to call CalibrationLine.by_name(spectrum, 'H_alpha', pixel=40)
-        # We could also have a type-check for ``wavelength`` above, this just feels more verbose
-        return cls(...)
-
-    def _do_refinement(self, input_spectrum):
-        if self.refinement_method == 'gaussian':
-            window_width = self.refinement_kwargs.get('range')
-            window = SpectralRegion((self.pixel-window_width)*u.pix,
-                                    (self.pixel+window_width)*u.pix)
-
-            input_model = Gaussian1D(mean=self.pixel, stddev=3,
-                                     amplitude=self.input_spectrum.flux[self.pixel])
-
-            fitted_model = fit_lines(self.input_spectrum, input_model, window=window)
-            new_pixel = fitted_model.mean.value
-
-        elif self.refinement_method == 'min':
-            window_width = self.refinement_kwargs.get('range')
-            new_pixel = np.argmin(self.input_spectrum.flux[self.pixel-window_width:
-                                                           self.pixel+window_width+1])
-            new_pixel += self.pixel - window_width
-
-        elif self.refinement_method == 'max':
-            window_width = self.refinement_kwargs.get('range')
-            new_pixel = np.argmax(self.input_spectrum.flux[self.pixel-window_width:
-                                                           self.pixel+window_width+1])
-            new_pixel += self.pixel - window_width
-
-        else:
-            raise ValueError(f"Refinement method {self.refinement_method} is not implemented")
-
-        return new_pixel
-
-    def refine(self, input_spectrum=None, return_object=False):
-        # finds the center of the line according to refinement_method/kwargs and returns
-        # either the pixel value or a CalibrationLine object with pixel changed to the refined value
-        if self.refinement_method is None:
-            return self.pixel
-        input_spectrum = self.input_spectrum if input_spectrum is None else input_spectrum
-        refined_pixel = self._do_refinement(input_spectrum)
-        if return_object:
-            return CalibrationLine(input_spectrum, self.wavelength, refined_pixel,
-                                   refinement_method=self.refinement_method,
-                                   refinement_kwargs=self.refinement_kwargs)
-
-        return refined_pixel
-
-    @cached_property
-    def refined_pixel(self):
-        # returns the refined pixel for self.input_spectrum
-        return self.refine()
-
-    @cached_property
-    def with_refined_pixel(self):
-        # returns a copy of this object, but with the pixel updated to the refined value
-        return self.refine(return_object=True)
-
-    @property
-    def input_spectrum(self):
-        return self._input_spectrum
-
-    @input_spectrum.setter
-    def input_spectrum(self, new_spectrum):
-        # We want to clear the refined locations if a new calibration spectrum is provided
-        self._clear_cache()
-        self._input_spectrum = new_spectrum
-
-    def __str__(self):
-        return f"CalibrationLine: ({self.wavelength}, {self.pixel})"
-
-    def __repr__(self):
-        return f"CalibrationLine({self.wavelength}, {self.pixel})"
+def concatenate_catalogs():
+    """
+    ToDo: Code logic to combine the lines from multiple catalogs if needed
+    """
+    pass
 
 
 class WavelengthCalibration1D():
 
-    def __init__(self, input_spectrum, lines, model=Linear1D(), spectral_unit=u.Angstrom,
-                 fitter=None, default_refinement_method=None, default_refinement_kwargs={}):
+    def __init__(self, input_spectrum, line_list, line_wavelengths=None, catalog=None,
+                 model=Linear1D(), spectral_unit=u.Angstrom, fitter=None):
         """
         input_spectrum: `~specutils.Spectrum1D`
             A one-dimensional Spectrum1D calibration spectrum from an arc lamp or similar.
-        lines: str, list
-            List of lines to anchor the wavelength solution fit. List items are coerced to
-            CalibrationLine objects if passed as tuples of (wavelength, pixel) with
-            default_refinement_method and default_refinement_kwargs as defaults.
+        line_list: list, array, `~astropy.table.QTable`
+            List or array of line pixel locations to anchor the wavelength solution fit.
+            Will be converted to an astropy table internally if a list or array was input.
+            Can also be input as an `~astropy.table.QTable` table with (minimally) a column
+            named "pixel_center" and optionally a "wavelength" column with known line
+            wavelengths populated.
+        line_wavelengths: `~astropy.units.Quantity`, `~astropy.table.QTable`, optional
+            `astropy.units.Quantity` array of line wavelength values corresponding to the
+            line_pixels. Does not have to be in the same order (the lists will be sorted)
+            but does currently need to be the same length as line_list. Can also be input
+            as an `~astropy.table.QTable` with (minimally) a "wavelength" column.
+        catalog: list, str, optional
+            The name of a catalog of line wavelengths to load and use in automated and
+            template-matching line matching.
         model: `~astropy.modeling.Model`
             The model to fit for the wavelength solution. Defaults to a linear model.
-        default_refinement_method: str, optional
-            words
-        default_refinement_kwargs: dict, optional
-            words
         """
         self._input_spectrum = input_spectrum
         self._model = model
+        self._line_list = line_list
         self.spectral_unit = spectral_unit
-        self.default_refinement_method = default_refinement_method
-        self.default_refinement_kwargs = default_refinement_kwargs
         self._cached_properties = ['wcs',]
         self.fitter = fitter
+        self._potential_wavelengths = None
+        self._catalog = catalog
 
-        if self.default_refinement_method in ("gaussian", "min", "max"):
-            if 'range' not in self.default_refinement_kwargs:
-                # We may want to adjust this default based on real calibration spectra
-                self.default_refinement_method['range'] = 10
+        # ToDo: Implement having line catalogs
+        self._available_catalogs = get_available_catalogs()
 
-        self._lines = []
-        if isinstance(lines, str):
-            if lines in self.available_line_lists:
-                raise ValueError(f"Line list '{lines}' is not an available line list.")
-        else:
-            for line in lines:
-                if isinstance(line, CalibrationLine):
-                    self._lines.append(line)
-                else:
-                    self._lines.append(CalibrationLine(self.input_spectrum, line[0], line[1],
-                                       self.default_refinement_method,
-                                       self.default_refinement_kwargs))
+        if isinstance(line_list, (list, np.ndarray)):
+            self._line_list = QTable([line_list], names=["pixel_center"])
+
+        if self._line_list["pixel_center"].unit is None:
+            self._line_list["pixel_center"].unit = u.pix
+
+        # Make sure our pixel locations are sorted
+        self._line_list.sort("pixel_center")
+
+        if (line_wavelengths is None and catalog is None
+                and "wavelength" not in self._line_list.columns):
+            raise ValueError("You must specify at least one of line_wavelengths, "
+                             "catalog, or 'wavelength' column in line_list.")
+
+        # Sanity checks on line_wavelengths value
+        if line_wavelengths is not None:
+            if "wavelength" in line_list:
+                raise ValueError("Cannot specify line_wavelengths separately if there is"
+                                 "a 'wavelength' column in line_list.")
+            if len(line_wavelengths) != len(line_list):
+                raise ValueError("If line_wavelengths is specified, it must have the same "
+                                 "length as line_pixels")
+            if not isinstance(line_wavelengths, (u.Quantity, QTable)):
+                raise ValueError("line_wavelengths must be specified as an astropy.units.Quantity"
+                                 "array or as an astropy.table.QTable")
+            if isinstance(line_wavelengths, u.Quantity):
+                line_wavelengths.value.sort()
+                self._line_list["wavelength"] = line_wavelengths
+            elif isinstance(line_wavelengths, QTable):
+                line_wavelengths.sort("wavelength")
+                self._line_list = hstack(self._line_list, line_wavelengths)
+
+        if catalog is not None:
+            if isinstance(catalog, list):
+                self._catalog = catalog
+            else:
+                self._catalog = [catalog]
+            for cat in catalog:
+                if isinstance(cat, str):
+                    if cat not in self._available_catalogs:
+                        raise ValueError(f"Line list '{cat}' is not an available catalog.")
+
+            # Get the potential lines from any specified catalogs to use in matching
+            self._potential_wavelengths = concatenate_catalogs(self._catalog)
+
+    def identify_lines(self):
+        """
+        ToDo: Code matching algorithm between line pixel locations and potential line
+        wavelengths from catalogs.
+        """
+        pass
 
     def _clear_cache(self, *attrs):
         """
@@ -190,6 +126,10 @@ class WavelengthCalibration1D():
                 del self.__dict__[attr]
 
     @property
+    def available_catalogs(self):
+        return self._available_catalogs
+
+    @property
     def input_spectrum(self):
         return self._input_spectrum
 
@@ -197,18 +137,7 @@ class WavelengthCalibration1D():
     def input_spectrum(self, new_spectrum):
         # We want to clear the refined locations if a new calibration spectrum is provided
         self._clear_cache()
-        for line in self.lines:
-            line.input_spectrum = new_spectrum
         self._input_spectrum = new_spectrum
-
-    @property
-    def lines(self):
-        return self._lines
-
-    @lines.setter
-    def lines(self, new_lines):
-        self._clear_cache()
-        self._lines = new_lines
 
     @property
     def model(self):
@@ -219,20 +148,11 @@ class WavelengthCalibration1D():
         self._clear_cache()
         self._model = new_model
 
-    @property
-    def refined_lines(self):
-        return [line.with_refined_pixel for line in self.lines]
-
-    @property
-    def refined_pixels(self):
-        # useful for plotting over spectrum to change input lines/refinement options
-        return [(line.wavelength, line.refined_pixel) for line in self.lines]
-
     @cached_property
     def wcs(self):
         # computes and returns WCS after fitting self.model to self.refined_pixels
-        x = [line[1] for line in self.refined_pixels] * u.pix
-        y = [line[0].value for line in self.refined_pixels] * self.spectral_unit
+        x = self._line_list["pixel_center"]
+        y = self._line_list["wavelength"]
 
         if self.fitter is None:
             # Flexible defaulting if self.fitter is None
