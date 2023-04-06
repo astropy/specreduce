@@ -3,6 +3,7 @@ import pytest
 from ..calibration_data import load_pypeit_calibration_lines
 
 
+@pytest.mark.remote_data
 def test_pypeit_single():
     """
     Test to load a single linelist from ``pypeit`` by passing a string.
@@ -21,6 +22,7 @@ def test_pypeit_single():
         ]
 
 
+@pytest.mark.remote_data
 def test_pypeit_list():
     """
     Test to load and combine a set of linelists from ``pypeit`` by passing a list.
@@ -32,6 +34,7 @@ def test_pypeit_list():
         assert "NeI" in line_tab['ion']
 
 
+@pytest.mark.remote_data
 def test_pypeit_empty():
     """
     Test to make sure None is returned if an empty list is passed.
@@ -42,6 +45,7 @@ def test_pypeit_empty():
         assert 'No calibration lines' in record[0].message.args[0]
 
 
+@pytest.mark.remote_data
 def test_pypeit_input_validation():
     """
     Check that bad inputs for ``pypeit`` linelists raise the appropriate warnings and exceptions

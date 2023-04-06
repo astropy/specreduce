@@ -22,12 +22,14 @@ def test_make_2d_trace_image():
     assert isinstance(ccdim, CCDData)
 
 
+@pytest.mark.remote_data
 @pytest.mark.filterwarnings("ignore:No observer defined on WCS")
 def test_make_2d_arc_image_defaults():
     ccdim = make_2d_arc_image()
     assert isinstance(ccdim, CCDData)
 
 
+@pytest.mark.remote_data
 @pytest.mark.filterwarnings("ignore:No observer defined on WCS")
 def test_make_2d_arc_pass_wcs():
     nx = 3000
@@ -179,6 +181,7 @@ def test_make_2d_arc_pass_wcs():
         )
 
 
+@pytest.mark.remote_data
 @pytest.mark.filterwarnings("ignore:No observer defined on WCS")
 def test_make_2d_spec_image_defaults():
     ccdim = make_2d_spec_image()
