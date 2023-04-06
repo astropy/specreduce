@@ -17,6 +17,7 @@ def test_linear_from_list(spec1d):
     assert_quantity_allclose(spec2.spectral_axis[0], 4998.8*u.AA)
     assert_quantity_allclose(spec2.spectral_axis[-1], 5495.169999*u.AA)
 
+
 def test_linear_from_table(spec1d):
     centers = [0, 10, 20, 30]
     w = [5000, 5100, 5198, 5305]*u.AA
@@ -26,6 +27,7 @@ def test_linear_from_table(spec1d):
 
     assert_quantity_allclose(spec2.spectral_axis[0], 4998.8*u.AA)
     assert_quantity_allclose(spec2.spectral_axis[-1], 5495.169999*u.AA)
+
 
 def test_poly_from_table(spec1d):
     # This test is mostly to prove that you can use other models
