@@ -1,6 +1,6 @@
 import pytest
 
-from specreduce.utils.synth_data import make_2d_trace_image, make_2d_arc_image
+from specreduce.utils.synth_data import make_2d_trace_image, make_2d_arc_image, make_2d_spec_image
 from astropy.nddata import CCDData
 from astropy.modeling import models
 from astropy.wcs import WCS
@@ -56,6 +56,19 @@ def test_make_2d_arc_pass_wcs():
     assert ccdim.data.shape == (1000, 3000)
     assert isinstance(ccdim, CCDData)
 
+    # test passing a tilt model
+    tilt_model = models.Chebyshev1D(degree=2, c0=50, c1=0, c2=100)
+    ccdim = make_2d_arc_image(
+        nx=nx,
+        ny=ny,
+        extent=None,
+        wave_unit=None,
+        wcs=wcs,
+        tilt_func=tilt_model
+    )
+    assert ccdim.data.shape == (1000, 3000)
+    assert isinstance(ccdim, CCDData)
+
     # make sure WCS without spectral axis gets rejected
     wcs.wcs.ctype[0] = 'PIXEL'
     assert wcs.spectral.naxis == 0
@@ -85,10 +98,31 @@ def test_make_2d_arc_pass_wcs():
         extent=None,
         wave_unit=None,
         wave_air=True,
-        wcs=wcs
+        wcs=wcs,
+        tilt_func=tilt_model
     )
     assert ccdim.data.shape == (3000, 1000)
     assert isinstance(ccdim, CCDData)
+
+    # make sure no WCS and no extent gets rejected
+    with pytest.raises(ValueError, match='Must specify either a wavelength extent or a WCS'):
+        ccdim = make_2d_arc_image(
+            nx=nx,
+            ny=ny,
+            extent=None,
+            wave_unit=None,
+            wcs=None
+        )
+
+    # make sure if extent is provided, it has the right length
+    with pytest.raises(ValueError, match='Wavelength extent must be of length 2'):
+        ccdim = make_2d_arc_image(
+            nx=nx,
+            ny=ny,
+            extent=[1, 2, 3],
+            wave_unit=None,
+            wcs=None
+        )
 
     # make sure a 1D WCS gets rejected
     wcs = WCS(naxis=1)
@@ -143,3 +177,9 @@ def test_make_2d_arc_pass_wcs():
         ccdim = make_2d_arc_image(
             tilt_func=models.Gaussian1D
         )
+
+
+@pytest.mark.filterwarnings("ignore:No observer defined on WCS")
+def test_make_2d_spec_image_defaults():
+    ccdim = make_2d_spec_image()
+    assert isinstance(ccdim, CCDData)
