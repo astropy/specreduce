@@ -33,25 +33,25 @@ jobs:
         include:
           - os: ubuntu-latest
             python: '3.8'
-            tox_env: 'py38-test-datadeps'
+            tox_env: 'py38-test'
           - os: ubuntu-latest
             python: '3.9'
-            tox_env: 'py39-test-datadeps'
+            tox_env: 'py39-test'
           - os: ubuntu-latest
             python: '3.10'
-            tox_env: 'py310-test-datadeps-cov'
+            tox_env: 'py310-test-cov'
           - os: macos-latest
             python: '3.10'
-            tox_env: 'py310-test-datadeps-devdeps'
+            tox_env: 'py310-test-devdeps'
           - os: ubuntu-latest
-            python: '3.10'
-            tox_env: 'py310-test'
+            python: '3.11'
+            tox_env: 'py311-test'
           - os: ubuntu-latest
             python: '3.10'
             tox_env: 'codestyle'
           - os: ubuntu-latest
             python: '3.8'
-            tox_env: 'py38-test-datadeps-oldestdeps'
+            tox_env: 'py38-test-oldestdeps'
 
     steps:
     - name: Check out repository
