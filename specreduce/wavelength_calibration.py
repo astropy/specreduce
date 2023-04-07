@@ -98,7 +98,12 @@ class WavelengthCalibration1D():
                 line_wavelengths.sort("wavelength")
                 self._line_list = hstack(self._line_list, line_wavelengths)
 
+        # Parse desired catalogs of lines for matching.
         if catalog is not None:
+            # For now we avoid going into the later logic and just throw an error
+            raise NotImplementedError("No catalogs are available yet, please input "
+                                      "wavelengths with line_wavelengths or as a "
+                                      "column in line_list")
             if isinstance(catalog, list):
                 self._catalog = catalog
             else:
