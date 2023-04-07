@@ -30,7 +30,7 @@ def concatenate_catalogs():
 class WavelengthCalibration1D():
 
     def __init__(self, input_spectrum, line_list, line_wavelengths=None, catalog=None,
-                 model=Linear1D(), spectral_unit=u.Angstrom, fitter=None):
+                 model=Linear1D(), fitter=None):
         """
         input_spectrum: `~specutils.Spectrum1D`
             A one-dimensional Spectrum1D calibration spectrum from an arc lamp or similar.
@@ -50,11 +50,14 @@ class WavelengthCalibration1D():
             template-matching line matching.
         model: `~astropy.modeling.Model`
             The model to fit for the wavelength solution. Defaults to a linear model.
+        fitter: `~astropy.modeling.fitting.Fitter`, optional
+            The fitter to use in optimizing the model fit. Defaults to
+            `~astropy.modeling.fitting.LinearLSQFitter` if the model to fit is linear
+            or `~astropy.modeling.fitting.LMLSQFitter` if the model to fit is non-linear.
         """
         self._input_spectrum = input_spectrum
         self._model = model
         self._line_list = line_list
-        self.spectral_unit = spectral_unit
         self._cached_properties = ['wcs',]
         self.fitter = fitter
         self._potential_wavelengths = None
@@ -168,7 +171,8 @@ class WavelengthCalibration1D():
 
         # Build a GWCS pipeline from the fitted model
         pixel_frame = cf.CoordinateFrame(1, "SPECTRAL", [0,], axes_names=["x",], unit=[u.pix,])
-        spectral_frame = cf.SpectralFrame(axes_names=["wavelength",], unit=[self.spectral_unit,])
+        spectral_frame = cf.SpectralFrame(axes_names=["wavelength",],
+                                          unit=[self._line_list["wavelength"].unit,])
 
         pipeline = [(pixel_frame, self.model), (spectral_frame, None)]
 
