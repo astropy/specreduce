@@ -42,7 +42,7 @@ class WavelengthCalibration1D():
             wavelengths populated.
         line_wavelengths: `~astropy.units.Quantity`, `~astropy.table.QTable`, optional
             `astropy.units.Quantity` array of line wavelength values corresponding to the
-            line_pixels. Does not have to be in the same order (the lists will be sorted)
+            line pixels defined in ``line_list``. Does not have to be in the same order (the lists will be sorted)
             but does currently need to be the same length as line_list. Can also be input
             as an `~astropy.table.QTable` with (minimally) a "wavelength" column.
         catalog: list, str, optional
@@ -100,7 +100,7 @@ class WavelengthCalibration1D():
                 self._catalog = catalog
             else:
                 self._catalog = [catalog]
-            for cat in catalog:
+            for cat in self._catalog:
                 if isinstance(cat, str):
                     if cat not in self._available_catalogs:
                         raise ValueError(f"Line list '{cat}' is not an available catalog.")
@@ -186,43 +186,3 @@ class WavelengthCalibration1D():
         return updated_spectrum
 
 
-'''
-# WavelengthCalibration2D is a planned future feature
-class WavelengthCalibration2D():
-    # input_spectrum must be 2-dimensional
-
-    # lines are coerced to CalibrationLine objects if passed as tuples with
-    # default_refinement_method and default_refinement_kwargs as defaults
-    def __init__(input_spectrum, trace, lines, model=Linear1D,
-                 default_refinement_method=None, default_refinement_kwargs={}):
-        return NotImplementedError("2D wavelength calibration is not yet implemented")
-
-    @classmethod
-    def autoidentify(cls, input_spectrum, trace, line_list, model=Linear1D):
-        # does this do 2D identification, or just search a 1d spectrum exactly at the trace?
-        # or should we require using WavelengthCalibration1D.autoidentify?
-        return cls(...)
-
-    @property
-    def refined_lines(self):
-        return [[(l.wavelength, l.refine(input_spectrum.get_row(row), return_object=False))
-                 for l in self.lines] for row in rows]
-
-    @property
-    def refined_pixels(self):
-        return [[(l.wavelength, l.refine(input_spectrum.get_row(row), return_object=True))
-                 for l in self.lines] for row in rows]
-
-    @cached_property
-    def wcs(self):
-        # computes and returns WCS after fitting self.model to self.refined_pixels
-        pass
-
-    def __call__(self, apply_to_spectrum=None):
-        # returns spectrum1d with wavelength calibration applied
-        # actual line refinement and WCS solution should already be done so that this
-        # can be called on multiple science sources
-        apply_to_spectrum = self.input_spectrum if apply_to_spectrum is None else apply_to_spectrum
-        apply_to_spectrum.wcs = apply_to_spectrum  # might need a deepcopy!
-        return apply_to_spectrum
-'''
