@@ -92,7 +92,11 @@ class WavelengthCalibration1D():
                 raise ValueError("line_wavelengths must be specified as an astropy.units.Quantity"
                                  "array or as an astropy.table.QTable")
             if isinstance(line_wavelengths, u.Quantity):
-                line_wavelengths.value.sort()
+                # Ensure frequency is descending or wavelength is ascending
+                if str(line_wavelengths.unit.physical_type) == "frequency":
+                    line_wavelengths[::-1].sort()
+                else:
+                    line_wavelengths.sort()
                 self._line_list["wavelength"] = line_wavelengths
             elif isinstance(line_wavelengths, QTable):
                 line_wavelengths.sort("wavelength")
