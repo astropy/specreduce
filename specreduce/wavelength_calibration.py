@@ -42,9 +42,10 @@ class WavelengthCalibration1D():
             wavelengths populated.
         line_wavelengths: `~astropy.units.Quantity`, `~astropy.table.QTable`, optional
             `astropy.units.Quantity` array of line wavelength values corresponding to the
-            line pixels defined in ``line_list``. Does not have to be in the same order (the lists will be sorted)
-            but does currently need to be the same length as line_list. Can also be input
-            as an `~astropy.table.QTable` with (minimally) a "wavelength" column.
+            line pixels defined in ``line_list``. Does not have to be in the same order]
+            (the lists will be sorted) but does currently need to be the same length as
+            line_list. Can also be input as an `~astropy.table.QTable` with (minimally)
+            a "wavelength" column.
         catalog: list, str, optional
             The name of a catalog of line wavelengths to load and use in automated and
             template-matching line matching.
@@ -197,5 +198,3 @@ class WavelengthCalibration1D():
         updated_spectrum = Spectrum1D(spectrum.flux, wcs=self.wcs, mask=spectrum.mask,
                                       uncertainty=spectrum.uncertainty)
         return updated_spectrum
-
-
