@@ -109,14 +109,21 @@ class WavelengthCalibration1D():
             raise NotImplementedError("No catalogs are available yet, please input "
                                       "wavelengths with line_wavelengths or as a "
                                       "column in line_list")
-            if isinstance(catalog, list):
+
+            if isinstance(catalog, QTable):
+                if "wavelength" not in catalog.columns:
+                    raise ValueError("Catalog table must have a 'wavelength' column.")
                 self._catalog = catalog
             else:
-                self._catalog = [catalog]
-            for cat in self._catalog:
-                if isinstance(cat, str):
-                    if cat not in self._available_catalogs:
-                        raise ValueError(f"Line list '{cat}' is not an available catalog.")
+                # This will need to be updated to match up with Tim's catalog code
+                if isinstance(catalog, list):
+                    self._catalog = catalog
+                else:
+                    self._catalog = [catalog]
+                for cat in self._catalog:
+                    if isinstance(cat, str):
+                        if cat not in self._available_catalogs:
+                            raise ValueError(f"Line list '{cat}' is not an available catalog.")
 
             # Get the potential lines from any specified catalogs to use in matching
             self._potential_wavelengths = concatenate_catalogs(self._catalog)
