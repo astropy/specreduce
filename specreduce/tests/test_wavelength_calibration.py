@@ -73,11 +73,12 @@ def test_expected_errors(spec1d):
 
     with pytest.raises(ValueError, match="must have the same length"):
         w2 = [5005, 5110, 5214, 5330, 5438, 5500]*u.AA
-        WavelengthCalibration1D(spec1d, table, line_wavelengths=w2)
+        WavelengthCalibration1D(spec1d, centers, line_wavelengths=w2)
 
-    with pytest.raises(ValueError, match="must have the same length"):
-        w2 = [5005, 5110, 5214, 5330, 5438, 5500]*u.AA
-        WavelengthCalibration1D(spec1d, table, line_wavelengths=w2)
+    with pytest.raises(ValueError, match="astropy.units.Quantity array or"
+                                         " as an astropy.table.QTable"):
+        w2 = [5005, 5110, 5214, 5330, 5438]
+        WavelengthCalibration1D(spec1d, centers, line_wavelengths=w2)
 
     with pytest.raises(ValueError, match="specify at least one"):
         WavelengthCalibration1D(spec1d, centers)

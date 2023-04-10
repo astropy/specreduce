@@ -46,7 +46,7 @@ class WavelengthCalibration1D():
             (the lists will be sorted) but does currently need to be the same length as
             line_list. Can also be input as an `~astropy.table.QTable` with (minimally)
             a "wavelength" column.
-        catalog: list, str, optional
+        catalog: list, str, `~astropy.table.QTable`, optional
             The name of a catalog of line wavelengths to load and use in automated and
             template-matching line matching.
         model: `~astropy.modeling.Model`
@@ -83,15 +83,15 @@ class WavelengthCalibration1D():
 
         # Sanity checks on line_wavelengths value
         if line_wavelengths is not None:
-            if "wavelength" in line_list:
+            if isinstance(line_list, QTable) and "wavelength" in line_list.columns:
                 raise ValueError("Cannot specify line_wavelengths separately if there is"
-                                 "a 'wavelength' column in line_list.")
+                                " a 'wavelength' column in line_list.")
             if len(line_wavelengths) != len(line_list):
                 raise ValueError("If line_wavelengths is specified, it must have the same "
                                  "length as line_pixels")
             if not isinstance(line_wavelengths, (u.Quantity, QTable)):
                 raise ValueError("line_wavelengths must be specified as an astropy.units.Quantity"
-                                 "array or as an astropy.table.QTable")
+                                 " array or as an astropy.table.QTable")
             if isinstance(line_wavelengths, u.Quantity):
                 # Ensure frequency is descending or wavelength is ascending
                 if str(line_wavelengths.unit.physical_type) == "frequency":
@@ -101,7 +101,7 @@ class WavelengthCalibration1D():
                 self._line_list["wavelength"] = line_wavelengths
             elif isinstance(line_wavelengths, QTable):
                 line_wavelengths.sort("wavelength")
-                self._line_list = hstack(self._line_list, line_wavelengths)
+                self._line_list = hstack([self._line_list, line_wavelengths])
 
         # Parse desired catalogs of lines for matching.
         if catalog is not None:
