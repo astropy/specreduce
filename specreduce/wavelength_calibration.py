@@ -85,7 +85,7 @@ class WavelengthCalibration1D():
         if line_wavelengths is not None:
             if isinstance(line_list, QTable) and "wavelength" in line_list.columns:
                 raise ValueError("Cannot specify line_wavelengths separately if there is"
-                                " a 'wavelength' column in line_list.")
+                                 " a 'wavelength' column in line_list.")
             if len(line_wavelengths) != len(line_list):
                 raise ValueError("If line_wavelengths is specified, it must have the same "
                                  "length as line_pixels")
