@@ -29,17 +29,20 @@ def concatenate_catalogs():
 
 class WavelengthCalibration1D():
 
-    def __init__(self, input_spectrum, line_list, line_wavelengths=None, catalog=None,
-                 model=Linear1D(), fitter=None):
+    def __init__(self, input_spectrum, matched_line_list=None, line_pixels=None,
+                 line_wavelengths=None, catalog=None, model=Linear1D(), fitter=None):
         """
         input_spectrum: `~specutils.Spectrum1D`
             A one-dimensional Spectrum1D calibration spectrum from an arc lamp or similar.
-        line_list: list, array, `~astropy.table.QTable`
+        matched_line_list: `~astropy.table.QTable`, optional
+            An `~astropy.table.QTable` table with (minimally) columns named
+            "pixel_center" and "wavelength" with known corresponding line pixel centers
+            and wavelengths populated.
+        line_pixels: list, array, `~astropy.table.QTable`, optional
             List or array of line pixel locations to anchor the wavelength solution fit.
             Will be converted to an astropy table internally if a list or array was input.
             Can also be input as an `~astropy.table.QTable` table with (minimally) a column
-            named "pixel_center" and optionally a "wavelength" column with known line
-            wavelengths populated.
+            named "pixel_center".
         line_wavelengths: `~astropy.units.Quantity`, `~astropy.table.QTable`, optional
             `astropy.units.Quantity` array of line wavelength values corresponding to the
             line pixels defined in ``line_list``. Does not have to be in the same order]
@@ -55,10 +58,13 @@ class WavelengthCalibration1D():
             The fitter to use in optimizing the model fit. Defaults to
             `~astropy.modeling.fitting.LinearLSQFitter` if the model to fit is linear
             or `~astropy.modeling.fitting.LMLSQFitter` if the model to fit is non-linear.
+
+        Note that either ``matched_line_list`` or ``line_pixels`` must be specified,
+        and if ``matched_line_list`` is not input, at least one of ``line_wavelengths``
+        or ``catalog`` must be specified.
         """
         self._input_spectrum = input_spectrum
         self._model = model
-        self._line_list = line_list
         self._cached_properties = ['wcs',]
         self.fitter = fitter
         self._potential_wavelengths = None
@@ -67,28 +73,45 @@ class WavelengthCalibration1D():
         # ToDo: Implement having line catalogs
         self._available_catalogs = get_available_catalogs()
 
-        if isinstance(line_list, (list, np.ndarray)):
-            self._line_list = QTable([line_list], names=["pixel_center"])
+        # We use either line_pixels or matched_line_list to create self._matched_line_list,
+        # and check that various requirements are fulfilled by the input args.
+        if matched_line_list is not None:
+            pixel_arg = "matched_line_list"
+            if not isinstance(matched_line_list, QTable):
+                raise ValueError("matched_line_list must be an astropy.table.QTable.")
+            self._matched_line_list = matched_line_list
+        elif line_pixels is not None:
+            pixel_arg = "line_pixels"
+            if isinstance(line_pixels, (list, np.ndarray)):
+                self._matched_line_list = QTable([line_pixels], names=["pixel_center"])
+            elif isinstance(line_pixels, QTable):
+                self._matched_line_list = line_pixels
+        else:
+            raise ValueError("Either matched_line_list or line_pixels must be specified.")
 
-        if self._line_list["pixel_center"].unit is None:
-            self._line_list["pixel_center"].unit = u.pix
+        if "pixel_center" not in self._matched_line_list.columns:
+            raise ValueError(f"{pixel_arg} must have a 'pixel_center' column.")
+
+        if self._matched_line_list["pixel_center"].unit is None:
+            self._matched_line_list["pixel_center"].unit = u.pix
 
         # Make sure our pixel locations are sorted
-        self._line_list.sort("pixel_center")
+        self._matched_line_list.sort("pixel_center")
 
         if (line_wavelengths is None and catalog is None
-                and "wavelength" not in self._line_list.columns):
+                and "wavelength" not in self._matched_line_list.columns):
             raise ValueError("You must specify at least one of line_wavelengths, "
-                             "catalog, or 'wavelength' column in line_list.")
+                             "catalog, or 'wavelength' column in matched_line_list.")
 
         # Sanity checks on line_wavelengths value
         if line_wavelengths is not None:
-            if isinstance(line_list, QTable) and "wavelength" in line_list.columns:
+            if (isinstance(self._matched_line_list, QTable) and
+                    "wavelength" in self._matched_line_list.columns):
                 raise ValueError("Cannot specify line_wavelengths separately if there is"
-                                 " a 'wavelength' column in line_list.")
-            if len(line_wavelengths) != len(line_list):
+                                 " a 'wavelength' column in matched_line_list.")
+            if len(line_wavelengths) != len(self._matched_line_list):
                 raise ValueError("If line_wavelengths is specified, it must have the same "
-                                 "length as line_pixels")
+                                 f"length as {pixel_arg}")
             if not isinstance(line_wavelengths, (u.Quantity, QTable)):
                 raise ValueError("line_wavelengths must be specified as an astropy.units.Quantity"
                                  " array or as an astropy.table.QTable")
@@ -98,17 +121,17 @@ class WavelengthCalibration1D():
                     line_wavelengths[::-1].sort()
                 else:
                     line_wavelengths.sort()
-                self._line_list["wavelength"] = line_wavelengths
+                self._matched_line_list["wavelength"] = line_wavelengths
             elif isinstance(line_wavelengths, QTable):
                 line_wavelengths.sort("wavelength")
-                self._line_list = hstack([self._line_list, line_wavelengths])
+                self._matched_line_list = hstack([self._matched_line_list, line_wavelengths])
 
         # Parse desired catalogs of lines for matching.
         if catalog is not None:
             # For now we avoid going into the later logic and just throw an error
             raise NotImplementedError("No catalogs are available yet, please input "
                                       "wavelengths with line_wavelengths or as a "
-                                      "column in line_list")
+                                      f"column in {pixel_arg}")
 
             if isinstance(catalog, QTable):
                 if "wavelength" not in catalog.columns:
@@ -171,8 +194,8 @@ class WavelengthCalibration1D():
     @cached_property
     def wcs(self):
         # computes and returns WCS after fitting self.model to self.refined_pixels
-        x = self._line_list["pixel_center"]
-        y = self._line_list["wavelength"]
+        x = self._matched_line_list["pixel_center"]
+        y = self._matched_line_list["wavelength"]
 
         if self.fitter is None:
             # Flexible defaulting if self.fitter is None
@@ -189,7 +212,7 @@ class WavelengthCalibration1D():
         # Build a GWCS pipeline from the fitted model
         pixel_frame = cf.CoordinateFrame(1, "SPECTRAL", [0,], axes_names=["x",], unit=[u.pix,])
         spectral_frame = cf.SpectralFrame(axes_names=["wavelength",],
-                                          unit=[self._line_list["wavelength"].unit,])
+                                          unit=[self._matched_line_list["wavelength"].unit,])
 
         pipeline = [(pixel_frame, self.model), (spectral_frame, None)]
 
