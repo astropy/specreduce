@@ -12,6 +12,7 @@ from ..calibration_data import (
 )
 
 
+@pytest.mark.remote_data
 def test_supported_models():
     """
     Test loading of supported models
@@ -22,6 +23,7 @@ def test_supported_models():
         assert len(ext.transmission) > 0
 
 
+@pytest.mark.remote_data
 def test_custom_mag_model():
     """
     Test creation of custom model from Quantity arrays
@@ -33,6 +35,7 @@ def test_custom_mag_model():
     assert len(ext.transmission) > 0
 
 
+@pytest.mark.remote_data
 def test_custom_raw_mag_model():
     """
     Test creation of custom model from Quantity arrays
@@ -44,6 +47,7 @@ def test_custom_raw_mag_model():
     assert len(ext.transmission) > 0
 
 
+@pytest.mark.remote_data
 def test_custom_linear_model():
     """
     Test creation of custom model from Quantity arrays
@@ -55,6 +59,7 @@ def test_custom_linear_model():
     assert len(ext.transmission) > 0
 
 
+@pytest.mark.remote_data
 def test_missing_extinction_unit():
     """
     Test creation of custom model from Quantity arrays
@@ -68,6 +73,7 @@ def test_missing_extinction_unit():
     assert len(ext.transmission) > 0
 
 
+@pytest.mark.remote_data
 def test_transmission_model():
     """
     Test creating of default atmospheric transmission model

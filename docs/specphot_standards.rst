@@ -153,7 +153,7 @@ spectra available from MAST, ESO, and the Nearby Supernova factory:
     import matplotlib.pyplot as plt
     from specreduce.calibration_data import load_MAST_calspec, load_onedstds
 
-    s1 = load_MAST_calspec("ltt9491_002.fits", remote=True)
+    s1 = load_MAST_calspec("ltt9491_002.fits")
     s2 = load_onedstds("snfactory", "LTT9491.dat")
     s3 = load_onedstds("eso", "ctiostan/ltt9491.dat")
 

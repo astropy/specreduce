@@ -70,7 +70,7 @@ as fractional transmission as a function of wavelength:
         ax[0].plot(ext.spectral_axis, ext.extinction_mag, label=model)
         ax[1].plot(ext.spectral_axis, ext.transmission)
     ax[0].legend(fancybox=True, shadow=True)
-    ax[1].set_xlabel("Wavelength ($\AA$)")
+    ax[1].set_xlabel("Wavelength (Angstroms)")
     ax[0].set_ylabel("Extinction (mag)")
     ax[1].set_ylabel("Transmission")
     plt.tight_layout()
