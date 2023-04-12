@@ -9,22 +9,9 @@ import numpy as np
 from specutils import Spectrum1D
 
 
-__all__ = ['WavelengthCalibration1D']
-
-
-def get_available_catalogs():
-    """
-    ToDo: Decide in what format to store calibration line catalogs (e.g., for lamps)
-          and write this function to determine the list of available catalog names.
-    """
-    return []
-
-
-def concatenate_catalogs():
-    """
-    ToDo: Code logic to combine the lines from multiple catalogs if needed
-    """
-    pass
+__all__ = [
+    'WavelengthCalibration1D'
+]
 
 
 class WavelengthCalibration1D():
@@ -69,9 +56,6 @@ class WavelengthCalibration1D():
         self.fitter = fitter
         self._potential_wavelengths = None
         self._catalog = catalog
-
-        # ToDo: Implement having line catalogs
-        self._available_catalogs = get_available_catalogs()
 
         # We use either line_pixels or matched_line_list to create self._matched_line_list,
         # and check that various requirements are fulfilled by the input args.

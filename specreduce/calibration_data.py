@@ -90,6 +90,15 @@ PYPEIT_CALIBRATION_LINELISTS = [
 ]
 
 
+def get_available_line_catalogs():
+    """
+    Returns a dictionary of available line catalogs. Currently only ``pypeit`` is fully supported.
+    """
+    return {
+        'pypeit': PYPEIT_CALIBRATION_LINELISTS
+    }
+
+
 def get_reference_file_path(
         path=None,
         cache=True,
