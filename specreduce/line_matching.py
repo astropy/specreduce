@@ -12,7 +12,13 @@ class LineMatch:
     tolerance in pixels to create matched lists of lines and their pixel/wavelegnth
     positions.
     """
-    pass
+    def __init__(self, catalog_wavelengths, spectral_wcs, tolerance=5.0):
+        self.catalog_wavelengths = catalog_wavelengths
+        self.wcs = spectral_wcs
+        self.tolerance = tolerance
+
+    def __call__(self, pixel_positions):
+        catalog_pixels = self.wcs.spectral.world_to_pixel(self.catalog_wavelengths)
 
 
 class AutomaticLineMatch(LineMatch):
