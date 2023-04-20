@@ -197,3 +197,13 @@ def test_horne_non_flat_trace():
 
     # ensure both extractions are equivalent:
     assert_quantity_allclose(extract_non_flat.flux, extract_flat.flux)
+
+
+def test_horne_no_bkgrnd():
+    # Test HorneExtract when using bkgrd_prof=None
+
+    trace = FlatTrace(image, 3.0)
+    extract = HorneExtract(image.data, trace, bkgrd_prof=None,
+                           variance=np.ones(image.data.shape))
+    # This is just testing that it runs with no errors and returns something
+    assert len(extract.spectrum.flux) == 10

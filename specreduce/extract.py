@@ -267,7 +267,7 @@ class HorneExtract(SpecreduceOperation):
     crossdisp_axis : int, optional
         The index of the image's cross-dispersion axis. [default: 0]
 
-    bkgrd_prof : `~astropy.modeling.Model`, optional
+    bkgrd_prof : `~astropy.modeling.Model` or None, optional
         A model for the image's background flux.
         [default: models.Polynomial1D(2)]
 
@@ -528,7 +528,11 @@ class HorneExtract(SpecreduceOperation):
 
         # Fit extraction kernel to column's finite values with combined model
         # (must exclude masked indices manually; LevMarLSQFitter does not)
-        ext_prof = gauss_prof + bkgrd_prof
+        if bkgrd_prof is not None:
+            ext_prof = gauss_prof + bkgrd_prof
+        else:
+            # add a trivial constant model so attribute names are the same
+            ext_prof = gauss_prof + models.Const1D(0, fixed={'amplitude': True})
         fitter = fitting.LevMarLSQFitter()
         fit_ext_kernel = fitter(ext_prof,
                                 xd_pixels[~row_mask], coadd[~row_mask])
@@ -559,6 +563,7 @@ class HorneExtract(SpecreduceOperation):
 
             # save result and normalization
             kernel_vals.append(fitted_col)
+
             norms.append(fit_ext_kernel.amplitude_0
                          * fit_ext_kernel.stddev_0 * np.sqrt(2*np.pi))
 
