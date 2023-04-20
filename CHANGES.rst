@@ -4,6 +4,13 @@
 New Features
 ^^^^^^^^^^^^
 
+- Added 'interpolated_profile' option for HorneExtract. If The ``interpolated_profile`` option
+is used, the image will be sampled in various wavelength bins (set by
+``n_bins_interpolated_profile``), averaged in those bins, and samples are then
+interpolated between (linear by default, interpolation degree can be set with
+the ``interp_degree_interpolated_profile`` parameter) to generate a continuously varying
+spatial profile that can be evaluated at any wavelength.[ #173]
+
 API Changes
 ^^^^^^^^^^^
 

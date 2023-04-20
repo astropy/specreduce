@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 import astropy.units as u
+from astropy.modeling import models
 from astropy.nddata import CCDData, VarianceUncertainty, UnknownUncertainty
 from astropy.tests.helper import assert_quantity_allclose
 
@@ -14,17 +15,49 @@ from specreduce.tracing import FlatTrace, ArrayTrace
 # Test image is comprised of 30 rows with 10 columns each. Row content
 # is row index itself. This makes it easy to predict what should be the
 # value extracted from a region centered at any arbitrary Y position.
-image = np.ones(shape=(30, 10))
-for j in range(image.shape[0]):
-    image[j, ::] *= j
-image = CCDData(image, unit=u.Jy)
 
 
-def test_boxcar_extraction():
+@pytest.fixture
+def mk_test_img(nrows=30, ncols=10):
+    image = np.ones(shape=(nrows, ncols))
+    for j in range(image.shape[0]):
+        image[j, ::] *= j
+    image = CCDData(image, unit=u.Jy)
+    return image
+
+
+def add_gaussian_source(image, amps=2, stddevs=2, means=None):
+
+    """ Modify `image.data` to add a horizontal spectrum across the image.
+        Each column can have a different amplitude, stddev or mean position
+        if these are arrays (otherwise, constant across image)."""
+
+    nrows, ncols = image.shape
+
+    if means is None:
+        means = nrows // 2
+
+    if not isinstance(means, np.ndarray):
+        means = np.ones(ncols) * means
+    if not isinstance(amps, np.ndarray):
+        amps = np.ones(ncols) * amps
+    if not isinstance(stddevs, np.ndarray):
+        stddevs = np.ones(ncols) * stddevs
+
+    for i, col in enumerate(range(ncols)):
+        mod = models.Gaussian1D(amplitude=amps[i], mean=means[i],
+                                stddev=stddevs[i])
+        image.data[:, i] = mod(np.arange(nrows))
+
+
+def test_boxcar_extraction(mk_test_img):
     #
     # Try combinations of extraction center, and even/odd
     # extraction aperture sizes.
     #
+
+    image = mk_test_img
+
     trace = FlatTrace(image, 15.0)
     boxcar = BoxcarExtract(image, trace)
 
@@ -62,10 +95,12 @@ def test_boxcar_extraction():
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.15))
 
 
-def test_boxcar_outside_image_condition():
+def test_boxcar_outside_image_condition(mk_test_img):
     #
     # Trace is such that extraction aperture lays partially outside the image
     #
+    image = mk_test_img
+
     trace = FlatTrace(image, 3.0)
     boxcar = BoxcarExtract(image, trace)
 
@@ -73,7 +108,9 @@ def test_boxcar_outside_image_condition():
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 32.0))
 
 
-def test_boxcar_array_trace():
+def test_boxcar_array_trace(mk_test_img):
+    image = mk_test_img
+
     trace_array = np.ones_like(image[1]) * 15.
     trace = ArrayTrace(image, trace_array)
 
@@ -82,11 +119,13 @@ def test_boxcar_array_trace():
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
 
 
-def test_horne_image_validation():
+def test_horne_image_validation(mk_test_img):
     #
     # Test HorneExtract scenarios specific to its use with an image of
     # type `~numpy.ndarray` (instead of the default `~astropy.nddata.NDData`).
     #
+    image = mk_test_img
+
     trace = FlatTrace(image, 15.0)
     extract = OptimalExtract(image.data, trace)  # equivalent to HorneExtract
 
@@ -129,7 +168,9 @@ def test_horne_image_validation():
 
 # ignore Astropy warning for extractions that aren't best fit with a Gaussian:
 @pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
-def test_horne_variance_errors():
+def test_horne_variance_errors(mk_test_img):
+    image = mk_test_img
+
     trace = FlatTrace(image, 3.0)
 
     # all zeros are treated as non-weighted (i.e., as non-zero fluxes)
@@ -159,6 +200,7 @@ def test_horne_variance_errors():
 @pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
 def test_horne_non_flat_trace():
     # create a synthetic "2D spectrum" and its non-flat trace
+
     n_rows, n_cols = (10, 50)
     original = np.zeros((n_rows, n_cols))
     original[n_rows // 2] = 1
@@ -199,11 +241,102 @@ def test_horne_non_flat_trace():
     assert_quantity_allclose(extract_non_flat.flux, extract_flat.flux)
 
 
-def test_horne_no_bkgrnd():
+def test_horne_no_bkgrnd(mk_test_img):
     # Test HorneExtract when using bkgrd_prof=None
+
+    image = mk_test_img
 
     trace = FlatTrace(image, 3.0)
     extract = HorneExtract(image.data, trace, bkgrd_prof=None,
                            variance=np.ones(image.data.shape))
+
     # This is just testing that it runs with no errors and returns something
     assert len(extract.spectrum.flux) == 10
+
+
+def test_horne_interpolated_profile(mk_test_img):
+    # basic test for HorneExtract using the spatial_profile == `interpolated_profile`
+    # option add a perfectly gaussian source and make sure gaussian extraction
+    # and self-profile extraction agree (since self=gaussian in this case)
+
+    image = mk_test_img
+    add_gaussian_source(image)  # add source across image, flat trace
+
+    trace = FlatTrace(image, image.shape[0] // 2)
+
+    # horne extraction using spatial_profile=='Gaussian'
+    horne_extract_gauss = HorneExtract(image.data, trace,
+                                       spatial_profile='gaussian',
+                                       bkgrd_prof=None,
+                                       variance=np.ones(image.data.shape))
+
+    # horne extraction with spatial_profile=='interpolated_profile'
+    horne_extract_self = HorneExtract(image.data, trace,
+                                      spatial_profile={'name': 'interpolated_profile',
+                                                       'n_bins_interpolated_profile': 3},
+                                      bkgrd_prof=None,
+                                      variance=np.ones(image.data.shape))
+
+    assert_quantity_allclose(horne_extract_gauss.spectrum.flux,
+                             horne_extract_self.spectrum.flux)
+
+
+def test_horne_interpolated_profile_norm(mk_test_img):
+    # ensure that when using spatial_profile == `interpolated_profile`, the fit profile
+    # represents the shape as a funciton of wavelength, and correctly accounts
+    # for variations in trace position and flux.
+
+    image = mk_test_img
+    nrows, ncols = image.shape
+
+    # create sawtooth pattern trace. right now, the _align_along_trace function
+    # will rectify the trace to the integer-pixel level, so in this test
+    # case the specturm will be totally straightened out.
+    trace_shape = np.ones(ncols) * nrows // 2
+    trace_shape[::2] += 4
+    trace = ArrayTrace(image, trace_shape)
+
+    # add gaussian source to image with increasing amplitude and that follows
+    # along the trace. looks like a sawtooth pattern of increasing brightness
+    add_gaussian_source(image, amps=np.linspace(1, 5, image.shape[1]),
+                        means=trace_shape)
+
+    # horne extraction with spatial_profile=='interpolated_profile'
+    # also tests that non-default parameters in the input dictionary format work
+    ex = HorneExtract(image.data, trace,
+                      spatial_profile={'name': 'interpolated_profile',
+                                       'n_bins_interpolated_profile': 3,
+                                       'interp_degree_interpolated_profile': (1, 1)},
+                      bkgrd_prof=None,
+                      variance=np.ones(image.data.shape))
+
+    # need to run produce extract.spectrum to access _interp_spatial_prof
+    ex.spectrum
+
+    # evaulate interpolated profile on entire grid
+    interp_prof = ex._interp_spatial_prof(np.arange(ncols),
+                                          np.arange(nrows)).T
+
+    # the shifting position and amplitude should be accounted for, so the fit
+    # spatial profile should just represent the shape as a function of
+    # wavelength in this case, that is a gaussian with the area normalized at
+    # each wavelength and a constant mean position
+
+    # make sure that the fit spatial prof is normalized correctly
+    assert_quantity_allclose(np.sum(interp_prof, axis=0), 1.0)
+
+    # and that shifts in trace position are accounted for (to integer level)
+    assert (np.all(np.argmax(interp_prof, axis=0) == nrows // 2))
+
+
+def test_horne_interpolated_nbins_fails(mk_test_img):
+    # make sure that HorneProfile spatial_profile='interpolated_profile' correctly
+    # fails when the number of samples is greater than the size of the image
+    image = mk_test_img
+    trace = FlatTrace(image, 5)
+
+    with pytest.raises(ValueError):
+        ex = HorneExtract(image.data, trace,
+                          spatial_profile={'name': 'interpolated_profile',
+                                           'n_bins_interpolated_profile': 100})
+        ex.spectrum
