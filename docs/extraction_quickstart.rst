@@ -27,7 +27,8 @@ of the available trace classes)::
 
 .. note::
   The fit for `~specreduce.tracing.FitTrace` may be adversely affected by noise where the spectrum
-  is faint. In these areas we recommend using a narrow cross-dispersion window to improve the fit.
+  is faint. Narrowing the window parameter or lowering the order of the fitting function may
+  improve the result for noisy data.
 
 
 Background
