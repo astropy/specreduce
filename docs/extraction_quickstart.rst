@@ -25,6 +25,11 @@ of the available trace classes)::
 
   trace = specreduce.tracing.FlatTrace(image, 15)
 
+.. note::
+  The fit for `~specreduce.tracing.FitTrace` may be adversely affected by noise where the spectrum
+  is faint. Narrowing the window parameter or lowering the order of the fitting function may
+  improve the result for noisy data.
+
 
 Background
 ----------
