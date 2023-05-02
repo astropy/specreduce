@@ -18,6 +18,8 @@ BoxcarExtract's extracted 1D spectrum. [#159]
 - Backgrounds using median statistic properly ignore zero-weighted pixels
 [#159]
 
+- HorneExtract now accepts 'None' as a vaild option for bkgrd_prof [#171]
+
 
 1.3.0 (2022-12-05)
 ------------------
