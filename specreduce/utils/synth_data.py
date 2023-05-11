@@ -14,7 +14,8 @@ from specreduce.calibration_data import load_pypeit_calibration_lines
 
 __all__ = [
     'make_2d_trace_image',
-    'make_2d_arc_image'
+    'make_2d_arc_image',
+    'make_2d_spec_image'
 ]
 
 
