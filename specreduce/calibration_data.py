@@ -300,19 +300,19 @@ def load_pypeit_calibration_lines(lamps=None, wave_air=False, cache=True, show_p
 
 def load_MAST_calspec(filename, cache=True, show_progress=False):
     """
-    Load a standard star spectrum from the ``calspec`` database at MAST. These spectra are provided in
-    FITS format and are described in detail at:
+    Load a standard star spectrum from the ``calspec`` database at MAST. These spectra are provided
+    in FITS format and are described in detail at:
 
-    https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec  # noqa
+    https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec
 
-    If ``remote`` is True, the spectrum will be downloaded from MAST. Set ``remote`` to False to load
-    a local file.
+    If ``remote`` is True, the spectrum will be downloaded from MAST. Set ``remote`` to False to
+    load a local file.
 
     Parameters
     ----------
     filename : str
-        FITS filename of a standard star spectrum, e.g. g191b2b_005.fits. If this is a local file, it will be loaded.
-        If not, then a download from MAST will be attempted.
+        FITS filename of a standard star spectrum, e.g. g191b2b_005.fits. If this is a local file,
+        it will be loaded. If not, then a download from MAST will be attempted.
     cache : bool (default = True)
         Toggle whether downloaded data is cached or not.
     show_progress : bool (default = True)
