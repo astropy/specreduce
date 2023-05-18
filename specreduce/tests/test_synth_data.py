@@ -15,8 +15,7 @@ def test_make_2d_trace_image():
         trace_center=None,
         trace_order=3,
         trace_coeffs={'c0': 0, 'c1': 50, 'c2': 100},
-        source_amplitude=10,
-        source_alpha=0.1
+        profile=models.Gaussian1D(amplitude=100, stddev=10)
     )
     assert ccdim.data.shape == (1000, 3000)
     assert isinstance(ccdim, CCDData)

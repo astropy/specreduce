@@ -26,8 +26,7 @@ def make_2d_trace_image(
     trace_center=None,
     trace_order=3,
     trace_coeffs={'c0': 0, 'c1': 50, 'c2': 100},
-    source_amplitude=10,
-    source_alpha=0.1,
+    profile=models.Moffat1D(amplitude=10, alpha=0.1),
     add_noise=True
 ):
     """
@@ -49,13 +48,11 @@ def make_2d_trace_image(
         Order of the Chebyshev polynomial used to model the source's trace
     trace_coeffs : dict (default={'c0': 0, 'c1': 50, 'c2': 100})
         Dict containing the Chebyshev polynomial coefficients to use in the trace model
-    source_amplitude : int (default=10)
-        Amplitude of modeled source in counts
-    source_alpha : float (default=0.1)
-        Power index of the source's Moffat profile. Use small number here to emulate
-        extended source.
+    profile : `~astropy.modeling.Model` (default=`~astropy.modeling.models.Moffat1D`)
+        Model to use for the source's spatial profile
     add_noise : bool (default=True)
         If True, add Poisson noise to the image
+
     Returns
     -------
     ccd_im : `~astropy.nddata.CCDData`
@@ -64,10 +61,6 @@ def make_2d_trace_image(
     x = np.arange(nx)
     y = np.arange(ny)
     xx, yy = np.meshgrid(x, y)
-
-    profile = models.Moffat1D()
-    profile.amplitude = source_amplitude
-    profile.alpha = source_alpha
 
     if trace_center is None:
         trace_center = ny / 2
@@ -340,8 +333,7 @@ def make_2d_spec_image(
     trace_center=None,
     trace_order=3,
     trace_coeffs={'c0': 0, 'c1': 50, 'c2': 100},
-    source_amplitude=10,
-    source_alpha=0.1,
+    source_profile=models.Moffat1D(amplitude=10, alpha=0.1),
     add_noise=True
 ):
     """
@@ -382,11 +374,8 @@ def make_2d_spec_image(
         Order of the Chebyshev polynomial used to model the source's trace
     trace_coeffs : dict (default={'c0': 0, 'c1': 50, 'c2': 100})
         Dict containing the Chebyshev polynomial coefficients to use in the trace model
-    source_amplitude : int (default=10)
-        Amplitude of modeled source in counts
-    source_alpha : float (default=0.1)
-        Power index of the source's Moffat profile. Use small number here to emulate
-        extended source.
+    source_profile : `~astropy.modeling.Model` (default=`~astropy.modeling.models.Moffat1D`)
+        Model to use for the source's spatial profile
     add_noise : bool (default=True)
         If True, add Poisson noise to the image
     """
@@ -412,8 +401,7 @@ def make_2d_spec_image(
         trace_center=trace_center,
         trace_order=trace_order,
         trace_coeffs=trace_coeffs,
-        source_amplitude=source_amplitude,
-        source_alpha=source_alpha,
+        profile=source_profile,
         add_noise=False
     )
 
