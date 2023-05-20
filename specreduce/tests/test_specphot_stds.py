@@ -1,6 +1,6 @@
 import pytest
 
-from ..calibration_data import (
+from specreduce.calibration_data import (
     load_MAST_calspec,
     load_onedstds
 )

@@ -5,7 +5,7 @@ import numpy as np
 import astropy.units as u
 from astropy.utils.exceptions import AstropyUserWarning
 
-from ..calibration_data import (
+from specreduce.calibration_data import (
     AtmosphericExtinction,
     AtmosphericTransmission,
     SUPPORTED_EXTINCTION_MODELS
