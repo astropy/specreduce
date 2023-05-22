@@ -1,4 +1,5 @@
 from numpy.testing import assert_allclose
+import numpy as np
 import pytest
 
 from astropy.table import QTable
@@ -83,3 +84,30 @@ def test_expected_errors(spec1d):
 
     with pytest.raises(ValueError, match="specify at least one"):
         WavelengthCalibration1D(spec1d, line_pixels=centers)
+
+
+def test_fit_residuals(spec1d):
+    # test that fit residuals are all 0 when input is perfectly linear and model
+    # is a linear model
+
+    centers = np.array([0, 10, 20, 30])
+    w = (0.5 * centers + 2) * u.AA
+    test = WavelengthCalibration1D(spec1d, line_pixels=centers,
+                                   line_wavelengths=w)
+
+    test.apply_to_spectrum(spec1d)  # have to apply for residuals to be computed
+
+    assert_quantity_allclose(test.fit_residuals, 0.*u.AA, atol=1e-07*u.AA)
+
+
+def test_fit_residuals_access(spec1d):
+    # make sure that accessing fit_residuals fails if .wcs hasn't been accessed
+    # yet, which is the property that performs the fit. ``apply_to_spectrum``
+    # also accesses .wcs, so if this is run fit_residuals will be available as well
+
+    centers = np.array([0, 10, 20, 30])
+    w = (0.5 * centers + 2) * u.AA
+    test = WavelengthCalibration1D(spec1d, line_pixels=centers,
+                                   line_wavelengths=w)
+    with pytest.raises(ValueError):
+        test.fit_residuals

@@ -65,10 +65,11 @@ class WavelengthCalibration1D():
         """
         self._input_spectrum = input_spectrum
         self._model = model
-        self._cached_properties = ['wcs',]
+        self._cached_properties = ['wcs', 'fit_residuals',]
         self.fitter = fitter
         self._potential_wavelengths = None
         self._catalog = catalog
+        self._fit_resids = None
 
         # ToDo: Implement having line catalogs
         self._available_catalogs = get_available_catalogs()
@@ -192,6 +193,28 @@ class WavelengthCalibration1D():
         self._model = new_model
 
     @cached_property
+    def fit_residuals(self):
+        # calculate fit residuals between matched line list pixel centers and
+        # wavelengths and the evaluated fit model. this is only accessible
+        # after the ``wcs`` attribute is accessed, where the fit is actually
+        # performed. ``apply_to_spectrum`` also calls .wcs and therefore
+        # performs the fit, so this is also acessible if that is called.
+
+        x = self._matched_line_list["pixel_center"]
+        y = self._matched_line_list["wavelength"]
+
+        if self._fit_resids is None:
+            raise ValueError('Fit residuals are only available after the new'
+                             'WCS is fit - this can be done by accessing the'
+                             '``.wcs`` attribute, or by calling the'
+                             ' ``.apply_to_spectrum`` method.')
+
+        # Get the fit residuals by evaulating model
+        self._fit_resids = y - self._model(x)
+
+        return self._fit_resids
+
+    @cached_property
     def wcs(self):
         # computes and returns WCS after fitting self.model to self.refined_pixels
         x = self._matched_line_list["pixel_center"]
@@ -217,6 +240,10 @@ class WavelengthCalibration1D():
         pipeline = [(pixel_frame, self.model), (spectral_frame, None)]
 
         wcsobj = wcs.WCS(pipeline)
+
+        # set _fit_resids to False instead of None, to indicate that the attribute
+        # is accessible and to calculate it within ``fit_residuals`` when accessed
+        self._fit_resids = False
 
         return wcsobj
 

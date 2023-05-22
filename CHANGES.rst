@@ -14,6 +14,8 @@ spatial profile that can be evaluated at any wavelength.[ #173]
 API Changes
 ^^^^^^^^^^^
 
+- Fit residuals exposed for wavelength calibration in WavelengthCalibration1D.fit_residuals. [#446]
+
 Bug Fixes
 ^^^^^^^^^
 
