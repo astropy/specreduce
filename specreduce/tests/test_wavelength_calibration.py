@@ -46,10 +46,10 @@ def test_poly_from_table(spec1d):
     table = QTable([centers, w], names=["pixel_center", "wavelength"])
 
     test = WavelengthCalibration1D(spec1d, matched_line_list=table,
-                                   model=Polynomial1D(2), fitter=LinearLSQFitter())
+                                   input_model=Polynomial1D(2), fitter=LinearLSQFitter())
     test.apply_to_spectrum(spec1d)
 
-    assert_allclose(test.model.parameters, [5.00477143e+03, 1.03457143e+01, 1.28571429e-02])
+    assert_allclose(test.fitted_model.parameters, [5.00477143e+03, 1.03457143e+01, 1.28571429e-02])
 
 
 def test_replace_spectrum(spec1d, spec1d_with_emission_line):
@@ -97,15 +97,15 @@ def test_fit_residuals(spec1d):
 
     test.apply_to_spectrum(spec1d)  # have to apply for residuals to be computed
 
-    assert_quantity_allclose(test.fit_residuals, 0.*u.AA, atol=1e-07*u.AA)
+    assert_quantity_allclose(test.residuals, 0.*u.AA, atol=1e-07*u.AA)
 
 
 def test_fit_residuals_access(spec1d):
-    # make sure that accessing fit_residuals can be called before wcs/apply_to_spectrum
+    # make sure that accessing residuals can be called before wcs/apply_to_spectrum
 
     centers = np.array([0, 10, 20, 30])
     w = (0.5 * centers + 2) * u.AA
     test = WavelengthCalibration1D(spec1d, line_pixels=centers,
                                    line_wavelengths=w)
-    test.fit_residuals
+    test.residuals
     test.wcs

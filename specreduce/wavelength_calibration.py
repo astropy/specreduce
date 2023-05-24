@@ -30,7 +30,7 @@ def concatenate_catalogs():
 class WavelengthCalibration1D():
 
     def __init__(self, input_spectrum, matched_line_list=None, line_pixels=None,
-                 line_wavelengths=None, catalog=None, model=Linear1D(), fitter=None):
+                 line_wavelengths=None, catalog=None, input_model=Linear1D(), fitter=None):
         """
         input_spectrum: `~specutils.Spectrum1D`
             A one-dimensional Spectrum1D calibration spectrum from an arc lamp or similar.
@@ -52,7 +52,7 @@ class WavelengthCalibration1D():
         catalog: list, str, `~astropy.table.QTable`, optional
             The name of a catalog of line wavelengths to load and use in automated and
             template-matching line matching.
-        model: `~astropy.modeling.Model`
+        input_model: `~astropy.modeling.Model`
             The model to fit for the wavelength solution. Defaults to a linear model.
         fitter: `~astropy.modeling.fitting.Fitter`, optional
             The fitter to use in optimizing the model fit. Defaults to
@@ -64,8 +64,8 @@ class WavelengthCalibration1D():
         or ``catalog`` must be specified.
         """
         self._input_spectrum = input_spectrum
-        self._model = model
-        self._cached_properties = ['fit_model', 'fit_residuals', 'wcs']
+        self._input_model = input_model
+        self._cached_properties = ['fitted_model', 'residuals', 'wcs']
         self.fitter = fitter
         self._potential_wavelengths = None
         self._catalog = catalog
@@ -183,23 +183,23 @@ class WavelengthCalibration1D():
         self._input_spectrum = new_spectrum
 
     @property
-    def model(self):
-        return self._model
+    def input_model(self):
+        return self._input_model
 
-    @model.setter
-    def model(self, new_model):
+    @input_model.setter
+    def input_model(self, input_model):
         self._clear_cache()
-        self._model = new_model
+        self._input_model = input_model
 
     @cached_property
-    def fit_model(self):
+    def fitted_model(self):
         # computes and returns WCS after fitting self.model to self.refined_pixels
         x = self._matched_line_list["pixel_center"]
         y = self._matched_line_list["wavelength"]
 
         if self.fitter is None:
             # Flexible defaulting if self.fitter is None
-            if self.model.linear:
+            if self.input_model.linear:
                 fitter = LinearLSQFitter(calc_uncertainties=True)
             else:
                 fitter = LMLSQFitter(calc_uncertainties=True)
@@ -207,10 +207,10 @@ class WavelengthCalibration1D():
             fitter = self.fitter
 
         # Fit the model
-        return fitter(self.model, x, y)
+        return fitter(self.input_model, x, y)
 
     @cached_property
-    def fit_residuals(self):
+    def residuals(self):
         """
         calculate fit residuals between matched line list pixel centers and
         wavelengths and the evaluated fit model. this is only accessible
@@ -223,7 +223,7 @@ class WavelengthCalibration1D():
         y = self._matched_line_list["wavelength"]
 
         # Get the fit residuals by evaulating model
-        return y - self.fit_model(x)
+        return y - self.fitted_model(x)
 
     @cached_property
     def wcs(self):
@@ -232,7 +232,7 @@ class WavelengthCalibration1D():
         spectral_frame = cf.SpectralFrame(axes_names=["wavelength",],
                                           unit=[self._matched_line_list["wavelength"].unit,])
 
-        pipeline = [(pixel_frame, self.fit_model), (spectral_frame, None)]
+        pipeline = [(pixel_frame, self.fitted_model), (spectral_frame, None)]
 
         wcsobj = wcs.WCS(pipeline)
 
