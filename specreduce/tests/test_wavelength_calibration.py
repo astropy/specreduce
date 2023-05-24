@@ -101,16 +101,11 @@ def test_fit_residuals(spec1d):
 
 
 def test_fit_residuals_access(spec1d):
-    # make sure that accessing fit_residuals fails if .wcs hasn't been accessed
-    # yet, which is the property that performs the fit. ``apply_to_spectrum``
-    # also accesses .wcs, so if this is run fit_residuals will be available as well
+    # make sure that accessing fit_residuals can be called before wcs/apply_to_spectrum
 
     centers = np.array([0, 10, 20, 30])
     w = (0.5 * centers + 2) * u.AA
     test = WavelengthCalibration1D(spec1d, line_pixels=centers,
                                    line_wavelengths=w)
-    expected_msg = ('Fit residuals are only available after the new WCS is'
-                    ' fit - this can be done by accessing the ``.wcs`` attribute,'
-                    ' or by calling the ``.apply_to_spectrum`` method.')
-    with pytest.raises(ValueError, match=expected_msg):
-        test.fit_residuals
+    test.fit_residuals
+    test.wcs
