@@ -205,8 +205,8 @@ class WavelengthCalibration1D():
 
         if self._fit_resids is None:
             raise ValueError('Fit residuals are only available after the new'
-                             'WCS is fit - this can be done by accessing the'
-                             '``.wcs`` attribute, or by calling the'
+                             ' WCS is fit - this can be done by accessing the'
+                             ' ``.wcs`` attribute, or by calling the'
                              ' ``.apply_to_spectrum`` method.')
 
         # Get the fit residuals by evaulating model

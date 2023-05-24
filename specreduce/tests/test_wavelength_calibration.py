@@ -109,5 +109,8 @@ def test_fit_residuals_access(spec1d):
     w = (0.5 * centers + 2) * u.AA
     test = WavelengthCalibration1D(spec1d, line_pixels=centers,
                                    line_wavelengths=w)
-    with pytest.raises(ValueError):
+    expected_msg = ('Fit residuals are only available after the new WCS is'
+                    ' fit - this can be done by accessing the ``.wcs`` attribute,'
+                    ' or by calling the ``.apply_to_spectrum`` method.')
+    with pytest.raises(ValueError, match=expected_msg):
         test.fit_residuals
