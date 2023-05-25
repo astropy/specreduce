@@ -132,9 +132,6 @@ class WavelengthCalibration1D():
                         if cat not in self._available_catalogs:
                             raise ValueError(f"Line list '{cat}' is not an available catalog.")
 
-            # Get the potential lines from any specified catalogs to use in matching
-            #self._potential_wavelengths = concatenate_catalogs(self._catalog)
-
     def identify_lines(self):
         """
         ToDo: Code matching algorithm between line pixel locations and potential line

@@ -220,9 +220,11 @@ def load_pypeit_calibration_lines(
 
     Parameters
     ----------
-    lamps : Lamp or list of lamps to include in output reference linelist. The parlance of "lamp"
-        is retained here for consistency with its use in ``pypeit`` and elsewhere. In several
-        of the supported cases the "lamp" is the sky itself (e.g. OH lines in the near-IR).
+    lamps : Lamp string, comma-separated list of lamps, or sequence of lamps to include in
+        output reference linelist. The parlance of "lamp" is retained here for consistency
+        with its use in ``pypeit`` and elsewhere. In several of the supported cases the
+        "lamp" is the sky itself (e.g. OH lines in the near-IR).
+        The available lamps are defined by ``PYPEIT_CALIBRATION_LINELISTS``.
 
     wave_air : If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
 
@@ -249,7 +251,10 @@ def load_pypeit_calibration_lines(
         raise ValueError(f"Invalid calibration lamps specification: {lamps}")
 
     if isinstance(lamps, str):
-        lamps = [lamps]
+        if ',' in lamps:
+            lamps = [lamp.strip() for lamp in lamps.split(',')]
+        else:
+            lamps = [lamps]
 
     linelists = []
     for lamp in lamps:
