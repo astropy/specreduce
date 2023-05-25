@@ -18,7 +18,7 @@ def test_pypeit_single():
             'Source',
             'amplitude',
             'ion',
-            'wave'
+            'wavelength'
         ]
 
 
@@ -51,7 +51,7 @@ def test_pypeit_input_validation():
     Check that bad inputs for ``pypeit`` linelists raise the appropriate warnings and exceptions
     """
     with pytest.raises(ValueError, match=r'.*Invalid calibration lamps specification.*'):
-        _ = load_pypeit_calibration_lines({}, cache=True, show_progress=False)
+        _ = load_pypeit_calibration_lines(42, cache=True, show_progress=False)
 
     with pytest.warns() as record:
         _ = load_pypeit_calibration_lines(['HeI', 'ArIII'], cache=True, show_progress=False)

@@ -39,13 +39,21 @@ def make_2d_trace_image(
     Parameters
     ----------
     nx : Size of image in X axis which is assumed to be the dispersion axis
+
     ny : Size of image in Y axis which is assumed to be the spatial axis
+
     background : Level of constant background in counts
+
     trace_center : Zeropoint of the trace. If None, then use center of Y (spatial) axis.
+
     trace_order : Order of the Chebyshev polynomial used to model the source's trace
+
     trace_coeffs : Dict containing the Chebyshev polynomial coefficients to use in the trace model
+
     profile : Model to use for the source's spatial profile
+
     add_noise : If True, add Poisson noise to the image
+
 
     Returns
     -------
@@ -96,21 +104,33 @@ def make_2d_arc_image(
     Parameters
     ----------
     nx : Size of image in X axis which is assumed to be the dispersion axis
+
     ny : Size of image in Y axis which is assumed to be the spatial axis
+
     wcs : 2D WCS to apply to the image. Must have a spectral axis defined along with
         appropriate spectral wavelength units.
+
     extent : If ``wcs`` is not provided, this defines the beginning and end wavelengths
         of the dispersion axis.
+
     wave_unit : If ``wcs`` is not provided, this defines the wavelength units of the
         dispersion axis.
+
     wave_air : If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
+
     background : Level of constant background in counts
+
     line_fwhm : Gaussian FWHM of the emission lines in pixels
+
     linelists : Specification for linelists to load from ``pypeit``
+
     amplitude_scale : Scale factor to apply to amplitudes provided in the linelists
+
     tilt_func : The tilt function to apply along the cross-dispersion axis to simulate
         tilted or curved emission lines.
+
     add_noise : If True, add Poisson noise to the image
+
 
     Returns
     -------
@@ -274,7 +294,7 @@ def make_2d_arc_image(
     linelist = load_pypeit_calibration_lines(linelists, wave_air=wave_air)
 
     if linelist is not None:
-        line_disp_positions = wcs.spectral.world_to_pixel(linelist['wave'])
+        line_disp_positions = wcs.spectral.world_to_pixel(linelist['wavelength'])
 
         line_sigma = gaussian_fwhm_to_sigma * line_fwhm
         for line_pos, ampl in zip(line_disp_positions, linelist['amplitude']):
@@ -323,25 +343,45 @@ def make_2d_spec_image(
     Parameters
     ----------
     nx : Number of pixels in the dispersion direction.
+
     ny : Number of pixels in the spatial direction.
+
     wcs : 2D WCS to apply to the image. Must have a spectral axis defined along with
         appropriate spectral wavelength units.
+
     extent : If ``wcs`` is not provided, this defines the beginning and end wavelengths
         of the dispersion axis.
+
     wave_unit : If ``wcs`` is not provided, this defines the wavelength units of the
         dispersion axis.
+
     wave_air : If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
+
     background : Constant background level in counts.
+
     line_fwhm : Gaussian FWHM of the emission lines in pixels
+
     linelists : Specification for linelists to load from ``pypeit``
+
     amplitude_scale : Scale factor to apply to amplitudes provided in the linelists
+
     tilt_func : The tilt function to apply along the cross-dispersion axis to simulate
         tilted or curved emission lines.
+
     trace_center : Zeropoint of the trace. If None, then use center of Y (spatial) axis.
+
     trace_order : Order of the Chebyshev polynomial used to model the source's trace
+
     trace_coeffs : Dict containing the Chebyshev polynomial coefficients to use in the trace model
+
     source_profile : Model to use for the source's spatial profile
+
     add_noise : If True, add Poisson noise to the image
+
+
+    Returns
+    -------
+    ccd_im : CCDData instance containing synthetic 2D spectroscopic image
     """
     arc_image = make_2d_arc_image(
         nx=nx,
