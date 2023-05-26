@@ -213,10 +213,7 @@ class WavelengthCalibration1D():
     def residuals(self):
         """
         calculate fit residuals between matched line list pixel centers and
-        wavelengths and the evaluated fit model. this is only accessible
-        after the ``wcs`` attribute is accessed, where the fit is actually
-        performed. ``apply_to_spectrum`` also calls .wcs and therefore
-        performs the fit, so this is also acessible if that is called.
+        wavelengths and the evaluated fit model.
         """
 
         x = self._matched_line_list["pixel_center"]
