@@ -74,7 +74,9 @@ class WavelengthCalibration1D():
             raise ValueError('Input spectrum must be Spectrum1D.')
 
         # make sure spec. is dispersed right to left, should be user's responsibility
-        if input_spectrum.spectral_axis_order != 'increasing':
+        spec_axis = input_spectrum.spectral_axis.value
+        sorted_increasing = np.all(spec_axis[1:] >= spec_axis[:-1])
+        if not sorted_increasing:
             raise ValueError('Spectrum must be dispersed left to right.')
 
         # ToDo: Implement having line catalogs
