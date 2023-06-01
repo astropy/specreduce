@@ -70,6 +70,13 @@ class WavelengthCalibration1D():
         self._potential_wavelengths = None
         self._catalog = catalog
 
+        if not isinstance(input_spectrum, Spectrum1D):
+            raise ValueError('Input spectrum must be Spectrum1D.')
+
+        # make sure spec. is dispersed right to left, should be user's responsibility
+        if input_spectrum.spectral_axis_order != 'increasing':
+            raise ValueError('Spectrum must be dispersed left to right.')
+
         # ToDo: Implement having line catalogs
         self._available_catalogs = get_available_catalogs()
 

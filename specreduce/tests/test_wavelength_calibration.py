@@ -7,6 +7,7 @@ import astropy.units as u
 from astropy.modeling.models import Polynomial1D
 from astropy.modeling.fitting import LinearLSQFitter
 from astropy.tests.helper import assert_quantity_allclose
+from specutils import Spectrum1D
 
 from specreduce import WavelengthCalibration1D
 
@@ -109,3 +110,16 @@ def test_fit_residuals_access(spec1d):
                                    line_wavelengths=w)
     test.residuals
     test.wcs
+
+
+def test_dispersed_right_left_fails():
+    # Make sure error is raised if input spectrum is dispersed right to left
+    wave = [3, 2, 1] * u.AA  # wavelengths are decreasing
+    flux = [5, 5, 5] * u.AB
+    spec = Spectrum1D(spectral_axis=wave, flux=flux)
+
+    centers = np.array([0, 10, 20, 30])
+    w = (0.5 * centers + 2) * u.AA
+
+    with pytest.raises(ValueError, match='Spectrum must be dispersed left to right.'):
+        WavelengthCalibration1D(spec, line_pixels=centers, line_wavelengths=w)
