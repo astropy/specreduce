@@ -121,5 +121,6 @@ def test_dispersed_right_left_fails():
     centers = np.array([0, 10, 20, 30])
     w = (0.5 * centers + 2) * u.AA
 
-    with pytest.raises(ValueError, match='Spectrum must be dispersed left to right.'):
+    with pytest.raises(ValueError, match='Spectral axis values must be'
+                                         ' increasing from left to right.'):
         WavelengthCalibration1D(spec, line_pixels=centers, line_wavelengths=w)
