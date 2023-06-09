@@ -131,3 +131,7 @@ def test_unsorted_pixels_wavelengths(spec1d):
     table = QTable([w], names=["wavelength"])
     with pytest.raises(ValueError, match='Wavelengths must be strictly increasing or decreasing.'):
         WavelengthCalibration1D(spec1d, line_pixels=centers, line_wavelengths=table)
+
+    # and again with decreasing pixels but unsorted wavelengths
+    with pytest.raises(ValueError, match='Wavelengths must be strictly increasing or decreasing.'):
+        WavelengthCalibration1D(spec1d, line_pixels=centers[::-1], line_wavelengths=w)
