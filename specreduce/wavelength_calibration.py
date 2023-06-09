@@ -130,25 +130,19 @@ class WavelengthCalibration1D():
                 raise ValueError("line_wavelengths must be specified as an astropy.units.Quantity"
                                  " array or as an astropy.table.QTable")
 
-            # make sure wavelengths (or freq) are monotonic
+            # make sure wavelengths (or freq) are monotonic and add wavelengths
+            # to _matched_line_list
             if isinstance(line_wavelengths, u.Quantity):
                 if not _check_arr_monotonic(line_wavelengths):
                     if str(line_wavelengths.unit.physical_type) == "frequency":
                         raise ValueError('Frequencies must be strictly increasing or decreasing.')
                     raise ValueError('Wavelengths must be strictly increasing or decreasing.')
-                elif isinstance(line_wavelengths, QTable):
-                    if not _check_arr_monotonic(line_wavelengths['wavelength']):
-                        raise ValueError('Wavelengths must be strictly increasing or decreasing.')
 
-            if isinstance(line_wavelengths, u.Quantity):
-                # Ensure frequency is descending or wavelength is ascending
-                if str(line_wavelengths.unit.physical_type) == "frequency":
-                    line_wavelengths[::-1].sort()
-                else:
-                    line_wavelengths.sort()
                 self._matched_line_list["wavelength"] = line_wavelengths
+
             elif isinstance(line_wavelengths, QTable):
-                line_wavelengths.sort("wavelength")
+                if not _check_arr_monotonic(line_wavelengths['wavelength']):
+                    raise ValueError('Wavelengths must be strictly increasing or decreasing.')
                 self._matched_line_list = hstack([self._matched_line_list, line_wavelengths])
 
         # Parse desired catalogs of lines for matching.
