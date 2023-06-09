@@ -29,13 +29,11 @@ def concatenate_catalogs():
 
 def _check_arr_monotonic(arr):
     # returns True if ``arr`` is either strictly increasing or strictly
-    # decreasing, otherwise returns False
+    # decreasing, otherwise returns False.
 
     sorted_increasing = np.all(arr[1:] >= arr[:-1])
     sorted_decreasing = np.all(arr[1:] <= arr[:-1])
-    if sorted_increasing or sorted_decreasing:
-        return True
-    return False
+    return sorted_increasing or sorted_decreasing
 
 
 class WavelengthCalibration1D():
