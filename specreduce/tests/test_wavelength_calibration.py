@@ -7,7 +7,6 @@ import astropy.units as u
 from astropy.modeling.models import Polynomial1D
 from astropy.modeling.fitting import LinearLSQFitter
 from astropy.tests.helper import assert_quantity_allclose
-from specutils import Spectrum1D
 
 from specreduce import WavelengthCalibration1D
 
