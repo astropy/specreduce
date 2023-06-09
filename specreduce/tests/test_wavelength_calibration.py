@@ -109,3 +109,29 @@ def test_fit_residuals_access(spec1d):
                                    line_wavelengths=w)
     test.residuals
     test.wcs
+
+
+def test_unsorted_pixels_wavelengths(spec1d):
+    # make sure an error is raised if input matched pixels/wavelengths are
+    # not strictly increasing or decreasing.
+
+    centers = np.array([0, 10, 5, 30])
+    w = (0.5 * centers + 2) * u.AA
+
+    with pytest.raises(ValueError, match='Pixels must be strictly increasing or decreasing.'):
+        WavelengthCalibration1D(spec1d, line_pixels=centers, line_wavelengths=w)
+
+    # now test that it fails when wavelengths are unsorted
+    centers = np.array([0, 10, 20, 30])
+    w = np.array([2, 5, 6, 1]) * u.AA
+    with pytest.raises(ValueError, match='Wavelengths must be strictly increasing or decreasing.'):
+        WavelengthCalibration1D(spec1d, line_pixels=centers, line_wavelengths=w)
+
+    # and same if those wavelengths are provided in a table
+    table = QTable([w], names=["wavelength"])
+    with pytest.raises(ValueError, match='Wavelengths must be strictly increasing or decreasing.'):
+        WavelengthCalibration1D(spec1d, line_pixels=centers, line_wavelengths=table)
+
+    # and again with decreasing pixels but unsorted wavelengths
+    with pytest.raises(ValueError, match='Wavelengths must be strictly increasing or decreasing.'):
+        WavelengthCalibration1D(spec1d, line_pixels=centers[::-1], line_wavelengths=w)
