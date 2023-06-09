@@ -112,15 +112,18 @@ def test_fit_residuals_access(spec1d):
     test.wcs
 
 
-def test_dispersed_right_left_fails():
-    # Make sure error is raised if input spectrum is dispersed right to left
-    wave = [3, 2, 1] * u.AA  # wavelengths are decreasing
-    flux = [5, 5, 5] * u.AB
-    spec = Spectrum1D(spectral_axis=wave, flux=flux)
+def test_unsorted_pixels_wavelengths(spec1d):
+    # make sure an error is raised if input matched pixels/wavelengths are
+    # not strictly increasing or decreasing.
 
-    centers = np.array([0, 10, 20, 30])
+    centers = np.array([0, 10, 5, 30])
     w = (0.5 * centers + 2) * u.AA
 
-    with pytest.raises(ValueError, match='Spectral axis values must be'
-                                         ' increasing from left to right.'):
-        WavelengthCalibration1D(spec, line_pixels=centers, line_wavelengths=w)
+    with pytest.raises(ValueError, match='Pixels must be strictly increasing or decreasing.'):
+        WavelengthCalibration1D(spec1d, line_pixels=centers, line_wavelengths=w)
+
+    # now test that it fails when wavelengths are unsorted
+    centers = np.array([0, 10, 20, 30])
+    w = np.array([2, 5, 6, 1]) * u.AA
+    with pytest.raises(ValueError, match='Wavelengths must be strictly increasing or decreasing.'):
+        WavelengthCalibration1D(spec1d, line_pixels=centers, line_wavelengths=w)

@@ -27,6 +27,17 @@ def concatenate_catalogs():
     pass
 
 
+def _check_arr_monotonic(arr):
+    # returns True if ``arr`` is either strictly increasing or strictly
+    # decreasing, otherwise returns False
+
+    sorted_increasing = np.all(arr[1:] >= arr[:-1])
+    sorted_decreasing = np.all(arr[1:] <= arr[:-1])
+    if sorted_increasing or sorted_decreasing:
+        return True
+    return False
+
+
 class WavelengthCalibration1D():
 
     def __init__(self, input_spectrum, matched_line_list=None, line_pixels=None,
@@ -40,18 +51,16 @@ class WavelengthCalibration1D():
             and wavelengths populated.
         line_pixels: list, array, `~astropy.table.QTable`, optional
             List or array of line pixel locations to anchor the wavelength solution fit.
-            Will be converted to an astropy table internally if a list or array was input.
             Can also be input as an `~astropy.table.QTable` table with (minimally) a column
             named "pixel_center".
         line_wavelengths: `~astropy.units.Quantity`, `~astropy.table.QTable`, optional
             `astropy.units.Quantity` array of line wavelength values corresponding to the
-            line pixels defined in ``line_list``. Does not have to be in the same order]
-            (the lists will be sorted) but does currently need to be the same length as
-            line_list. Can also be input as an `~astropy.table.QTable` with (minimally)
+            line pixels defined in ``line_list``, assumed to be in the same
+            order. Can also be input as an `~astropy.table.QTable` with (minimally)
             a "wavelength" column.
         catalog: list, str, `~astropy.table.QTable`, optional
             The name of a catalog of line wavelengths to load and use in automated and
-            template-matching line matching.
+            template-matching line matching. NOTE: This option is currently not implemented.
         input_model: `~astropy.modeling.Model`
             The model to fit for the wavelength solution. Defaults to a linear model.
         fitter: `~astropy.modeling.fitting.Fitter`, optional
@@ -72,12 +81,6 @@ class WavelengthCalibration1D():
 
         if not isinstance(input_spectrum, Spectrum1D):
             raise ValueError('Input spectrum must be Spectrum1D.')
-
-        # make sure spec. is dispersed right to left, should be user's responsibility
-        spec_axis = input_spectrum.spectral_axis.value
-        sorted_increasing = np.all(spec_axis[1:] >= spec_axis[:-1])
-        if not sorted_increasing:
-            raise ValueError('Spectral axis values must be increasing from left to right.')
 
         # ToDo: Implement having line catalogs
         self._available_catalogs = get_available_catalogs()
@@ -104,9 +107,11 @@ class WavelengthCalibration1D():
         if self._matched_line_list["pixel_center"].unit is None:
             self._matched_line_list["pixel_center"].unit = u.pix
 
-        # Make sure our pixel locations are sorted
-        self._matched_line_list.sort("pixel_center")
+        # check that pixels are monotonic
+        if not _check_arr_monotonic(self._matched_line_list["pixel_center"]):
+            raise ValueError('Pixels must be strictly increasing or decreasing.')
 
+        # now that pixels have been determined from input, figure out wavelengths.
         if (line_wavelengths is None and catalog is None
                 and "wavelength" not in self._matched_line_list.columns):
             raise ValueError("You must specify at least one of line_wavelengths, "
@@ -124,6 +129,17 @@ class WavelengthCalibration1D():
             if not isinstance(line_wavelengths, (u.Quantity, QTable)):
                 raise ValueError("line_wavelengths must be specified as an astropy.units.Quantity"
                                  " array or as an astropy.table.QTable")
+
+            # make sure wavelengths (or freq) are monotonic
+            if isinstance(line_wavelengths, u.Quantity):
+                if not _check_arr_monotonic(line_wavelengths):
+                    if str(line_wavelengths.unit.physical_type) == "frequency":
+                        raise ValueError('Frequencies must be strictly increasing or decreasing.')
+                    raise ValueError('Wavelengths must be strictly increasing or decreasing.')
+                elif isinstance(line_wavelengths, QTable):
+                    if not _check_arr_monotonic(line_wavelengths['wavelength']):
+                        raise ValueError('Wavelengths must be strictly increasing or decreasing.')
+
             if isinstance(line_wavelengths, u.Quantity):
                 # Ensure frequency is descending or wavelength is ascending
                 if str(line_wavelengths.unit.physical_type) == "frequency":
