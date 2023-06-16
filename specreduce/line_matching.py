@@ -1,39 +1,47 @@
+from typing import Sequence
+
 import numpy as np
 
-from specreduce.calibration_data import get_available_line_catalogs
+import astropy.units as u
+from astropy.table import QTable
+from astropy.wcs import WCS as astropy_WCS
+from gwcs.wcs import WCS as gWCS
 
 
-class LineMatch:
+def match_lines_wcs(
+    pixel_positions: np.ndarray | u.Quantity,
+    catalog_wavelengths: Sequence[float],
+    spectral_wcs: gWCS | astropy_WCS,
+    tolerance: float = 5.0,
+) -> QTable:
     """
-    This is the base class for the supported line matching techniques. This is
-    effectively what other spectral reduction packages call 'reidentify'. It
-    uses a list of pixel positions of lines in a calibration spectrum,
-    a catalog of known line wavelengths, a spectral WCS, and a matching
-    tolerance in pixels to create matched lists of lines and their pixel/wavelegnth
-    positions.
-    """
-    def __init__(self, catalog_wavelengths, spectral_wcs, tolerance=5.0):
-        self.catalog_wavelengths = catalog_wavelengths
-        self.wcs = spectral_wcs
-        self.tolerance = tolerance
+    Use an input spectral WCS to match lines in an extracted spectrum to a catalog of known lines.
+    Create matched table of pixel/wavelength positions for lines within a given tolerance of their
+    WCS-predicted positions.
 
-    def __call__(self, pixel_positions):
-        catalog_pixels = self.wcs.spectral.world_to_pixel(self.catalog_wavelengths)
+    Parameters
+    ----------
+    pixel_positions : The pixel positions of the lines in the calibration spectrum.
 
+    catalog_wavelengths : The wavelengths of the lines in the catalog.
 
-class AutomaticLineMatch(LineMatch):
-    """
-    This is a reimplemenation and improvement upon the ``pypeit`` "Holy Grail" technique
-    to fully automate the line matching process using no prior information other than
-    pixel positions and a catalog of known line wavelengths.
-    """
-    pass
+    spectral_wcs : The spectral WCS of the calibration spectrum.
 
+    tolerance : The matching tolerance in pixels
 
-class TemplateLineMatch(LineMatch):
+    Returns
+    -------
+    QTable
+        A table of the matched lines and their pixel/wavelength positions.
     """
-    This implements using a template calibration spectrum to estimate the initial WCS
-    to use in the line matching process. It is based on the ``pypeit`` "reid_arxiv"
-    technique and supports using ``pypeit`` templates.
-    """
-    pass
+    if isinstance(pixel_positions, u.Quantity):
+        pixel_positions = pixel_positions.value
+
+    catalog_pixels = spectral_wcs.world_to_pixel(catalog_wavelengths)
+    separations = pixel_positions[:, np.newaxis] - catalog_pixels
+    matched_loc = np.where(np.abs(separations) < tolerance)
+    matched_table = QTable()
+    matched_table["pixel_position"] = pixel_positions[matched_loc[0]] * u.pix
+    matched_table["wavelength"] = catalog_wavelengths[matched_loc[1]]
+    return matched_table
+
