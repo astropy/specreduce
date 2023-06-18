@@ -60,9 +60,9 @@ def find_arc_lines(
             stddev=fwhm * gaussian_fwhm_to_sigma
         )
         g_fit = fit_lines(spectrum, g_init, window=window * fwhm)
-        centroids.append(g_fit.mean.value)
+        centroids.append(g_fit.mean.value * g_fit.mean.unit)
         widths.append(g_fit.stddev * gaussian_sigma_to_fwhm)
-        amplitudes.append(g_fit.amplitude.value)
+        amplitudes.append(g_fit.amplitude.value * g_fit.amplitude.unit)
     line_table = QTable()
     line_table['centroid'] = centroids
     line_table['fwhm'] = widths
