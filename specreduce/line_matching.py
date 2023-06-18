@@ -9,7 +9,7 @@ from gwcs.wcs import WCS as gWCS
 
 
 def match_lines_wcs(
-    pixel_positions: np.ndarray | u.Quantity,
+    pixel_positions: Sequence[float],
     catalog_wavelengths: Sequence[float],
     spectral_wcs: gWCS | astropy_WCS,
     tolerance: float = 5.0,
@@ -34,8 +34,17 @@ def match_lines_wcs(
     QTable
         A table of the matched lines and their pixel/wavelength positions.
     """
+
+    # This routine uses numpy broadcasting which doesn't always behave with Quantity objects.
+    # Convert to u.pix and pull out the np.ndarray values.
     if isinstance(pixel_positions, u.Quantity):
-        pixel_positions = pixel_positions.value
+        pixel_positions = pixel_positions.to(u.pix).value
+
+    # Extra sanity handling to make sure the input Sequense can be converted to an np.array
+    try:
+        pixel_positions = np.array(pixel_positions, dtype=float)
+    except ValueError as e:
+        raise ValueError(f"pixel_positions must be convertable to np.array with dtype=float: {e}")
 
     catalog_pixels = spectral_wcs.world_to_pixel(catalog_wavelengths)
     separations = pixel_positions[:, np.newaxis] - catalog_pixels
