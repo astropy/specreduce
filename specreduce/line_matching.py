@@ -22,7 +22,7 @@ __all__ = [
 
 def find_arc_lines(
     spectrum: Spectrum1D,
-    fwhm: u.Quantity = 5.0 * u.pix,
+    fwhm: float | u.Quantity = 5.0 * u.pix,
     window: float = 3.0,
     noise_factor: float = 5.0
 ) -> QTable:
@@ -47,6 +47,10 @@ def find_arc_lines(
     QTable
         A table of detected arc lines and their properties.
     """
+    # Asssume FWHM is given in pixels if unit is not specified
+    if not isinstance(fwhm, u.Quantity):
+        fwhm *= u.pix
+
     detected_lines = find_lines_threshold(spectrum, noise_factor=noise_factor)
     detected_lines = detected_lines[detected_lines['line_type'] == 'emission']
 
