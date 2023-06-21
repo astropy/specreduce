@@ -1,4 +1,5 @@
 from numpy.testing import assert_allclose
+import numpy as np
 import pytest
 
 from astropy.table import QTable
@@ -45,10 +46,10 @@ def test_poly_from_table(spec1d):
     table = QTable([centers, w], names=["pixel_center", "wavelength"])
 
     test = WavelengthCalibration1D(spec1d, matched_line_list=table,
-                                   model=Polynomial1D(2), fitter=LinearLSQFitter())
+                                   input_model=Polynomial1D(2), fitter=LinearLSQFitter())
     test.apply_to_spectrum(spec1d)
 
-    assert_allclose(test.model.parameters, [5.00477143e+03, 1.03457143e+01, 1.28571429e-02])
+    assert_allclose(test.fitted_model.parameters, [5.00477143e+03, 1.03457143e+01, 1.28571429e-02])
 
 
 def test_replace_spectrum(spec1d, spec1d_with_emission_line):
@@ -83,3 +84,54 @@ def test_expected_errors(spec1d):
 
     with pytest.raises(ValueError, match="specify at least one"):
         WavelengthCalibration1D(spec1d, line_pixels=centers)
+
+
+def test_fit_residuals(spec1d):
+    # test that fit residuals are all 0 when input is perfectly linear and model
+    # is a linear model
+
+    centers = np.array([0, 10, 20, 30])
+    w = (0.5 * centers + 2) * u.AA
+    test = WavelengthCalibration1D(spec1d, line_pixels=centers,
+                                   line_wavelengths=w)
+
+    test.apply_to_spectrum(spec1d)  # have to apply for residuals to be computed
+
+    assert_quantity_allclose(test.residuals, 0.*u.AA, atol=1e-07*u.AA)
+
+
+def test_fit_residuals_access(spec1d):
+    # make sure that accessing residuals can be called before wcs/apply_to_spectrum
+
+    centers = np.array([0, 10, 20, 30])
+    w = (0.5 * centers + 2) * u.AA
+    test = WavelengthCalibration1D(spec1d, line_pixels=centers,
+                                   line_wavelengths=w)
+    test.residuals
+    test.wcs
+
+
+def test_unsorted_pixels_wavelengths(spec1d):
+    # make sure an error is raised if input matched pixels/wavelengths are
+    # not strictly increasing or decreasing.
+
+    centers = np.array([0, 10, 5, 30])
+    w = (0.5 * centers + 2) * u.AA
+
+    with pytest.raises(ValueError, match='Pixels must be strictly increasing or decreasing.'):
+        WavelengthCalibration1D(spec1d, line_pixels=centers, line_wavelengths=w)
+
+    # now test that it fails when wavelengths are unsorted
+    centers = np.array([0, 10, 20, 30])
+    w = np.array([2, 5, 6, 1]) * u.AA
+    with pytest.raises(ValueError, match='Wavelengths must be strictly increasing or decreasing.'):
+        WavelengthCalibration1D(spec1d, line_pixels=centers, line_wavelengths=w)
+
+    # and same if those wavelengths are provided in a table
+    table = QTable([w], names=["wavelength"])
+    with pytest.raises(ValueError, match='Wavelengths must be strictly increasing or decreasing.'):
+        WavelengthCalibration1D(spec1d, line_pixels=centers, line_wavelengths=table)
+
+    # and again with decreasing pixels but unsorted wavelengths
+    with pytest.raises(ValueError, match='Wavelengths must be strictly increasing or decreasing.'):
+        WavelengthCalibration1D(spec1d, line_pixels=centers[::-1], line_wavelengths=w)

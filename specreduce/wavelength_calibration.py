@@ -14,10 +14,19 @@ __all__ = [
 ]
 
 
+def _check_arr_monotonic(arr):
+    # returns True if ``arr`` is either strictly increasing or strictly
+    # decreasing, otherwise returns False.
+
+    sorted_increasing = np.all(arr[1:] >= arr[:-1])
+    sorted_decreasing = np.all(arr[1:] <= arr[:-1])
+    return sorted_increasing or sorted_decreasing
+
+
 class WavelengthCalibration1D():
 
     def __init__(self, input_spectrum, matched_line_list=None, line_pixels=None,
-                 line_wavelengths=None, catalog=None, model=Linear1D(), fitter=None):
+                 line_wavelengths=None, catalog=None, input_model=Linear1D(), fitter=None):
         """
         input_spectrum: `~specutils.Spectrum1D`
             A one-dimensional Spectrum1D calibration spectrum from an arc lamp or similar.
@@ -27,19 +36,17 @@ class WavelengthCalibration1D():
             and wavelengths populated.
         line_pixels: list, array, `~astropy.table.QTable`, optional
             List or array of line pixel locations to anchor the wavelength solution fit.
-            Will be converted to an astropy table internally if a list or array was input.
             Can also be input as an `~astropy.table.QTable` table with (minimally) a column
             named "pixel_center".
         line_wavelengths: `~astropy.units.Quantity`, `~astropy.table.QTable`, optional
             `astropy.units.Quantity` array of line wavelength values corresponding to the
-            line pixels defined in ``line_list``. Does not have to be in the same order]
-            (the lists will be sorted) but does currently need to be the same length as
-            line_list. Can also be input as an `~astropy.table.QTable` with (minimally)
+            line pixels defined in ``line_list``, assumed to be in the same
+            order. Can also be input as an `~astropy.table.QTable` with (minimally)
             a "wavelength" column.
         catalog: list, str, `~astropy.table.QTable`, optional
             The name of a catalog of line wavelengths to load and use in automated and
-            template-matching line matching.
-        model: `~astropy.modeling.Model`
+            template-matching line matching. NOTE: This option is currently not implemented.
+        input_model: `~astropy.modeling.Model`
             The model to fit for the wavelength solution. Defaults to a linear model.
         fitter: `~astropy.modeling.fitting.Fitter`, optional
             The fitter to use in optimizing the model fit. Defaults to
@@ -51,11 +58,17 @@ class WavelengthCalibration1D():
         or ``catalog`` must be specified.
         """
         self._input_spectrum = input_spectrum
-        self._model = model
-        self._cached_properties = ['wcs',]
+        self._input_model = input_model
+        self._cached_properties = ['fitted_model', 'residuals', 'wcs']
         self.fitter = fitter
         self._potential_wavelengths = None
         self._catalog = catalog
+
+        if not isinstance(input_spectrum, Spectrum1D):
+            raise ValueError('Input spectrum must be Spectrum1D.')
+
+        # ToDo: Implement having line catalogs
+        self._available_catalogs = get_available_catalogs()
 
         # We use either line_pixels or matched_line_list to create self._matched_line_list,
         # and check that various requirements are fulfilled by the input args.
@@ -79,9 +92,11 @@ class WavelengthCalibration1D():
         if self._matched_line_list["pixel_center"].unit is None:
             self._matched_line_list["pixel_center"].unit = u.pix
 
-        # Make sure our pixel locations are sorted
-        self._matched_line_list.sort("pixel_center")
+        # check that pixels are monotonic
+        if not _check_arr_monotonic(self._matched_line_list["pixel_center"]):
+            raise ValueError('Pixels must be strictly increasing or decreasing.')
 
+        # now that pixels have been determined from input, figure out wavelengths.
         if (line_wavelengths is None and catalog is None
                 and "wavelength" not in self._matched_line_list.columns):
             raise ValueError("You must specify at least one of line_wavelengths, "
@@ -99,15 +114,20 @@ class WavelengthCalibration1D():
             if not isinstance(line_wavelengths, (u.Quantity, QTable)):
                 raise ValueError("line_wavelengths must be specified as an astropy.units.Quantity"
                                  " array or as an astropy.table.QTable")
+
+            # make sure wavelengths (or freq) are monotonic and add wavelengths
+            # to _matched_line_list
             if isinstance(line_wavelengths, u.Quantity):
-                # Ensure frequency is descending or wavelength is ascending
-                if str(line_wavelengths.unit.physical_type) == "frequency":
-                    line_wavelengths[::-1].sort()
-                else:
-                    line_wavelengths.sort()
+                if not _check_arr_monotonic(line_wavelengths):
+                    if str(line_wavelengths.unit.physical_type) == "frequency":
+                        raise ValueError('Frequencies must be strictly increasing or decreasing.')
+                    raise ValueError('Wavelengths must be strictly increasing or decreasing.')
+
                 self._matched_line_list["wavelength"] = line_wavelengths
+
             elif isinstance(line_wavelengths, QTable):
-                line_wavelengths.sort("wavelength")
+                if not _check_arr_monotonic(line_wavelengths['wavelength']):
+                    raise ValueError('Wavelengths must be strictly increasing or decreasing.')
                 self._matched_line_list = hstack([self._matched_line_list, line_wavelengths])
 
         # Parse desired catalogs of lines for matching.
@@ -164,23 +184,23 @@ class WavelengthCalibration1D():
         self._input_spectrum = new_spectrum
 
     @property
-    def model(self):
-        return self._model
+    def input_model(self):
+        return self._input_model
 
-    @model.setter
-    def model(self, new_model):
+    @input_model.setter
+    def input_model(self, input_model):
         self._clear_cache()
-        self._model = new_model
+        self._input_model = input_model
 
     @cached_property
-    def wcs(self):
+    def fitted_model(self):
         # computes and returns WCS after fitting self.model to self.refined_pixels
         x = self._matched_line_list["pixel_center"]
         y = self._matched_line_list["wavelength"]
 
         if self.fitter is None:
             # Flexible defaulting if self.fitter is None
-            if self.model.linear:
+            if self.input_model.linear:
                 fitter = LinearLSQFitter(calc_uncertainties=True)
             else:
                 fitter = LMLSQFitter(calc_uncertainties=True)
@@ -188,14 +208,29 @@ class WavelengthCalibration1D():
             fitter = self.fitter
 
         # Fit the model
-        self._model = fitter(self._model, x, y)
+        return fitter(self.input_model, x, y)
 
+    @cached_property
+    def residuals(self):
+        """
+        calculate fit residuals between matched line list pixel centers and
+        wavelengths and the evaluated fit model.
+        """
+
+        x = self._matched_line_list["pixel_center"]
+        y = self._matched_line_list["wavelength"]
+
+        # Get the fit residuals by evaulating model
+        return y - self.fitted_model(x)
+
+    @cached_property
+    def wcs(self):
         # Build a GWCS pipeline from the fitted model
         pixel_frame = cf.CoordinateFrame(1, "SPECTRAL", [0,], axes_names=["x",], unit=[u.pix,])
         spectral_frame = cf.SpectralFrame(axes_names=["wavelength",],
                                           unit=[self._matched_line_list["wavelength"].unit,])
 
-        pipeline = [(pixel_frame, self.model), (spectral_frame, None)]
+        pipeline = [(pixel_frame, self.fitted_model), (spectral_frame, None)]
 
         wcsobj = wcs.WCS(pipeline)
 
