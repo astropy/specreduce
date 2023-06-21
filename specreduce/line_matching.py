@@ -116,7 +116,7 @@ def match_lines_wcs(
     separations = pixel_positions[:, np.newaxis] - catalog_pixels
     matched_loc = np.where(np.abs(separations) < tolerance)
     matched_table = QTable()
-    matched_table["pixel_position"] = pixel_positions[matched_loc[0]] * u.pix
+    matched_table["pixel_center"] = pixel_positions[matched_loc[0]] * u.pix
     matched_table["wavelength"] = catalog_wavelengths[matched_loc[1]]
     return matched_table
 
