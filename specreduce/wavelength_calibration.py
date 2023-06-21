@@ -67,9 +67,6 @@ class WavelengthCalibration1D():
         if not isinstance(input_spectrum, Spectrum1D):
             raise ValueError('Input spectrum must be Spectrum1D.')
 
-        # ToDo: Implement having line catalogs
-        self._available_catalogs = get_available_catalogs()
-
         # We use either line_pixels or matched_line_list to create self._matched_line_list,
         # and check that various requirements are fulfilled by the input args.
         if matched_line_list is not None:

@@ -3,8 +3,6 @@
 # get picked up when running the tests inside an interpreter using
 # packagename.test
 
-import os
-
 import astropy.units as u
 import numpy as np
 import pytest
