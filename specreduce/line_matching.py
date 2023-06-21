@@ -119,4 +119,3 @@ def match_lines_wcs(
     matched_table["pixel_center"] = pixel_positions[matched_loc[0]] * u.pix
     matched_table["wavelength"] = catalog_wavelengths[matched_loc[1]]
     return matched_table
-
