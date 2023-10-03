@@ -40,14 +40,17 @@ jobs:
           - os: ubuntu-latest
             python: '3.10'
             tox_env: 'py310-test-cov'
-          - os: macos-latest
-            python: '3.10'
-            tox_env: 'py310-test-devdeps'
           - os: ubuntu-latest
             python: '3.11'
             tox_env: 'py311-test'
           - os: ubuntu-latest
-            python: '3.10'
+            python: '3.12'
+            tox_env: 'py312-test'
+          - os: macos-latest
+            python: '3.12'
+            tox_env: 'py312-test-devdeps'
+          - os: ubuntu-latest
+            python: '3.12'
             tox_env: 'codestyle'
           - os: ubuntu-latest
             python: '3.8'
