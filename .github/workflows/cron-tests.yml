@@ -29,10 +29,10 @@ jobs:
             tox_env: 'linkcheck'
           - os: ubuntu-latest
             python: '3.12'
-            tox_env: 'py311-test-devdeps'
+            tox_env: 'py312-test-devdeps'
           - os: ubuntu-latest
             python: '3.12'
-            tox_env: 'py311-test-predeps'
+            tox_env: 'py312-test-predeps'
 
     steps:
     - name: Check out repository
