@@ -47,8 +47,8 @@ jobs:
             python: '3.12'
             tox_env: 'codestyle'
           - os: ubuntu-latest
-            python: '3.8'
-            tox_env: 'py38-test-oldestdeps'
+            python: '3.10'
+            tox_env: 'py310-test-oldestdeps'
 
     steps:
     - name: Check out repository
