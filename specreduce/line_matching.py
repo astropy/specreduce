@@ -45,7 +45,7 @@ def find_arc_lines(
     Returns
     -------
     QTable
-        A table of detected arc lines and their properties.
+        A table of detected arc lines and their properties: centroid, fwhm, and amplitude.
     """
     # Asssume FWHM is given in pixels if unit is not specified
     if not isinstance(fwhm, u.Quantity):
@@ -106,7 +106,7 @@ def match_lines_wcs(
     if isinstance(pixel_positions, u.Quantity):
         pixel_positions = pixel_positions.to(u.pix).value
 
-    # Extra sanity handling to make sure the input Sequense can be converted to an np.array
+    # Extra sanity handling to make sure the input Sequence can be converted to an np.array
     try:
         pixel_positions = np.array(pixel_positions, dtype=float)
     except ValueError as e:

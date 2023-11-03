@@ -41,9 +41,8 @@ def test_pypeit_comma_list():
     """
     line_tab = load_pypeit_calibration_lines("HeI, NeI", cache=True, show_progress=False)
     assert line_tab is not None
-    if line_tab is not None:
-        assert "HeI" in line_tab['ion']
-        assert "NeI" in line_tab['ion']
+    assert "HeI" in line_tab['ion']
+    assert "NeI" in line_tab['ion']
 
 
 @pytest.mark.remote_data
