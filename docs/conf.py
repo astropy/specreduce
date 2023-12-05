@@ -93,17 +93,20 @@ release = __version__
 # a list of builtin themes. To override the custom theme, set this to the
 # name of a builtin theme or the name of a custom theme in html_theme_path.
 #html_theme = None
+html_static_path = ['_static']  # html_theme = None
+html_style = 'specreduce.css'
 
 
 html_theme_options = {
-    'logotext1': 'specreduce',  # white,  semi-bold
-    'logotext2': '',  # orange, light
+    'logotext1': 'spec',  # white,  semi-bold
+    'logotext2': 'reduce',  # orange, light
     'logotext3': ':docs'   # white,  light
     }
 
-
 # Custom sidebar templates, maps document names to template names.
 #html_sidebars = {}
+html_sidebars['**'] = ['localtoc.html']
+html_sidebars['index'] = ['globaltoc.html', 'localtoc.html']
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
@@ -112,7 +115,7 @@ html_theme_options = {
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
-#html_favicon = ''
+html_favicon = '_static/logo_icon.ico'
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
@@ -125,6 +128,8 @@ html_title = '{0} v{1}'.format(project, release)
 # Output file base name for HTML help builder.
 htmlhelp_basename = project + 'doc'
 
+# Prefixes that are ignored for sorting the Python module index
+modindex_common_prefix = ["specreduce."]
 
 # -- Options for LaTeX output -------------------------------------------------
 
