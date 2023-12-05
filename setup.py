@@ -9,8 +9,6 @@ import sys
 
 from setuptools import setup
 
-from extension_helpers import get_extensions
-
 
 # First provide helpful messages if contributors try and run legacy commands
 # for tests or docs.
@@ -65,5 +63,4 @@ if 'build_docs' in sys.argv or 'build_sphinx' in sys.argv:
     print(DOCS_HELP)
     sys.exit(1)
 
-setup(use_scm_version={'write_to': os.path.join('specreduce', 'version.py')},
-      ext_modules=get_extensions())
+setup(use_scm_version={'write_to': os.path.join('specreduce', 'version.py')})
