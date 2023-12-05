@@ -1,12 +1,11 @@
-from numpy.testing import assert_allclose
 import numpy as np
 import pytest
-
-from astropy.table import QTable
-import astropy.units as u
-from astropy.modeling.models import Polynomial1D
+from astropy import units as u
 from astropy.modeling.fitting import LinearLSQFitter
+from astropy.modeling.models import Polynomial1D
+from astropy.table import QTable
 from astropy.tests.helper import assert_quantity_allclose
+from numpy.testing import assert_allclose
 
 from specreduce import WavelengthCalibration1D
 

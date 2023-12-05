@@ -1,14 +1,11 @@
 # Licensed under a 3-clause BSD style license - see ../../licenses/LICENSE.rst
 
 import numpy as np
-
-from photutils.datasets import apply_poisson_noise
-
-import astropy.units as u
+from astropy import units as u
 from astropy.modeling import models
 from astropy.nddata import CCDData
-from astropy.wcs import WCS
 from astropy.stats import gaussian_fwhm_to_sigma
+from astropy.wcs import WCS
 
 from specreduce.calibration_data import load_pypeit_calibration_lines
 
@@ -54,7 +51,7 @@ def make_2d_trace_image(
         Power index of the source's Moffat profile. Use small number here to emulate
         extended source.
     add_noise : bool (default=True)
-        If True, add Poisson noise to the image
+        If True, add Poisson noise to the image; requires ``photutils`` to be installed.
     Returns
     -------
     ccd_im : `~astropy.nddata.CCDData`
@@ -76,6 +73,7 @@ def make_2d_trace_image(
     z = background + profile(trace)
 
     if add_noise:
+        from photutils.datasets import apply_poisson_noise
         trace_image = apply_poisson_noise(z)
     else:
         trace_image = z
@@ -135,7 +133,7 @@ def make_2d_arc_image(
         The tilt function to apply along the cross-dispersion axis to simulate
         tilted or curved emission lines.
     add_noise : bool (default=True)
-        If True, add Poisson noise to the image
+        If True, add Poisson noise to the image; requires ``photutils`` to be installed.
 
     Returns
     -------
@@ -315,6 +313,7 @@ def make_2d_arc_image(
                 z += line_mod(yy)
 
     if add_noise:
+        from photutils.datasets import apply_poisson_noise
         arc_image = apply_poisson_noise(z)
     else:
         arc_image = z
@@ -387,7 +386,7 @@ def make_2d_spec_image(
         Power index of the source's Moffat profile. Use small number here to emulate
         extended source.
     add_noise : bool (default=True)
-        If True, add Poisson noise to the image
+        If True, add Poisson noise to the image; requires ``photutils`` to be installed.
     """
     arc_image = make_2d_arc_image(
         nx=nx,
@@ -419,6 +418,7 @@ def make_2d_spec_image(
     spec_image = arc_image.data + trace_image.data + background
 
     if add_noise:
+        from photutils.datasets import apply_poisson_noise
         spec_image = apply_poisson_noise(spec_image)
 
     ccd_im = CCDData(spec_image, unit=u.count, wcs=arc_image.wcs)

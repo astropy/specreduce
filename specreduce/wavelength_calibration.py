@@ -1,13 +1,13 @@
-from astropy.modeling.models import Linear1D
-from astropy.modeling.fitting import LMLSQFitter, LinearLSQFitter
-from astropy.table import QTable, hstack
-import astropy.units as u
 from functools import cached_property
-from gwcs import wcs
-from gwcs import coordinate_frames as cf
-import numpy as np
-from specutils import Spectrum1D
 
+import numpy as np
+from astropy import units as u
+from astropy.modeling.fitting import LMLSQFitter, LinearLSQFitter
+from astropy.modeling.models import Linear1D
+from astropy.table import QTable, hstack
+from gwcs import coordinate_frames as cf
+from gwcs import wcs
+from specutils import Spectrum1D
 
 __all__ = ['WavelengthCalibration1D']
 

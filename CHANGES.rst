@@ -5,30 +5,37 @@ New Features
 ^^^^^^^^^^^^
 
 - Added 'interpolated_profile' option for HorneExtract. If The ``interpolated_profile`` option
-is used, the image will be sampled in various wavelength bins (set by
-``n_bins_interpolated_profile``), averaged in those bins, and samples are then
-interpolated between (linear by default, interpolation degree can be set with
-the ``interp_degree_interpolated_profile`` parameter) to generate a continuously varying
-spatial profile that can be evaluated at any wavelength.[ #173]
+  is used, the image will be sampled in various wavelength bins (set by
+  ``n_bins_interpolated_profile``), averaged in those bins, and samples are then
+  interpolated between (linear by default, interpolation degree can be set with
+  the ``interp_degree_interpolated_profile`` parameter) to generate a continuously varying
+  spatial profile that can be evaluated at any wavelength. [#173]
 
 API Changes
 ^^^^^^^^^^^
 
-- Fit residuals exposed for wavelength calibration in WavelengthCalibration1D.fit_residuals. [#446]
+- Fit residuals exposed for wavelength calibration in ``WavelengthCalibration1D.fit_residuals``. [#446]
 
 Bug Fixes
 ^^^^^^^^^
 
 - Output 1D spectra from Background no longer include NaNs. Output 1D
-spectra from BoxcarExtract no longer include NaNs when none are present
-in the extraction window. NaNs in the window will still propagate to
-BoxcarExtract's extracted 1D spectrum. [#159]
+  spectra from BoxcarExtract no longer include NaNs when none are present
+  in the extraction window. NaNs in the window will still propagate to
+  BoxcarExtract's extracted 1D spectrum. [#159]
 
-- Backgrounds using median statistic properly ignore zero-weighted pixels
-[#159]
+- Backgrounds using median statistic properly ignore zero-weighted pixels.
+  [#159]
 
-- HorneExtract now accepts 'None' as a vaild option for bkgrd_prof [#171]
+- HorneExtract now accepts 'None' as a vaild option for ``bkgrd_prof``. [#171]
 
+Other changes
+^^^^^^^^^^^^^
+
+- The following packages are now optional dependencies because they are not
+  required for core functionality: ``matplotlib``, ``photutils``, ``synphot``.
+  To install them anyway, use the ``[all]`` specifier when you install specreduce; e.g.:
+  ``pip install specreduce[all]`` [#202]
 
 1.3.0 (2022-12-05)
 ------------------

@@ -1,10 +1,10 @@
 import pytest
+from astropy import units as u
+from astropy.modeling import models
+from astropy.nddata import CCDData
+from astropy.wcs import WCS
 
 from specreduce.utils.synth_data import make_2d_trace_image, make_2d_arc_image, make_2d_spec_image
-from astropy.nddata import CCDData
-from astropy.modeling import models
-from astropy.wcs import WCS
-import astropy.units as u
 
 
 def test_make_2d_trace_image():

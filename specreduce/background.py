@@ -4,9 +4,9 @@ import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
+from astropy import units as u
 from astropy.nddata import NDData
 from astropy.utils.decorators import deprecated_attribute
-from astropy import units as u
 from specutils import Spectrum1D
 
 from specreduce.core import _ImageParser

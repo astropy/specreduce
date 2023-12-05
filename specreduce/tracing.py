@@ -1,14 +1,14 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
+import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
-import warnings
 
+import numpy as np
 from astropy.modeling import Model, fitting, models
 from astropy.nddata import NDData
 from astropy.stats import gaussian_sigma_to_fwhm
 from astropy.utils.decorators import deprecated
-import numpy as np
 
 from specreduce.core import _ImageParser
 

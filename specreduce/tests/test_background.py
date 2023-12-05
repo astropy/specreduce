@@ -1,29 +1,16 @@
-import pytest
 import numpy as np
-
-import astropy.units as u
-from astropy.nddata import VarianceUncertainty
+import pytest
 from specutils import Spectrum1D
 
 from specreduce.background import Background
 from specreduce.tracing import FlatTrace, ArrayTrace
 
 
-# NOTE: same test image as in test_extract.py
-# Test image is comprised of 30 rows with 10 columns each. Row content
-# is row index itself. This makes it easy to predict what should be the
-# value extracted from a region centered at any arbitrary Y position.
-img = np.ones(shape=(30, 10))
-for j in range(img.shape[0]):
-    img[j, ::] *= j
-image = Spectrum1D(img * u.DN,
-                   uncertainty=VarianceUncertainty(np.ones_like(img)))
-image_um = Spectrum1D(image.flux,
-                      spectral_axis=np.arange(image.data.shape[1]) * u.um,
-                      uncertainty=VarianceUncertainty(np.ones_like(image.data)))
-
-
-def test_background():
+def test_background(mk_test_img_raw, mk_test_spec_no_spectral_axis,
+                    mk_test_spec_with_spectral_axis):
+    img = mk_test_img_raw
+    image = mk_test_spec_no_spectral_axis
+    image_um = mk_test_spec_with_spectral_axis
     #
     # Try combinations of extraction center, and even/odd
     # extraction aperture sizes.
@@ -92,7 +79,9 @@ def test_background():
         assert np.isnan(bg.sub_spectrum().flux).sum() == 0
 
 
-def test_warnings_errors():
+def test_warnings_errors(mk_test_spec_no_spectral_axis):
+    image = mk_test_spec_no_spectral_axis
+
     # image.shape (30, 10)
     with pytest.warns(match="background window extends beyond image boundaries"):
         Background.two_sided(image, 25, 4, width=3)
