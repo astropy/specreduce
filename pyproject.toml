@@ -1,11 +1,110 @@
-[build-system]
+[project]
+name = "specreduce"
+dynamic = ["version"]
+authors = [
+    { name = "Astropy Specreduce contributors", email = "astropy-dev@googlegroups.com" }
+]
+license = {file = "licenses/LICENSE.rst"}
+description = "Astropy coordinated package for Spectroscopic Reductions"
+readme = "README.rst"
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "astropy",
+    "scipy",
+    "specutils>=1.9.1",
+]
 
+[project.optional-dependencies]
+test = [
+    "pytest-astropy",
+    "photutils",
+]
+docs = [
+    "sphinx-astropy",
+    "matplotlib",
+    "photutils",
+    "synphot",
+]
+all = [
+    "matplotlib",
+    "photutils",
+    "synphot",
+]
+
+[project.urls]
+Homepage = "http://astropy.org/"
+Repository = "https://github.com/astropy/specreduce.git"
+Documentation = "https://specreduce.readthedocs.io/"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages]
+find = {}  # Scanning implicit namespaces is active by default
+
+[tool.setuptools.package-data]
+"specreduce.tests" = ["data/*.fits"]
+
+[tool.setuptools_scm]
+version_file = "specreduce/version.py"
+
+[build-system]
 requires = ["setuptools",
             "setuptools_scm",
 ]
-
 build-backend = 'setuptools.build_meta'
 
 [tool.pytest.ini_options]
+minversion = 7.0
+testpaths = [
+    "specreduce",
+    "docs",
+]
+astropy_header = true
+doctest_plus = "enabled"
+text_file_format = "rst"
+addopts = [
+    "--color=yes",
+    "--doctest-rst",
+]
+xfail_strict = true
+filterwarnings = [
+    "error",
+    "ignore:numpy\\.ufunc size changed:RuntimeWarning",
+    "ignore:numpy\\.ndarray size changed:RuntimeWarning",
+    "ignore:Can\\'t import specreduce_data package",
+    # Python 3.12 warning from dateutil imported by matplotlib
+    "ignore:.*utcfromtimestamp:DeprecationWarning",
+]
 
-filterwarnings = ["ignore::DeprecationWarning:datetime",]
+[tool.coverage]
+
+    [tool.coverage.run]
+        omit = [
+            "specreduce/_astropy_init*",
+            "specreduce/conftest.py",
+            "specreduce/tests/*",
+            "specreduce/version*",
+            "*/specreduce/_astropy_init*",
+            "*/specreduce/conftest.py",
+            "*/specreduce/tests/*",
+            "*/specreduce/version*",
+        ]
+
+    [tool.coverage.report]
+        exclude_lines = [
+            # Have to re-enable the standard pragma
+            "pragma: no cover",
+            # Don't complain about packages we have installed
+            "except ImportError",
+            # Don't complain if tests don't hit defensive assertion code:
+            "raise AssertionError",
+            "raise NotImplementedError",
+            # Don't complain about script hooks
+            "'def main(.*):'",
+            # Ignore branches that don't pertain to this version of Python
+            "pragma: py{ignore_python_version}",
+            # Don't complain about IPython completion helper
+            "def _ipython_key_completions_",
+        ]

@@ -1,29 +1,14 @@
 import numpy as np
 import pytest
-
-import astropy.units as u
+from astropy import units as u
 from astropy.modeling import models
-from astropy.nddata import CCDData, VarianceUncertainty, UnknownUncertainty
+from astropy.nddata import VarianceUncertainty, UnknownUncertainty
 from astropy.tests.helper import assert_quantity_allclose
 
 from specreduce.extract import (
     BoxcarExtract, HorneExtract, OptimalExtract, _align_along_trace
 )
 from specreduce.tracing import FlatTrace, ArrayTrace
-
-
-# Test image is comprised of 30 rows with 10 columns each. Row content
-# is row index itself. This makes it easy to predict what should be the
-# value extracted from a region centered at any arbitrary Y position.
-
-
-@pytest.fixture
-def mk_test_img(nrows=30, ncols=10):
-    image = np.ones(shape=(nrows, ncols))
-    for j in range(image.shape[0]):
-        image[j, ::] *= j
-    image = CCDData(image, unit=u.Jy)
-    return image
 
 
 def add_gaussian_source(image, amps=2, stddevs=2, means=None):

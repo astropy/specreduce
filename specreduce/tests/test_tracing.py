@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
-
 from astropy.modeling import models
+
 from specreduce.utils.synth_data import make_2d_trace_image
 from specreduce.tracing import Trace, FlatTrace, ArrayTrace, FitTrace
 

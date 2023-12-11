@@ -1,42 +1,18 @@
 import numpy as np
-
 from astropy import units as u
-from astropy.io import fits
-from astropy.nddata import CCDData, NDData, VarianceUncertainty
-from astropy.utils.data import download_file
+from specutils import Spectrum1D
 
 from specreduce.extract import HorneExtract
 from specreduce.tracing import FlatTrace
-from specutils import Spectrum1D, SpectralAxis
-
-
-# fetch test image
-fn = download_file('https://stsci.box.com/shared/static/exnkul627fcuhy5akf2gswytud5tazmw.fits',
-                   cache=True)
-
-# duplicate image in all accepted formats
-# (one Spectrum1D variant has a physical spectral axis; the other is in pixels)
-img = fits.getdata(fn).T
-flux = img * u.MJy / u.sr
-sax = SpectralAxis(np.linspace(14.377, 3.677, flux.shape[-1]) * u.um)
-unc = VarianceUncertainty(np.random.rand(*flux.shape))
-
-all_images = {}
-all_images['arr'] = img
-all_images['s1d'] = Spectrum1D(flux, spectral_axis=sax, uncertainty=unc)
-all_images['s1d_pix'] = Spectrum1D(flux, uncertainty=unc)
-all_images['ccd'] = CCDData(img, uncertainty=unc, unit=flux.unit)
-all_images['ndd'] = NDData(img, uncertainty=unc, unit=flux.unit)
-all_images['qnt'] = img * flux.unit
-
-# save default values used for spectral axis and uncertainty when they are not
-# available from the image object or provided by the user
-sax_def = np.arange(img.shape[1]) * u.pix
-unc_def = np.ones_like(img)
 
 
 # (for use inside tests)
-def compare_images(key, collection, compare='s1d'):
+def compare_images(all_images, key, collection, compare='s1d'):
+    # save default values used for spectral axis and uncertainty when they are not
+    # available from the image object or provided by the user
+    unc_def = np.ones_like(all_images['arr'])
+    sax_def = np.arange(unc_def.shape[1]) * u.pix
+
     # was input converted to Spectrum1D?
     assert isinstance(collection[key], Spectrum1D), (f"image '{key}' not "
                                                      "of type Spectrum1D")
@@ -71,16 +47,19 @@ def compare_images(key, collection, compare='s1d'):
 
 
 # test consistency of general image parser results
-def test_parse_general():
+def test_parse_general(all_images):
     all_images_parsed = {k: FlatTrace._parse_image(object, im)
                          for k, im in all_images.items()}
-
     for key in all_images_parsed.keys():
-        compare_images(key, all_images_parsed)
+        compare_images(all_images, key, all_images_parsed)
 
 
 # use verified general image parser results to check HorneExtract's image parser
-def test_parse_horne():
+def test_parse_horne(all_images):
+    # save default values used for uncertainty when it is
+    # available from the image object or provided by the user
+    unc_def = np.ones_like(all_images['arr'])
+
     # HorneExtract's parser is more stringent than the general one, hence the
     # separate test. Given proper inputs, both should produce the same results.
     images_collection = {k: {} for k in all_images.keys()}
@@ -102,4 +81,4 @@ def test_parse_horne():
 
         col[key] = HorneExtract._parse_image(object, img, **defaults)
 
-        compare_images(key, col, compare='general')
+        compare_images(all_images, key, col, compare='general')
