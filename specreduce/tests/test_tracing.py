@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
 from astropy.modeling import models
-
+from astropy.nddata import NDData
+import astropy.units as u
 from specreduce.utils.synth_data import make_2d_trace_image
 from specreduce.tracing import Trace, FlatTrace, ArrayTrace, FitTrace
 
@@ -148,4 +149,20 @@ def test_fit_trace():
     with pytest.raises(ValueError, match=r'image is fully masked'):
         FitTrace(img_all_nans)
 
-    # could try to catch warning thrown for all-nan bins
+    # test that warning is raised when several bins are masked
+    mask = np.zeros(img.shape)
+    mask[:, 100] = 1
+    mask[:, 20] = 1
+    mask[:, 30] = 1
+    nddat = NDData(data=img, mask=mask, unit=u.DN)
+    msg = "All pixels in bins 20, 30, 100 are masked. Falling back on trace value from all-bin fit."
+    with pytest.warns(UserWarning, match=msg):
+        FitTrace(nddat)
+
+    # and when many bins are masked
+    mask = np.zeros(img.shape)
+    mask[:, 0:21] = 1
+    nddat = NDData(data=img, mask=mask, unit=u.DN)
+    msg = 'All pixels in bins 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, ..., 20 are masked.'
+    with pytest.warns(UserWarning, match=msg):
+        FitTrace(nddat)
