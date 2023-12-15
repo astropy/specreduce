@@ -25,23 +25,16 @@
 # Thus, any C-extensions that are needed to build the documentation will *not*
 # be accessible, and the documentation will not build correctly.
 
-import os
 import sys
 import datetime
-from importlib import import_module
+
+from specreduce import __version__
 
 try:
     from sphinx_astropy.conf.v1 import *  # noqa
 except ImportError:
     print('ERROR: the documentation requires the sphinx-astropy package to be installed')
     sys.exit(1)
-
-# Get configuration information from setup.cfg
-from configparser import ConfigParser
-conf = ConfigParser()
-
-conf.read([os.path.join(os.path.dirname(__file__), '..', 'setup.cfg')])
-setup_cfg = dict(conf.items('metadata'))
 
 # -- General configuration ----------------------------------------------------
 
@@ -67,22 +60,19 @@ rst_epilog += """
 # -- Project information ------------------------------------------------------
 
 # This does not *have* to match the package name, but typically does
-project = setup_cfg['name']
-author = setup_cfg['author']
+project = "specreduce"
+author = "Astropy Specreduce contributors"
 copyright = '{0}, {1}'.format(
-    datetime.datetime.now().year, setup_cfg['author'])
+    datetime.datetime.now().year, author)
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
-import_module(setup_cfg['name'])
-package = sys.modules[setup_cfg['name']]
-
 # The short X.Y version.
-version = package.__version__.split('-', 1)[0]
+version = __version__.split('-', 1)[0]
 # The full version, including alpha/beta/rc tags.
-release = package.__version__
+release = __version__
 
 
 # -- Options for HTML output --------------------------------------------------
@@ -103,17 +93,20 @@ release = package.__version__
 # a list of builtin themes. To override the custom theme, set this to the
 # name of a builtin theme or the name of a custom theme in html_theme_path.
 #html_theme = None
+html_static_path = ['_static']  # html_theme = None
+html_style = 'specreduce.css'
 
 
 html_theme_options = {
-    'logotext1': 'specreduce',  # white,  semi-bold
-    'logotext2': '',  # orange, light
+    'logotext1': 'spec',  # white,  semi-bold
+    'logotext2': 'reduce',  # orange, light
     'logotext3': ':docs'   # white,  light
     }
 
-
 # Custom sidebar templates, maps document names to template names.
 #html_sidebars = {}
+html_sidebars['**'] = ['localtoc.html']
+html_sidebars['index'] = ['globaltoc.html', 'localtoc.html']
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
@@ -122,7 +115,7 @@ html_theme_options = {
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
-#html_favicon = ''
+html_favicon = '_static/logo_icon.ico'
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
@@ -135,6 +128,8 @@ html_title = '{0} v{1}'.format(project, release)
 # Output file base name for HTML help builder.
 htmlhelp_basename = project + 'doc'
 
+# Prefixes that are ignored for sorting the Python module index
+modindex_common_prefix = ["specreduce."]
 
 # -- Options for LaTeX output -------------------------------------------------
 
@@ -153,19 +148,6 @@ man_pages = [('index', project.lower(), project + u' Documentation',
 
 
 # -- Options for the edit_on_github extension ---------------------------------
-
-if setup_cfg.get('edit_on_github').lower() == 'true':
-
-    extensions += ['sphinx_astropy.ext.edit_on_github']
-
-    edit_on_github_project = setup_cfg['github_project']
-    edit_on_github_branch = "main"
-
-    edit_on_github_source_root = ""
-    edit_on_github_doc_root = "docs"
-
-# -- Resolving issue number to links in changelog -----------------------------
-github_issues_url = 'https://github.com/{0}/issues/'.format(setup_cfg['github_project'])
 
 # -- Turn on nitpicky mode for sphinx (to warn about references not found) ----
 #
@@ -199,3 +181,11 @@ intersphinx_mapping.update(
 #     dtype, target = line.split(None, 1)
 #     target = target.strip()
 #     nitpick_ignore.append((dtype, six.u(target)))
+
+# -- Options for linkcheck output -------------------------------------------
+linkcheck_retry = 5
+linkcheck_ignore = [
+    "https://www.aanda.org/",
+]
+linkcheck_timeout = 180
+linkcheck_anchors = False

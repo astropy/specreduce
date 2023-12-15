@@ -1,16 +1,12 @@
 import os
 
 import numpy as np
-
-import matplotlib.pyplot as plt
-
+from astropy import units as u
 from astropy.constants import c as cc
 from astropy.table import Table
-import astropy.units as u
-
 from scipy.interpolate import UnivariateSpline
-
 from specutils import Spectrum1D
+
 from specreduce.core import SpecreduceOperation
 
 
@@ -151,8 +147,8 @@ class FluxCalibration(SpecreduceOperation):
             subdirectory and file name.
 
             For example:
-            >>> standard_sensfunc(obj_wave, obj_flux, stdstar='spec50cal/bd284211.dat', \
-             mode='spline')  # doctest: +SKIP
+
+            >>> standard_sensfunc(obj_wave, obj_flux, stdstar='spec50cal/bd284211.dat', mode='spline')  # doctest: +SKIP
 
             If no std is supplied, or an improper path is given, raises a ValueError.
 
@@ -160,7 +156,7 @@ class FluxCalibration(SpecreduceOperation):
         -------
         standard: astropy.talbe.Table
             A table with the onedstd data.
-        """
+        """  # noqa: E501
         std_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                'datasets', 'onedstds')
 
@@ -198,6 +194,7 @@ class FluxCalibration(SpecreduceOperation):
             (Default is 9.)
         display : bool, optional
             If True, plot the sensfunc. (Default is False.)
+            This requires ``matplotlib`` to be installed.
         badlines : array-like list
             A list of values (lines) to mask-out of when generating sensfunc.
 
@@ -260,6 +257,7 @@ class FluxCalibration(SpecreduceOperation):
         sensfunc_spec = Spectrum1D(spectral_axis=obj_wave, flux=sensfunc_out)
 
         if display is True:
+            import matplotlib.pyplot as plt
             plt.figure()
             plt.plot(obj_wave, obj_flux * sensfunc_out, c="C0",
                      label="Observed x sensfunc", alpha=0.5)

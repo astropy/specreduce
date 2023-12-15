@@ -4,15 +4,15 @@ import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
-
 from astropy import units as u
 from astropy.modeling import Model, models, fitting
 from astropy.nddata import NDData, VarianceUncertainty
+from scipy.integrate import trapezoid
 from scipy.interpolate import RectBivariateSpline
+from specutils import Spectrum1D
 
 from specreduce.core import SpecreduceOperation
 from specreduce.tracing import Trace, FlatTrace
-from specutils import Spectrum1D
 
 __all__ = ['BoxcarExtract', 'HorneExtract', 'OptimalExtract']
 
@@ -795,7 +795,7 @@ class HorneExtract(SpecreduceOperation):
             else:  # interpolated_profile
                 fitted_col = interp_spatial_prof(col_pix, xd_pixels)
                 kernel_vals.append(fitted_col)
-                norms.append(np.trapz(fitted_col, dx=1)[0])
+                norms.append(trapezoid(fitted_col, dx=1)[0])
 
         # transform fit-specific information
         kernel_vals = np.vstack(kernel_vals).T
