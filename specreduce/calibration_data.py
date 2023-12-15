@@ -6,7 +6,7 @@ import warnings
 from pathlib import Path
 from typing import Sequence
 
-from  astropy import units as u
+from astropy import units as u
 from astropy.table import Table, vstack, QTable
 from astropy.utils.data import download_file
 from astropy.utils.exceptions import AstropyUserWarning
@@ -302,8 +302,8 @@ def load_MAST_calspec(
 
     https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec
 
-    If ``remote`` is True, the spectrum will be downloaded from MAST. Set ``remote`` to False to load
-    a local file.
+    If ``remote`` is True, the spectrum will be downloaded from MAST. Set ``remote`` to False to
+    load a local file.
 
     .. note:: This function requires ``synphot`` to be installed separately.
 
