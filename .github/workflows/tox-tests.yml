@@ -31,12 +31,12 @@ jobs:
         - name: Codestyle
           linux: codestyle
 
-        - name: Python 3.8 on Linux with oldest supported dependencies
-          linux: py38-test-alldeps-oldestdeps
+        - name: Python 3.10 on Linux with oldest supported dependencies
+          linux: py310-test-alldeps-oldestdeps
           toxargs: -v
 
-        - name: Python 3.9 on Windows with minimal dependencies
-          windows: py39-test
+        - name: Python 3.10 on Windows with minimal dependencies
+          windows: py310-test
           toxargs: -v
 
         - name: Python 3.10 on OSX with minimal dependencies
