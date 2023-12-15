@@ -1,8 +1,6 @@
-import pytest
-
 import numpy as np
-
-import astropy.units as u
+import pytest
+from astropy import units as u
 from astropy.utils.exceptions import AstropyUserWarning
 
 from specreduce.calibration_data import (

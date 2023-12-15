@@ -1,6 +1,6 @@
 import pytest
 
-from ..calibration_data import load_pypeit_calibration_lines
+from specreduce.calibration_data import load_pypeit_calibration_lines
 
 
 @pytest.mark.remote_data
@@ -10,16 +10,15 @@ def test_pypeit_single():
     """
     line_tab = load_pypeit_calibration_lines('HeI', cache=True, show_progress=False)
     assert line_tab is not None
-    if line_tab is not None:
-        assert "HeI" in line_tab['ion']
-        assert sorted(list(line_tab.columns)) == [
-            'Instr',
-            'NIST',
-            'Source',
-            'amplitude',
-            'ion',
-            'wavelength'
-        ]
+    assert "HeI" in line_tab['ion']
+    assert sorted(list(line_tab.columns)) == [
+        'Instr',
+        'NIST',
+        'Source',
+        'amplitude',
+        'ion',
+        'wavelength'
+    ]
 
 
 @pytest.mark.remote_data
@@ -29,9 +28,8 @@ def test_pypeit_list():
     """
     line_tab = load_pypeit_calibration_lines(['HeI', 'NeI'], cache=True, show_progress=False)
     assert line_tab is not None
-    if line_tab is not None:
-        assert "HeI" in line_tab['ion']
-        assert "NeI" in line_tab['ion']
+    assert "HeI" in line_tab['ion']
+    assert "NeI" in line_tab['ion']
 
 
 @pytest.mark.remote_data
@@ -50,10 +48,9 @@ def test_pypeit_empty():
     """
     Test to make sure None is returned if an empty list is passed.
     """
-    with pytest.warns() as record:
+    with pytest.warns(UserWarning, match='No calibration lines'):
         line_tab = load_pypeit_calibration_lines([], cache=True, show_progress=False)
-        assert line_tab is None
-        assert 'No calibration lines' in record[0].message.args[0]
+    assert line_tab is None
 
 
 @pytest.mark.remote_data
@@ -61,8 +58,8 @@ def test_pypeit_input_validation():
     """
     Check that bad inputs for ``pypeit`` linelists raise the appropriate warnings and exceptions
     """
-    with pytest.raises(ValueError, match=r'.*Invalid calibration lamps specification.*'):
-        _ = load_pypeit_calibration_lines(42, cache=True, show_progress=False)
+    with pytest.raises(ValueError, match='.*Invalid calibration lamps specification.*'):
+        _ = load_pypeit_calibration_lines({}, cache=True, show_progress=False)
 
     with pytest.warns() as record:
         _ = load_pypeit_calibration_lines(['HeI', 'ArIII'], cache=True, show_progress=False)

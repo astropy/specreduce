@@ -1,14 +1,14 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
+import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
-import warnings
 
+import numpy as np
 from astropy.modeling import Model, fitting, models
 from astropy.nddata import NDData
 from astropy.stats import gaussian_sigma_to_fwhm
 from astropy.utils.decorators import deprecated
-import numpy as np
 
 from specreduce.core import _ImageParser
 
@@ -300,14 +300,14 @@ class FitTrace(Trace, _ImageParser):
                              self.bins + 1, dtype=int)
         y_bins = np.tile(np.nan, self.bins)
 
+        warn_bins = []
         for i in range(self.bins):
             # repeat earlier steps to create gaussian fit for each bin
             z_i = img[ilum2, x_bins[i]:x_bins[i+1]].sum(axis=self._disp_axis)
             if not z_i.mask.all():
                 peak_y_i = ilum2[z_i.argmax()]
             else:
-                warnings.warn(f"All pixels in bin {i} are masked. Falling "
-                              'to trace value from all-bin fit.')
+                warn_bins.append(i)
                 peak_y_i = peak_y
 
             if self.peak_method == 'gaussian':
@@ -345,6 +345,15 @@ class FitTrace(Trace, _ImageParser):
             elif self.peak_method == 'max':
                 # TODO: implement smoothing with provided width
                 y_bins[i] = ilum2[z_i.argmax()]
+
+        # warn about fully-masked bins (which, currently, means any bin with a single masked value)
+        if len(warn_bins) > 0:
+            # if there are a ton of bins, we don't want to print them all out
+            if len(warn_bins) > 20:
+                warn_bins = warn_bins[0: 10] + ['...'] + [warn_bins[-1]]
+            warnings.warn(f"All pixels in {'bins' if len(warn_bins) else 'bin'} "
+                          f"{', '.join([str(x) for x in warn_bins])}"
+                          " are masked. Falling back on trace value from all-bin fit.")
 
         # recenter bin positions
         x_bins = (x_bins[:-1] + x_bins[1:]) / 2

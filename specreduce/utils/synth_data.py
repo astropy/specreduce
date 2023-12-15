@@ -3,14 +3,11 @@
 from typing import Sequence
 
 import numpy as np
-
-from photutils.datasets import apply_poisson_noise
-
-import astropy.units as u
-from astropy.modeling import Model, models
+from astropy import units as u
+from astropy.modeling import models, Model
 from astropy.nddata import CCDData
-from astropy.wcs import WCS
 from astropy.stats import gaussian_fwhm_to_sigma
+from astropy.wcs import WCS
 
 from specreduce.calibration_data import load_pypeit_calibration_lines
 
@@ -71,6 +68,7 @@ def make_2d_trace_image(
     z = background + profile(trace)
 
     if add_noise:
+        from photutils.datasets import apply_poisson_noise
         trace_image = apply_poisson_noise(z)
     else:
         trace_image = z
@@ -128,9 +126,7 @@ def make_2d_arc_image(
 
     tilt_func : The tilt function to apply along the cross-dispersion axis to simulate
         tilted or curved emission lines.
-
-    add_noise : If True, add Poisson noise to the image
-
+    add_noise : If True, add Poisson noise to the image; requires ``photutils`` to be installed.
 
     Returns
     -------
@@ -309,6 +305,7 @@ def make_2d_arc_image(
                 z += line_mod(yy)
 
     if add_noise:
+        from photutils.datasets import apply_poisson_noise
         arc_image = apply_poisson_noise(z)
     else:
         arc_image = z
@@ -376,7 +373,7 @@ def make_2d_spec_image(
 
     source_profile : Model to use for the source's spatial profile
 
-    add_noise : If True, add Poisson noise to the image
+    add_noise : If True, add Poisson noise to the image; requires ``photutils`` to be installed.
 
 
     Returns
@@ -412,6 +409,7 @@ def make_2d_spec_image(
     spec_image = arc_image.data + trace_image.data + background
 
     if add_noise:
+        from photutils.datasets import apply_poisson_noise
         spec_image = apply_poisson_noise(spec_image)
 
     ccd_im = CCDData(spec_image, unit=u.count, wcs=arc_image.wcs)

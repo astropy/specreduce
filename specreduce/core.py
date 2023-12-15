@@ -1,11 +1,11 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
 import inspect
-import numpy as np
+from dataclasses import dataclass
 
+import numpy as np
 from astropy import units as u
 from astropy.nddata import VarianceUncertainty
-from dataclasses import dataclass
 from specutils import Spectrum1D
 
 __all__ = ['SpecreduceOperation']
