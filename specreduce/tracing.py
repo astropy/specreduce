@@ -209,6 +209,8 @@ class FitTrace(Trace, _ImageParser):
     _disp_axis = 1
 
     def __post_init__(self):
+
+        # parse image
         self.image = self._parse_image(self.image)
 
         # mask any previously uncaught invalid values
@@ -262,14 +264,20 @@ class FitTrace(Trace, _ImageParser):
             warnings.warn('TRACE: Converting window to int')
             self.window = int(self.window)
 
+        # fit the trace
+        self._fit_trace(img)
+
+    def _fit_trace(self, img):
+
+        yy = np.arange(img.shape[self._crossdisp_axis])
+
         # set max peak location by user choice or wavelength with max avg flux
         ztot = img.sum(axis=self._disp_axis) / img.shape[self._disp_axis]
         peak_y = self.guess if self.guess is not None else ztot.argmax()
         # NOTE: peak finder can be bad if multiple objects are on slit
 
-        yy = np.arange(img.shape[self._crossdisp_axis])
-
         if self.peak_method == 'gaussian':
+
             # guess the peak width as the FWHM, roughly converted to gaussian sigma
             yy_above_half_max = np.sum(ztot > (ztot.max() / 2))
             width_guess = yy_above_half_max / gaussian_sigma_to_fwhm
@@ -292,6 +300,8 @@ class FitTrace(Trace, _ImageParser):
         ilum2 = (yy if self.window is None
                  else yy[np.arange(peak_y - self.window,
                                    peak_y + self.window, dtype=int)])
+
+        # check if everything in window region is masked
         if img[ilum2].mask.all():
             raise ValueError('All pixels in window region are masked. Check '
                              'for invalid values or use a larger window value.')
@@ -302,15 +312,22 @@ class FitTrace(Trace, _ImageParser):
 
         warn_bins = []
         for i in range(self.bins):
-            # repeat earlier steps to create gaussian fit for each bin
+
+            # binned columns, summed along disp. axis.
+            # or just a single, unbinned column if no bins
             z_i = img[ilum2, x_bins[i]:x_bins[i+1]].sum(axis=self._disp_axis)
-            if not z_i.mask.all():
-                peak_y_i = ilum2[z_i.argmax()]
-            else:
-                warn_bins.append(i)
-                peak_y_i = peak_y
 
             if self.peak_method == 'gaussian':
+                # if binned column is fully masked for peak_method='gaussian',
+                # the fit value for this bin should be nan, then continue to next
+
+                if z_i.mask.all():
+                    warn_bins.append(i)
+                    y_bins[i] = np.nan
+                    continue
+
+                peak_y_i = ilum2[z_i.argmax()]
+
                 yy_i_above_half_max = np.sum(z_i > (z_i.max() / 2))
                 width_guess_i = yy_i_above_half_max / gaussian_sigma_to_fwhm
 
@@ -336,24 +353,41 @@ class FitTrace(Trace, _ImageParser):
                     y_bins[i] = popt_i.mean_0.value
                     popt_tot = popt_i
 
-            elif self.peak_method == 'centroid':
+            if z_i.mask.all():  # all-masked bins when peak_method is 'centroid' or 'max'
+                warn_bins.append(i)
+
+            if self.peak_method == 'centroid':
                 z_i_cumsum = np.cumsum(z_i)
-                # find the interpolated index where the cumulative array reaches half the total
-                # cumulative values
+                # find the interpolated index where the cumulative array reaches
+                # half the total cumulative values
                 y_bins[i] = np.interp(z_i_cumsum[-1]/2., z_i_cumsum, ilum2)
+
+                # NOTE this reflects current behavior, should eventually be changed
+                # to set to nan by default (or zero fill / interpoate option once
+                # available)
 
             elif self.peak_method == 'max':
                 # TODO: implement smoothing with provided width
                 y_bins[i] = ilum2[z_i.argmax()]
 
-        # warn about fully-masked bins (which, currently, means any bin with a single masked value)
+                # NOTE: a fully masked should eventually be changed to set to
+                # nan by default (or zero fill / interpoate option once available)
+
+        # warn about fully-masked bins
         if len(warn_bins) > 0:
+
             # if there are a ton of bins, we don't want to print them all out
             if len(warn_bins) > 20:
                 warn_bins = warn_bins[0: 10] + ['...'] + [warn_bins[-1]]
+
+            # warning message printed out depends on `peak_method`
+            warn_msgs = {'gaussian': 'nan', 'max': 'zero',
+                         'centroid': f'largest bin index ({str(img.shape[0])})'}
+
             warnings.warn(f"All pixels in {'bins' if len(warn_bins) else 'bin'} "
                           f"{', '.join([str(x) for x in warn_bins])}"
-                          " are masked. Falling back on trace value from all-bin fit.")
+                          " are fully masked. Setting bin"
+                          f" peak{'s' if len(warn_bins) else ''} to {warn_msgs[self.peak_method]}.")
 
         # recenter bin positions
         x_bins = (x_bins[:-1] + x_bins[1:]) / 2

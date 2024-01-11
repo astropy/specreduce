@@ -113,9 +113,6 @@ def test_fit_trace():
     with pytest.raises(ValueError):
         t = FitTrace(img, peak_method='invalid')
 
-    # create same-shaped variations of image with invalid values
-    img_all_nans = np.tile(np.nan, (nrows, ncols))
-
     window = 10
     guess = int(nrows/2)
     img_win_nans = img.copy()
@@ -141,28 +138,82 @@ def test_fit_trace():
     with pytest.raises(ValueError, match=r'bins must be <'):
         FitTrace(img, bins=ncols + 1)
 
-    # error on trace of otherwise valid image with all-nan window around guess
-    with pytest.raises(ValueError, match='pixels in window region are masked'):
-        FitTrace(img_win_nans, guess=guess, window=window)
 
-    # error on trace of all-nan image
-    with pytest.raises(ValueError, match=r'image is fully masked'):
-        FitTrace(img_all_nans)
+class TestMasksTracing():
 
-    # test that warning is raised when several bins are masked
-    mask = np.zeros(img.shape)
-    mask[:, 100] = 1
-    mask[:, 20] = 1
-    mask[:, 30] = 1
-    nddat = NDData(data=img, mask=mask, unit=u.DN)
-    msg = "All pixels in bins 20, 30, 100 are masked. Falling back on trace value from all-bin fit."
-    with pytest.warns(UserWarning, match=msg):
-        FitTrace(nddat)
+    def mk_img(self, nrows=200, ncols=160):
 
-    # and when many bins are masked
-    mask = np.zeros(img.shape)
-    mask[:, 0:21] = 1
-    nddat = NDData(data=img, mask=mask, unit=u.DN)
-    msg = 'All pixels in bins 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, ..., 20 are masked.'
-    with pytest.warns(UserWarning, match=msg):
-        FitTrace(nddat)
+        np.random.seed(7)
+
+        sigma_pix = 4
+        sigma_noise = 1
+
+        col_model = models.Gaussian1D(amplitude=1, mean=nrows/2, stddev=sigma_pix)
+        noise = np.random.normal(scale=sigma_noise, size=(nrows, ncols))
+
+        index_arr = np.tile(np.arange(nrows), (ncols, 1))
+        img = col_model(index_arr.T) + noise
+
+        return img
+
+    def test_window_fit_trace(self):
+
+        """This test function will test that masked values are treated correctly in
+        FitTrace, and produce the correct results and warning messages based on
+        `peak_method`."""
+        img = self.mk_img()
+
+        # create same-shaped variations of image with invalid values
+        nrows = 200
+        ncols = 160
+        img_all_nans = np.tile(np.nan, (nrows, ncols))
+
+        window = 10
+        guess = int(nrows/2)
+        img_win_nans = img.copy()
+        img_win_nans[guess - window:guess + window] = np.nan
+
+        # error on trace of otherwise valid image with all-nan window around guess
+        with pytest.raises(ValueError, match='pixels in window region are masked'):
+            FitTrace(img_win_nans, guess=guess, window=window)
+
+        # error on trace of all-nan image
+        with pytest.raises(ValueError, match=r'image is fully masked'):
+            FitTrace(img_all_nans)
+
+    @pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
+    @pytest.mark.filterwarnings("ignore:Model is linear in parameters")
+    def test_fit_trace_all_nan_columns(self):
+
+        img = self.mk_img()
+
+        # test that warning (dependent on choice of `peak_method`) is raised when a
+        # few bins are masked, and that theyre listed individually
+        mask = np.zeros(img.shape)
+        mask[:, 100] = 1
+        mask[:, 20] = 1
+        mask[:, 30] = 1
+        nddat = NDData(data=img, mask=mask, unit=u.DN)
+
+        match_str = 'All pixels in bins 20, 30, 100 are fully masked. '
+
+        with pytest.warns(UserWarning, match=match_str +
+                          'Setting bin peaks to zero.'):
+            FitTrace(nddat, peak_method='max')
+
+        with pytest.warns(UserWarning, match=match_str +
+                          'Setting bin peaks to largest bin index \\(200\\)'):
+            FitTrace(nddat, peak_method='centroid')
+
+        with pytest.warns(UserWarning, match=match_str +
+                          'Setting bin peaks to nan.'):
+            FitTrace(nddat, peak_method='gaussian')
+
+        # and when many bins are masked, that the message is consolidated
+        mask = np.zeros(img.shape)
+        mask[:, 0:21] = 1
+        nddat = NDData(data=img, mask=mask, unit=u.DN)
+        with pytest.warns(UserWarning, match='All pixels in bins '
+                          '0, 1, 2, 3, 4, 5, 6, 7, 8, 9, ..., 20 are '
+                          'fully masked. Setting bin peaks to zero.'):
+            FitTrace(nddat)
