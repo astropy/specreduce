@@ -317,14 +317,14 @@ class FitTrace(Trace, _ImageParser):
             # or just a single, unbinned column if no bins
             z_i = img[ilum2, x_bins[i]:x_bins[i+1]].sum(axis=self._disp_axis)
 
-            if self.peak_method == 'gaussian':
-                # if binned column is fully masked for peak_method='gaussian',
-                # the fit value for this bin should be nan, then continue to next
+            # if this bin is fully masked, set bin peak to NaN so it can be
+            # filtered in the final fit to all bin peaks for the trace
+            if z_i.mask.all():
+                warn_bins.append(i)
+                y_bins[i] = np.nan
+                continue
 
-                if z_i.mask.all():
-                    warn_bins.append(i)
-                    y_bins[i] = np.nan
-                    continue
+            if self.peak_method == 'gaussian':
 
                 peak_y_i = ilum2[z_i.argmax()]
 
@@ -353,10 +353,7 @@ class FitTrace(Trace, _ImageParser):
                     y_bins[i] = popt_i.mean_0.value
                     popt_tot = popt_i
 
-            if z_i.mask.all():  # all-masked bins when peak_method is 'centroid' or 'max'
-                warn_bins.append(i)
-
-            if self.peak_method == 'centroid':
+            elif self.peak_method == 'centroid':
                 z_i_cumsum = np.cumsum(z_i)
                 # find the interpolated index where the cumulative array reaches
                 # half the total cumulative values
@@ -380,14 +377,10 @@ class FitTrace(Trace, _ImageParser):
             if len(warn_bins) > 20:
                 warn_bins = warn_bins[0: 10] + ['...'] + [warn_bins[-1]]
 
-            # warning message printed out depends on `peak_method`
-            warn_msgs = {'gaussian': 'nan', 'max': 'zero',
-                         'centroid': f'largest bin index ({str(img.shape[0])})'}
-
             warnings.warn(f"All pixels in {'bins' if len(warn_bins) else 'bin'} "
                           f"{', '.join([str(x) for x in warn_bins])}"
                           " are fully masked. Setting bin"
-                          f" peak{'s' if len(warn_bins) else ''} to {warn_msgs[self.peak_method]}.")
+                          f" peak{'s' if len(warn_bins) else ''} to NaN.")
 
         # recenter bin positions
         x_bins = (x_bins[:-1] + x_bins[1:]) / 2
