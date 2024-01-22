@@ -1,6 +1,6 @@
 import pytest
 
-from ..calibration_data import get_reference_file_path, get_pypeit_data_path
+from specreduce.calibration_data import get_reference_file_path, get_pypeit_data_path
 
 
 @pytest.mark.remote_data
