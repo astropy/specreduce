@@ -77,3 +77,5 @@ Development Docs
     :maxdepth: 1
 
     process/index
+    terms
+
