@@ -34,14 +34,11 @@ Bug Fixes
   for the Trace. Warning messages for ``peak_method`` == ``max`` and ``centroid``
   are also now reflective of what the bin peak is being set to. [#205]
 
-<<<<<<< HEAD
-=======
 - Fix in FitTrace to set fully-masked column bin peaks to NaN. Previously, for
   peak_method='max' these were set to 0.0, and for peak_method='centroid' they
   were set to the number of rows in the image, biasing the final fit to all bin
   peaks. [#206]
 
->>>>>>> 5c21308 (fix for masked values in FitTrace)
 Other changes
 ^^^^^^^^^^^^^
 
