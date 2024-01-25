@@ -185,7 +185,7 @@ class TestMasksTracing():
     @pytest.mark.filterwarnings("ignore:Model is linear in parameters")
     @pytest.mark.filterwarnings("ignore:All pixels in bins")
     def test_fit_trace_all_nan_cols(self):
-        pass
+
         # make sure that the actual trace that is fit is correct when
         # all-masked bin peaks are set to NaN
         img = self.mk_img(nrows=10, ncols=11)
