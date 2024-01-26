@@ -29,15 +29,10 @@ Bug Fixes
 
 - HorneExtract now accepts 'None' as a vaild option for ``bkgrd_prof``. [#171]
 
-- Fix for fully masked bins in FitTrace when using ``gaussian`` for ``peak_method``.
-  Fully masked columns now have a peak of nan, which is used for the all-bin fit
-  for the Trace. Warning messages for ``peak_method`` == ``max`` and ``centroid``
-  are also now reflective of what the bin peak is being set to. [#205]
-
 - Fix in FitTrace to set fully-masked column bin peaks to NaN. Previously, for
   peak_method='max' these were set to 0.0, and for peak_method='centroid' they
   were set to the number of rows in the image, biasing the final fit to all bin
-  peaks. [#206]
+  peaks. Previously for Gaussian, the entire fit failed. [#205, #206]
 
 Other changes
 ^^^^^^^^^^^^^
