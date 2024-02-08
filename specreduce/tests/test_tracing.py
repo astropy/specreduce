@@ -154,7 +154,7 @@ class TestMasksTracing():
         index_arr = np.tile(np.arange(nrows), (ncols, 1))
         img = col_model(index_arr.T) + noise
 
-        return img
+        return img * u.DN
 
     def test_window_fit_trace(self):
 
