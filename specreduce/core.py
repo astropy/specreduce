@@ -11,6 +11,19 @@ from specutils import Spectrum1D
 __all__ = ['SpecreduceOperation']
 
 
+def _get_data_from_image(image):
+    """Extract data array from various input types for `image`.
+       Retruns `np.ndarray` of image data."""
+
+    if isinstance(image, u.quantity.Quantity):
+        img = image.value
+    if isinstance(image, np.ndarray):
+        img = image
+    else:  # NDData, including CCDData and Spectrum1D
+        img = image.data
+    return img
+
+
 class _ImageParser:
     """
     Coerces images from accepted formats to Spectrum1D objects for
@@ -26,6 +39,7 @@ class _ImageParser:
         - `~astropy.units.quantity.Quantity`
         - `~numpy.ndarray`
     """
+
     def _parse_image(self, image, disp_axis=1):
         """
         Convert all accepted image types to a consistently formatted
@@ -50,12 +64,7 @@ class _ImageParser:
             # useful for Background's instance methods
             return self.image
 
-        if isinstance(image, np.ndarray):
-            img = image
-        elif isinstance(image, u.quantity.Quantity):
-            img = image.value
-        else:  # NDData, including CCDData and Spectrum1D
-            img = image.data
+        img = _get_data_from_image(image)
 
         # mask and uncertainty are set as None when they aren't specified upon
         # creating a Spectrum1D object, so we must check whether these
