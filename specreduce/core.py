@@ -11,19 +11,6 @@ from specutils import Spectrum1D
 __all__ = ['SpecreduceOperation']
 
 
-def _get_data_from_image(image):
-    """Extract data array from various input types for `image`.
-       Retruns `np.ndarray` of image data."""
-
-    if isinstance(image, u.quantity.Quantity):
-        img = image.value
-    if isinstance(image, np.ndarray):
-        img = image
-    else:  # NDData, including CCDData and Spectrum1D
-        img = image.data
-    return img
-
-
 class _ImageParser:
     """
     Coerces images from accepted formats to Spectrum1D objects for
@@ -64,7 +51,7 @@ class _ImageParser:
             # useful for Background's instance methods
             return self.image
 
-        img = _get_data_from_image(image)
+        img = self._get_data_from_image(image)
 
         # mask and uncertainty are set as None when they aren't specified upon
         # creating a Spectrum1D object, so we must check whether these
@@ -86,6 +73,19 @@ class _ImageParser:
 
         return Spectrum1D(img * unit, spectral_axis=spectral_axis,
                           uncertainty=uncertainty, mask=mask)
+
+    @staticmethod
+    def _get_data_from_image(image):
+        """Extract data array from various input types for `image`.
+           Retruns `np.ndarray` of image data."""
+
+        if isinstance(image, u.quantity.Quantity):
+            img = image.value
+        if isinstance(image, np.ndarray):
+            img = image
+        else:  # NDData, including CCDData and Spectrum1D
+            img = image.data
+        return img
 
 
 @dataclass
