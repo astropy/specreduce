@@ -9,7 +9,7 @@ from astropy.nddata import NDData
 from astropy.utils.decorators import deprecated_attribute
 from specutils import Spectrum1D
 
-from specreduce.core import _ImageParser, _get_data_from_image
+from specreduce.core import _ImageParser
 from specreduce.extract import _ap_weight_image
 from specreduce.tracing import Trace, FlatTrace
 
@@ -183,7 +183,7 @@ class Background(_ImageParser):
         crossdisp_axis : int
             cross-dispersion axis
         """
-        image = _get_data_from_image(image) if image is not None else cls.image
+        image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
         kwargs['traces'] = [trace_object-separation, trace_object+separation]
         return cls(image=image, **kwargs)
 
@@ -220,7 +220,7 @@ class Background(_ImageParser):
         crossdisp_axis : int
             cross-dispersion axis
         """
-        image = _get_data_from_image(image) if image is not None else cls.image
+        image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
         kwargs['traces'] = [trace_object+separation]
         return cls(image=image, **kwargs)
 
