@@ -32,9 +32,10 @@ class Background(_ImageParser):
     ----------
     image : `~astropy.nddata.NDData`-like or array-like
         image with 2-D spectral image data
-    traces : List
-        list of trace objects (or integers to define FlatTraces) to
-        extract the background
+    traces : trace, int, float (single or list)
+        Individual or list of trace object(s) (or integers/floats to define
+        FlatTraces) to extract the background. If None, a FlatTrace at the
+        center of the image (according to `disp_axis`) will be used.
     width : float
         width of extraction aperture in pixels
     statistic: string
@@ -82,16 +83,6 @@ class Background(_ImageParser):
         crossdisp_axis : int
             cross-dispersion axis
         """
-        def _to_trace(trace):
-            if not isinstance(trace, Trace):
-                trace = FlatTrace(self.image, trace)
-
-            # TODO: this check can be removed if/when implemented as a check in FlatTrace
-            if isinstance(trace, FlatTrace):
-                if trace.trace_pos < 1:
-                    raise ValueError('trace_object.trace_pos must be >= 1')
-            return trace
-
         self.image = self._parse_image(self.image)
 
         if self.width < 0:
@@ -100,12 +91,10 @@ class Background(_ImageParser):
             self._bkg_array = np.zeros(self.image.shape[self.disp_axis])
             return
 
-        if isinstance(self.traces, Trace):
-            self.traces = [self.traces]
+        self._set_traces()
 
         bkg_wimage = np.zeros_like(self.image.data, dtype=np.float64)
         for trace in self.traces:
-            trace = _to_trace(trace)
             windows_max = trace.trace.data.max() + self.width/2
             windows_min = trace.trace.data.min() - self.width/2
             if windows_max >= self.image.shape[self.crossdisp_axis]:
@@ -149,6 +138,39 @@ class Background(_ImageParser):
             self._bkg_array = np.ma.median(image_ma, axis=self.crossdisp_axis).data
         else:
             raise ValueError("statistic must be 'average' or 'median'")
+
+    def _set_traces(self):
+        """Determine `traces` from input. If an integer/float or list if int/float
+           is passed in, use these to construct FlatTrace objects. These values
+           must be positive. If None (which is initialized to an empty list),
+           construct a FlatTrace using the center of image (according to disp.
+           axis). Otherwise, any Trace object or list of Trace objects can be
+           passed in."""
+
+        if self.traces == []:
+            # assume a flat trace at the image center if nothing is passed in.
+            trace_pos = self.image.shape[self.disp_axis] / 2.
+            self.traces = [FlatTrace(self.image, trace_pos)]
+
+        if isinstance(self.traces, Trace):
+            # if just one trace, turn it into iterable.
+            self.traces = [self.traces]
+            return
+
+        # finally, if float/int is passed in convert to FlatTrace(s)
+        if isinstance(self.traces, (float, int)):  # for a single number
+            self.traces = [self.traces]
+
+        if np.all([isinstance(x, (float, int)) for x in self.traces]):
+            self.traces = [FlatTrace(self.image, trace_pos) for trace_pos in self.traces]
+            return
+
+        else:
+            if not np.all([isinstance(x, Trace) for x in self.traces]):
+                raise ValueError('`traces` must be a `Trace` object or list of '
+                                 '`Trace` objects, a number or list of numbers to '
+                                 'define FlatTraces, or None to use a FlatTrace in '
+                                 'the middle of the image.')
 
     @classmethod
     def two_sided(cls, image, trace_object, separation, **kwargs):

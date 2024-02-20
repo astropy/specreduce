@@ -34,6 +34,9 @@ Bug Fixes
   were set to the number of rows in the image, biasing the final fit to all bin
   peaks. Previously for Gaussian, the entire fit failed. [#205, #206]
 
+- Fixed input of `traces` in `Background`. Added a condition to 'FlatTrace' that
+  trace position must be a positive number. [#211]
+
 Other changes
 ^^^^^^^^^^^^^
 
