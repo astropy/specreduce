@@ -109,3 +109,29 @@ def test_warnings_errors(mk_test_spec_no_spectral_axis):
 
     with pytest.raises(ValueError, match="width must be positive"):
         Background.two_sided(image, 25, 2, width=-1)
+
+
+def test_trace_inputs(mk_test_img_raw):
+
+    image = mk_test_img_raw
+
+    # When `Background` object is created with no Trace object passed in it should
+    # create a FlatTrace in the middle of the image (according to disp. axis)
+    background = Background(image, width=5)
+    assert np.all(background.traces[0].trace.data == image.shape[1] / 2.)
+
+    # FlatTrace(s) should be created if number or list of numbers is passed in for `traces`
+    background = Background(image, 10., width=5)
+    assert isinstance(background.traces[0], FlatTrace)
+    assert background.traces[0].trace_pos == 10.
+
+    traces = [10., 15]
+    background = Background(image, traces, width=5)
+    for i, trace_pos in enumerate(traces):
+        assert background.traces[i].trace_pos == trace_pos
+
+    # make sure error is raised if input for `traces` is invalid
+    match_str = 'objects, a number or list of numbers to define FlatTraces, ' +\
+                'or None to use a FlatTrace in the middle of the image.'
+    with pytest.raises(ValueError, match=match_str):
+        Background(image, 'non_valid_trace_pos')

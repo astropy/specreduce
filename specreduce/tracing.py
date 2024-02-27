@@ -110,6 +110,8 @@ class FlatTrace(Trace, _ImageParser):
         trace_pos : float
             Position of the trace
         """
+        if trace_pos < 1:
+            raise ValueError('`trace_pos` must be positive.')
         self.trace_pos = trace_pos
         self.trace = np.ones_like(self.image.data[0]) * self.trace_pos
         self._bound_trace()

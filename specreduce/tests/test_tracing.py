@@ -36,8 +36,12 @@ def test_flat_trace():
     t.set_position(400.)
     assert t[0] == 400.
 
-    t.set_position(-100)
-    assert np.ma.is_masked(t[0])
+
+def test_negative_flat_trace_err():
+    # make sure correct error is raised when trying to create FlatTrace with
+    # negative trace_pos
+    with pytest.raises(ValueError, match='must be positive.'):
+        FlatTrace(IM, trace_pos=-1)
 
 
 # test array traces
