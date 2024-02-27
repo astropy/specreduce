@@ -22,7 +22,7 @@ class Trace:
 
     Parameters
     ----------
-    image : `~astropy.nddata.NDData`-like or array-like, required
+    image : `~astropy.nddata.NDData`-like or array-like, required.
         Image to be traced
 
     Properties
