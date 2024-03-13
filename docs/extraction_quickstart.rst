@@ -158,7 +158,7 @@ included here.
 Putting all these steps together, a simple extraction process might look
 something like::
 
-    from specreduce.trace import FlatTrace
+    from specreduce.tracing import FlatTrace
     from specreduce.background import Background
     from specreduce.extract import BoxcarExtract
 
