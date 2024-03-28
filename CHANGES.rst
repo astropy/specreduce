@@ -11,6 +11,10 @@ New Features
   the ``interp_degree_interpolated_profile`` parameter) to generate a continuously varying
   spatial profile that can be evaluated at any wavelength. [#173]
 
+- Added a function to measure a cross-dispersion profile. A profile can be
+  obtained at a single pixel/wavelength, or an average profile can be obtained
+  from a range/set of wavelengths. [#214]
+
 API Changes
 ^^^^^^^^^^^
 

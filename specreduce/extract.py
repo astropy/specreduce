@@ -118,34 +118,6 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
     return wimage
 
 
-def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):
-    """
-    Given an arbitrary trace ``trace_array`` (an np.ndarray), roll
-    all columns of ``nddata`` to shift the NDData's pixels nearest
-    to the trace to the center of the spatial dimension of the
-    NDData.
-    """
-    # TODO: this workflow does not support extraction for >2D spectra
-    if not (disp_axis == 1 and crossdisp_axis == 0):
-        # take the transpose to ensure the rows are the cross-disp axis:
-        img = img.T
-
-    n_rows, n_cols = img.shape
-
-    # indices of all columns, in their original order
-    rows = np.broadcast_to(np.arange(n_rows)[:, None], img.shape)
-    cols = np.broadcast_to(np.arange(n_cols), img.shape)
-
-    # we want to "roll" each column so that the trace sits in
-    # the central row of the final image
-    shifts = trace_array.astype(int) - n_rows // 2
-
-    # we wrap the indices so we don't index out of bounds
-    shifted_rows = np.mod(rows + shifts[None, :], n_rows)
-
-    return img[shifted_rows, cols]
-
-
 @dataclass
 class BoxcarExtract(SpecreduceOperation):
     """
@@ -814,6 +786,34 @@ class HorneExtract(SpecreduceOperation):
         # convert the extraction to a Spectrum1D object
         return Spectrum1D(extraction * unit,
                           spectral_axis=self.image.spectral_axis)
+
+
+def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):
+    """
+    Given an arbitrary trace ``trace_array`` (an np.ndarray), roll
+    all columns of ``nddata`` to shift the NDData's pixels nearest
+    to the trace to the center of the spatial dimension of the
+    NDData.
+    """
+    # TODO: this workflow does not support extraction for >2D spectra
+    if not (disp_axis == 1 and crossdisp_axis == 0):
+        # take the transpose to ensure the rows are the cross-disp axis:
+        img = img.T
+
+    n_rows, n_cols = img.shape
+
+    # indices of all columns, in their original order
+    rows = np.broadcast_to(np.arange(n_rows)[:, None], img.shape)
+    cols = np.broadcast_to(np.arange(n_cols), img.shape)
+
+    # we want to "roll" each column so that the trace sits in
+    # the central row of the final image
+    shifts = trace_array.astype(int) - n_rows // 2
+
+    # we wrap the indices so we don't index out of bounds
+    shifted_rows = np.mod(rows + shifts[None, :], n_rows)
+
+    return img[shifted_rows, cols]
 
 
 @dataclass
