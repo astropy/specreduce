@@ -116,8 +116,8 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
 
         # ArrayTrace can have nonfinite or masked data in trace, and this will fail,
         # so figure out how to handle that...
-       
-       	wimage[:, i] = _get_boxcar_weights(trace.trace.data[i], hwidth, image_sizes)
+
+        wimage[:, i] = _get_boxcar_weights(trace.trace.data[i], hwidth, image_sizes)
 
     return wimage
 
@@ -158,8 +158,7 @@ class BoxcarExtract(SpecreduceOperation):
     disp_axis: int = 1
     crossdisp_axis: int = 0
     # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
-
-    mask_treatment : str = 'filter'
+    mask_treatment: str = 'filter'
     _valid_mask_treatment_methods = ('filter', 'omit', 'zero-fill')
 
     @property
@@ -216,9 +215,9 @@ class BoxcarExtract(SpecreduceOperation):
         # omit. non-finite data will be masked, always. Returns a Spectrum1D.
         self.image = self._parse_image(image)
 
-        # _parse_image returns a Spectrum1D. convert this to a masked array
-        # for ease of calculations here (even if there is no masked data).
-        img = np.ma.masked_array(self.image.data, self.image.mask) 
+        # # _parse_image returns a Spectrum1D. convert this to a masked array
+        # # for ease of calculations here (even if there is no masked data).
+        # img = np.ma.masked_array(self.image.data, self.image.mask)
 
         if width <= 0:
             raise ValueError("width must be positive")
@@ -229,9 +228,6 @@ class BoxcarExtract(SpecreduceOperation):
                                 disp_axis,
                                 crossdisp_axis,
                                 self.image.shape)
-        # import matplotlib.pyplot as plt
-        # plt.imshow(wimg)
-        # plt.show()
 
         # extract, assigning no weight to non-finite pixels outside the window
         # (non-finite pixels inside the window will still make it into the sum)

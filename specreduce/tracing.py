@@ -53,7 +53,7 @@ class Trace:
     def validate_masking_options(self):
         if self.mask_treatment not in self.valid_mask_treatment_methods:
             raise ValueError(
-                f'`mask_treatment` {self.mask_treatment} not one of {self.valid_mask_treatment_methods}')
+                f'`mask_treatment` {self.mask_treatment} not one of {self.valid_mask_treatment_methods}')  # noqa
 
     def shift(self, delta):
         """
@@ -170,10 +170,10 @@ class ArrayTrace(Trace, _ImageParser):
         else:
             total_mask = ~np.isfinite(trace_data)
 
-    	# always work with masked array, even if there is no masked
-    	# or nonfinite data, in case padding is needed. if not, mask will be
-    	# dropped at the end and a regular array will be returned.
-       	self.trace = np.ma.MaskedArray(trace_data, total_mask)
+        # always work with masked array, even if there is no masked
+        # or nonfinite data, in case padding is needed. if not, mask will be
+        # dropped at the end and a regular array will be returned.
+        self.trace = np.ma.MaskedArray(trace_data, total_mask)
 
         self.image = self._parse_image(self.image)
 
@@ -193,11 +193,11 @@ class ArrayTrace(Trace, _ImageParser):
 
         # warn if entire trace is masked
         if np.all(self.trace.mask):
-        	warnings.warn("Entire trace array is masked.")
+            warnings.warn("Entire trace array is masked.")
 
         # and return plain array if nothing is masked
         if not np.any(self.trace.mask):
-        	self.trace = self.trace.data
+            self.trace = self.trace.data
 
 
 @dataclass

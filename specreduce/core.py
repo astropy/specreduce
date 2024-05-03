@@ -78,7 +78,6 @@ class _ImageParser:
         spectral_axis = getattr(image, 'spectral_axis',
                                 np.arange(img.shape[disp_axis]) * u.pix)
 
-
         img = Spectrum1D(img * unit, spectral_axis=spectral_axis,
                          uncertainty=uncertainty, mask=mask)
 
@@ -121,8 +120,8 @@ class _ImageParser:
         # make sure chosen option is valid. if _valid_mask_treatment_methods
         # is not an attribue, proceed with 'filter' to return back inupt data
         # and mask that is combined with nonfinite data.
-        if mask_treatment is not None:  # None in operations where masks aren't relevant (e.g FlatTrace)
-            valid_mask_treatment_methods = getattr(self, '_valid_mask_treatment_methods', ['filter'])
+        if mask_treatment is not None:  # None in operations where masks aren't relevant (FlatTrace)
+            valid_mask_treatment_methods = getattr(self, '_valid_mask_treatment_methods', ['filter'])  # noqa
             if mask_treatment not in valid_mask_treatment_methods:
                 raise ValueError(f"`mask_treatment` must be one of {valid_mask_treatment_methods}")
 
@@ -179,19 +178,6 @@ class _ImageParser:
             raise ValueError('Image is fully masked. Check for invalid values.')
 
         return image, mask
-
-    @staticmethod
-    def _get_data_from_image(image):
-        """Extract data array from various input types for `image`.
-           Retruns `np.ndarray` of image data."""
-
-        if isinstance(image, u.quantity.Quantity):
-            img = image.value
-        if isinstance(image, np.ndarray):
-            img = image
-        else:  # NDData, including CCDData and Spectrum1D
-            img = image.data
-        return img
 
 
 @dataclass

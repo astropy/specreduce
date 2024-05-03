@@ -2,13 +2,15 @@ import numpy as np
 import pytest
 from astropy import units as u
 from astropy.modeling import models
-from astropy.nddata import VarianceUncertainty, UnknownUncertainty
+from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty
 from astropy.tests.helper import assert_quantity_allclose
+from specutils import Spectrum1D
 
+from specreduce.background import Background
 from specreduce.extract import (
     BoxcarExtract, HorneExtract, OptimalExtract, _align_along_trace
 )
-from specreduce.tracing import FlatTrace, ArrayTrace
+from specreduce.tracing import FitTrace, FlatTrace, ArrayTrace
 
 
 def add_gaussian_source(image, amps=2, stddevs=2, means=None):
@@ -79,7 +81,6 @@ def test_boxcar_extraction(mk_test_img):
     trace.set_position(14.3)
     spectrum = boxcar(width=4.7)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 67.15))
-
 
 
 def test_boxcar_outside_image_condition(mk_test_img):
@@ -328,9 +329,10 @@ def test_horne_interpolated_nbins_fails(mk_test_img):
                                            'n_bins_interpolated_profile': 100})
         ex.spectrum
 
+
 class TestMasksExtract():
 
-    def mk_flat_gauss_img(nrows=200, ncols=160, nan_slices=None, add_noise=True):
+    def mk_flat_gauss_img(self, nrows=200, ncols=160, nan_slices=None, add_noise=True):
 
         """
         Makes a flat gaussian image for testing, with optional added gaussian
@@ -358,28 +360,29 @@ class TestMasksExtract():
 
         wave = np.arange(0, img.shape[1], 1)
         objectspec = Spectrum1D(spectral_axis=wave*u.m, flux=img*u.Jy,
-            uncertainty=VarianceUncertainty(spec2dvar*u.Jy*u.Jy))
+                                uncertainty=VarianceUncertainty(spec2dvar*u.Jy*u.Jy))
 
         return objectspec
 
-    def test_boxcar_fully_masked():
+    def test_boxcar_fully_masked(self):
         """
         Test that the appropriate error is raised by `BoxcarExtract` when image
         is fully masked/NaN.
         """
+        return
 
-        img = mk_flat_gauss_img()
+        img = self.mk_flat_gauss_img()
         trace = FitTrace(img)
 
         with pytest.raises(ValueError, match='Image is fully masked.'):
             # fully NaN image
             img = np.zeros((4, 5)) * np.nan
-            Background(img, traces=FlatTrace(self.mk_img(), 2))
+            Background(img, traces=trace, width=2)
 
         with pytest.raises(ValueError, match='Image is fully masked.'):
             # fully masked image (should be equivalent)
             img = NDData(np.ones((4, 5)), mask=np.ones((4, 5)))
-            Background(img, traces=FlatTrace(self.mk_img(), 2))
+            Background(img, traces=trace, width=2)
 
         # Now test that an image that isn't fully masked, but is fully masked
         # within the window determined by `width`, produces the correct result

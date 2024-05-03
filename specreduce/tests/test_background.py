@@ -189,7 +189,6 @@ class TestMasksBackground():
         is fully masked/NaN.
         """
 
-
         with pytest.raises(ValueError, match='Image is fully masked.'):
             # fully NaN image
             img = self.mk_img() * np.nan

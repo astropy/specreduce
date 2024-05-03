@@ -71,7 +71,7 @@ class Background(_ImageParser):
     statistic: str = 'average'
     disp_axis: int = 1
     crossdisp_axis: int = 0
-    mask_treatment : str = 'filter'
+    mask_treatment: str = 'filter'
     _valid_mask_treatment_methods = ('filter', 'omit', 'zero-fill')
 
     # TO-DO: update bkg_array with Spectrum1D alternative (is bkg_image enough?)
@@ -157,7 +157,7 @@ class Background(_ImageParser):
             raise ValueError("background window does not remain in bounds across entire dispersion axis")  # noqa
         # check if image contained within background window is fully-nonfinite and raise an error
         if np.all(img.mask[bkg_wimage > 0]):
-            raise ValueError("Image is fully masked within background window determined by `width`.")
+            raise ValueError("Image is fully masked within background window determined by `width`.")  # noqa
 
         if self.statistic == 'median':
             # make it clear in the expose image that partial pixels are fully-weighted
