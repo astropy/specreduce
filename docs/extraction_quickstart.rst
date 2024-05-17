@@ -47,12 +47,12 @@ defined by one or more windows, and can be generated with:
 
 The center of the window can either be passed as a float/integer or as a trace::
 
-  bg = specreduce.tracing.Background.one_sided(image, trace, separation=5, width=2)
+  bg = specreduce.background.Background.one_sided(image, trace, separation=5, width=2)
 
 
 or, equivalently::
 
-  bg = specreduce.tracing.Background.one_sided(image, 15, separation=5, width=2)
+  bg = specreduce.background.Background.one_sided(image, 15, separation=5, width=2)
 
 
 The background image can be accessed via `~specreduce.background.Background.bkg_image`
@@ -158,7 +158,7 @@ included here.
 Putting all these steps together, a simple extraction process might look
 something like::
 
-    from specreduce.trace import FlatTrace
+    from specreduce.tracing import FlatTrace
     from specreduce.background import Background
     from specreduce.extract import BoxcarExtract
 

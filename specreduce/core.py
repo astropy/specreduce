@@ -26,6 +26,7 @@ class _ImageParser:
         - `~astropy.units.quantity.Quantity`
         - `~numpy.ndarray`
     """
+
     def _parse_image(self, image, disp_axis=1):
         """
         Convert all accepted image types to a consistently formatted
@@ -50,12 +51,7 @@ class _ImageParser:
             # useful for Background's instance methods
             return self.image
 
-        if isinstance(image, np.ndarray):
-            img = image
-        elif isinstance(image, u.quantity.Quantity):
-            img = image.value
-        else:  # NDData, including CCDData and Spectrum1D
-            img = image.data
+        img = self._get_data_from_image(image)
 
         # mask and uncertainty are set as None when they aren't specified upon
         # creating a Spectrum1D object, so we must check whether these
@@ -77,6 +73,19 @@ class _ImageParser:
 
         return Spectrum1D(img * unit, spectral_axis=spectral_axis,
                           uncertainty=uncertainty, mask=mask)
+
+    @staticmethod
+    def _get_data_from_image(image):
+        """Extract data array from various input types for `image`.
+           Retruns `np.ndarray` of image data."""
+
+        if isinstance(image, u.quantity.Quantity):
+            img = image.value
+        if isinstance(image, np.ndarray):
+            img = image
+        else:  # NDData, including CCDData and Spectrum1D
+            img = image.data
+        return img
 
 
 @dataclass

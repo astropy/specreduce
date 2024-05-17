@@ -36,8 +36,12 @@ def test_flat_trace():
     t.set_position(400.)
     assert t[0] == 400.
 
-    t.set_position(-100)
-    assert np.ma.is_masked(t[0])
+
+def test_negative_flat_trace_err():
+    # make sure correct error is raised when trying to create FlatTrace with
+    # negative trace_pos
+    with pytest.raises(ValueError, match='must be positive.'):
+        FlatTrace(IM, trace_pos=-1)
 
 
 # test array traces
@@ -154,7 +158,7 @@ class TestMasksTracing():
         index_arr = np.tile(np.arange(nrows), (ncols, 1))
         img = col_model(index_arr.T) + noise
 
-        return img
+        return img * u.DN
 
     def test_window_fit_trace(self):
 

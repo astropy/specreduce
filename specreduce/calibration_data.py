@@ -2,14 +2,15 @@
 Utilities for defining, loading, and handling spectroscopic calibration data
 """
 
-import os
 import warnings
+from pathlib import Path
+from typing import Sequence
 
-import numpy as np
 from astropy import units as u
 from astropy.table import Table, vstack, QTable
 from astropy.utils.data import download_file
 from astropy.utils.exceptions import AstropyUserWarning
+from astropy.coordinates import SpectralCoord
 
 from specutils import Spectrum1D
 from specutils.utils.wcs_utils import vac_to_air
@@ -17,6 +18,7 @@ from specutils.utils.wcs_utils import vac_to_air
 __all__ = [
     'get_reference_file_path',
     'get_pypeit_data_path',
+    'get_available_line_catalogs',
     'load_pypeit_calibration_lines',
     'load_MAST_calspec',
     'load_onedstds',
@@ -88,44 +90,47 @@ PYPEIT_CALIBRATION_LINELISTS = [
 ]
 
 
+def get_available_line_catalogs() -> dict:
+    """
+    Returns a dictionary of available line catalogs. Currently only ``pypeit``
+    catalogs are fully supported.
+    """
+    return {
+        'pypeit': PYPEIT_CALIBRATION_LINELISTS
+    }
+
+
 def get_reference_file_path(
-        path=None,
-        cache=True,
-        repo_url="https://raw.githubusercontent.com/astropy/specreduce-data",
-        repo_branch="main",
-        repo_data_path="specreduce_data/reference_data",
-        show_progress=False
-):
+        path: str | Path | None = None,
+        cache: bool = True,
+        repo_url: str = "https://raw.githubusercontent.com/astropy/specreduce-data",
+        repo_branch: str = "main",
+        repo_data_path: str = "specreduce_data/reference_data",
+        show_progress: bool = False
+) -> Path | None:
     """
     Utility to load reference data via GitHub raw user content. By default the ``specreduce_data``
     repository at https://github.com/astropy/specreduce-data is used.
 
     Parameters
     ----------
-    path : str or None (default: None)
-        Filename of reference file relative to the reference_data directory within
+    path : Path of reference file relative to the reference_data directory within
         specified package.
 
-    cache : bool (default: False)
-        Set whether file is cached if file is downloaded.
+    cache : Set whether file is cached if file is downloaded.
 
-    repo_url : str
-        Base repository URL for the reference data.
+    repo_url : Base repository URL for the reference data.
 
-    repo_branch : str (default: main)
-        Branch of repository from which to fetch the reference data.
+    repo_branch : Branch of repository from which to fetch the reference data.
 
-    repo_data_path : str (default: specreduce_data/reference_data/)
-        Path within the repository where the reference data is located.
+    repo_data_path : Path within the repository where the reference data is located.
 
-    show_progress : bool (default: False)
-        Set whether download progress bar is shown if file is downloaded.
+    show_progress : Set whether download progress bar is shown if file is downloaded.
 
     Returns
     -------
-    file_path : str or None
-        Local path to reference data file or None if the path cannot be constructed or if the file
-        itself is not valid.
+    file_path : Local path to reference data file or None if the path cannot be constructed
+        or if the file itself is not valid.
 
     Examples
     --------
@@ -137,11 +142,13 @@ def get_reference_file_path(
 
     remote_url = f"{repo_url}/{repo_branch}/{repo_data_path}/{path}"
     try:
-        file_path = download_file(
-            remote_url,
-            cache=cache,
-            show_progress=show_progress,
-            pkgname='specreduce'
+        file_path = Path(
+            download_file(
+                remote_url,
+                cache=cache,
+                show_progress=show_progress,
+                pkgname='specreduce'
+            )
         )
     except Exception as e:
         msg = f"Downloading of {remote_url} failed: {e}"
@@ -149,7 +156,7 @@ def get_reference_file_path(
         return None
 
     # final sanity check to make sure file_path is actually a file.
-    if os.path.isfile(file_path):
+    if file_path.exists() and file_path.is_file():
         return file_path
     else:
         warnings.warn(f"Able to construct {file_path}, but it is not a file.")
@@ -157,10 +164,10 @@ def get_reference_file_path(
 
 
 def get_pypeit_data_path(
-        path=None,
-        cache=True,
-        show_progress=False
-):
+        path: str | Path | None = None,
+        cache: bool = True,
+        show_progress: bool = False
+) -> Path | None:
     """
     Convenience utility to facilitate access to ``pypeit`` reference data. The data is accessed
     directly from the release branch on GitHub and downloaded/cached
@@ -168,21 +175,17 @@ def get_pypeit_data_path(
 
     Parameters
     ----------
-    path : str or None (default: None)
-        Filename of reference file relative to the reference_data directory within
+    path : Filename of reference file relative to the reference_data directory within
         ``specreduce_data`` package.
 
-    cache : bool (default: False)
-        Set whether file is cached if file is downloaded.
+    cache : Set whether file is cached if file is downloaded.
 
-    show_progress : bool (default: False)
-        Set whether download progress bar is shown if file is downloaded.
+    show_progress : Set whether download progress bar is shown if file is downloaded.
 
     Returns
     -------
-    file_path : str or None
-        Path to reference data file or None if the path cannot be constructed or if the file
-        itself is not valid.
+    file_path : Path to reference data file or None if the path cannot be
+        constructed or if the file itself is not valid.
 
     Examples
     --------
@@ -203,7 +206,12 @@ def get_pypeit_data_path(
     )
 
 
-def load_pypeit_calibration_lines(lamps=None, wave_air=False, cache=True, show_progress=False):
+def load_pypeit_calibration_lines(
+        lamps: Sequence | None = None,
+        wave_air: bool = False,
+        cache: bool = True,
+        show_progress: bool = False
+) -> QTable | None:
     """
     Load reference calibration lines from ``pypeit`` linelists. The ``pypeit`` linelists are
     well-curated and have been tested across a wide range of spectrographs. The available
@@ -211,27 +219,25 @@ def load_pypeit_calibration_lines(lamps=None, wave_air=False, cache=True, show_p
 
     Parameters
     ----------
-    lamps : str or list-like (default: None)
-        Lamp or list of lamps to include in output reference linelist. The parlance of "lamp"
-        is retained here for consistency with its use in ``pypeit`` and elsewhere. In several
-        of the supported cases the "lamp" is the sky itself (e.g. OH lines in the near-IR).
+    lamps : Lamp string, comma-separated list of lamps, or sequence of lamps to include in
+        output reference linelist. The parlance of "lamp" is retained here for consistency
+        with its use in ``pypeit`` and elsewhere. In several of the supported cases the
+        "lamp" is the sky itself (e.g. OH lines in the near-IR).
+        The available lamps are defined by ``PYPEIT_CALIBRATION_LINELISTS``.
 
-    wave_air : bool (default: False)
-        If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
+    wave_air : If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
 
-    cache : bool (default: True)
-        Toggle caching of downloaded data
+    cache : Toggle caching of downloaded data
 
-    show_progress : bool (default: False)
-        Show download progress bar
+    show_progress : Show download progress bar
 
     Returns
     -------
-    linelist: `~astropy.table.Table`
+    linelist:
         Table containing the combined calibration line list. ``pypeit`` linelists have the
         following columns:
         * ``ion``: Ion or molecule generating the line.
-        * ``wave``: Vacuum wavelength of the line in Angstroms.
+        * ``wavelength``: Vacuum wavelength of the line in Angstroms.
         * ``NIST``: Flag denoting if NIST is the ultimate reference for the line's wavelength.
         * ``Instr``: ``pypeit``-specific instrument flag.
         * ``amplitude``: Amplitude of the line. Beware, not consistent between lists.
@@ -240,81 +246,84 @@ def load_pypeit_calibration_lines(lamps=None, wave_air=False, cache=True, show_p
     if lamps is None:
         return None
 
-    linelist = None
+    if not isinstance(lamps, Sequence):
+        raise ValueError(f"Invalid calibration lamps specification: {lamps}")
 
     if isinstance(lamps, str):
-        lamps = [lamps]
-
-    if isinstance(lamps, (list, tuple, set, np.ndarray)):
-        linelists = []
-        for lamp in lamps:
-            if lamp in PYPEIT_CALIBRATION_LINELISTS:
-                list_path = f"arc_lines/lists/{lamp}_lines.dat"
-                lines_file = get_pypeit_data_path(
-                    list_path,
-                    cache=cache,
-                    show_progress=show_progress
-                )
-                lines_tab = Table.read(
-                    lines_file,
-                    format='ascii.fixed_width',
-                    comment='#'
-                )
-                if lines_tab is not None:
-                    linelists.append(lines_tab)
-            else:
-                warnings.warn(
-                    f"{lamp} not in the list of supported calibration "
-                    "line lists: {PYPEIT_CALIBRATION_LINELISTS}."
-                )
-        if len(linelists) == 0:
-            warnings.warn(f"No calibration lines loaded from {lamps}.")
-            linelist = None
+        if ',' in lamps:
+            lamps = [lamp.strip() for lamp in lamps.split(',')]
         else:
-            linelist = vstack(linelists)
-            # pypeit linelists use vacuum wavelengths in angstroms
-            linelist['wave'] *= u.Angstrom
-            if wave_air:
-                linelist['wave'] = vac_to_air(linelist['wave'])
-            linelist = QTable(linelist)
+            lamps = [lamps]
+
+    linelists = []
+    for lamp in lamps:
+        if lamp in PYPEIT_CALIBRATION_LINELISTS:
+            list_path = f"arc_lines/lists/{lamp}_lines.dat"
+            lines_file = get_pypeit_data_path(
+                list_path,
+                cache=cache,
+                show_progress=show_progress
+            )
+            lines_tab = Table.read(
+                lines_file,
+                format='ascii.fixed_width',
+                comment='#'
+            )
+            if lines_tab is not None:
+                linelists.append(lines_tab)
+        else:
+            warnings.warn(
+                f"{lamp} not in the list of supported calibration "
+                "line lists: {PYPEIT_CALIBRATION_LINELISTS}."
+            )
+    if len(linelists) == 0:
+        warnings.warn(f"No calibration lines loaded from {lamps}.")
+        linelist = None
     else:
-        raise ValueError(
-            f"Invalid calibration lamps specification, {lamps}. "
-            "Must be a string or list-like iterable."
-        )
+        linelist = vstack(linelists)
+        linelist.rename_column('wave', 'wavelength')
+        # pypeit linelists use vacuum wavelengths in angstroms
+        linelist['wavelength'] *= u.Angstrom
+        if wave_air:
+            linelist['wavelength'] = vac_to_air(linelist['wavelength'])
+        linelist = QTable(linelist)
 
     return linelist
 
 
-def load_MAST_calspec(filename, cache=True, show_progress=False):
+def load_MAST_calspec(
+        filename: str | Path,
+        cache: bool = True,
+        show_progress: bool = False
+) -> Spectrum1D | None:
     """
-    Load a standard star spectrum from the ``calspec`` database at MAST. These spectra are provided in
-    FITS format and are described in detail at:
+    Load a standard star spectrum from the ``calspec`` database at MAST. These spectra are provided
+    in FITS format and are described in detail at:
 
-    https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec  # noqa
+    https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec
 
-    If ``remote`` is True, the spectrum will be downloaded from MAST. Set ``remote`` to False to load
-    a local file.
+    If ``remote`` is True, the spectrum will be downloaded from MAST. Set ``remote`` to False to
+    load a local file.
 
     .. note:: This function requires ``synphot`` to be installed separately.
 
     Parameters
     ----------
-    filename : str
-        FITS filename of a standard star spectrum, e.g. g191b2b_005.fits. If this is a local file, it will be loaded.
-        If not, then a download from MAST will be attempted.
-    cache : bool (default = True)
-        Toggle whether downloaded data is cached or not.
-    show_progress : bool (default = True)
-        Toggle whether download progress bar is shown.
+    filename : FITS filename of a standard star spectrum, e.g. g191b2b_005.fits.
+        If this is a local file, it will be loaded. If not, then a download from
+        MAST will be attempted.
+
+    cache : Toggle whether downloaded data is cached or not.
+
+    show_progress : Toggle whether download progress bar is shown.
 
     Returns
     -------
-    spectrum : `~specutils.Spectrum1D` or None
-        If the spectrum can be loaded, return it as a `~specutils.Spectrum1D`.
+    spectrum : If the spectrum can be loaded, return it as a `~specutils.Spectrum1D`.
         Otherwise return None. The spectral_axis units are Å and the flux units are milli-Janskys.
     """
-    if os.path.isfile(filename):
+    filename = Path(filename)
+    if filename.exists() and filename.is_file():
         file_path = filename
     else:
         url = f"https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/{filename}"
@@ -345,7 +354,12 @@ def load_MAST_calspec(filename, cache=True, show_progress=False):
         return spectrum
 
 
-def load_onedstds(dataset="snfactory", specfile="EG131.dat", cache=True, show_progress=False):
+def load_onedstds(
+        dataset: str = "snfactory",
+        specfile: str = "EG131.dat",
+        cache: bool = True,
+        show_progress: bool = False
+) -> Spectrum1D | None:
     """
     This is a convenience function for loading a standard star spectrum from the 'onedstds'
     dataset in the ``specreduce_data`` package. They will be downloaded from the
@@ -353,22 +367,18 @@ def load_onedstds(dataset="snfactory", specfile="EG131.dat", cache=True, show_pr
 
     Parameters
     ----------
-    dataset : str  (default = "snfactory")
-        Standard star spectrum database. Valid options are described in :ref:`specphot_standards`.
+    dataset : Standard star spectrum database. Valid options are described
+        in :ref:`specphot_standards`.
 
-    specfile : str (default = "EG131.dat")
-        Filename of the standard star spectrum.
+    specfile : Filename of the standard star spectrum.
 
-    cache : bool (default = True)
-        Enable caching of downloaded data.
+    cache : Enable caching of downloaded data.
 
-    show_progress : bool (default = False)
-        Show download progress bar if data is downloaded.
+    show_progress : Show download progress bar if data is downloaded.
 
     Returns
     -------
-    spectrum : None or `~specutils.Spectrum1D`
-        If the spectrum can be loaded, return it as a `~specutils.Spectrum1D`.
+    spectrum : If the spectrum can be loaded, return it as a `~specutils.Spectrum1D`.
         Otherwise return None. The spectral_axis units are Å and the flux units are milli-Janskys.
     """
     if dataset not in SPECPHOT_DATASETS:
@@ -378,7 +388,7 @@ def load_onedstds(dataset="snfactory", specfile="EG131.dat", cache=True, show_pr
         return None
 
     spec_path = get_reference_file_path(
-        path=os.path.join("onedstds", dataset, specfile),
+        path=Path("onedstds") / Path(dataset) / Path(specfile),
         cache=cache,
         show_progress=show_progress
     )
@@ -408,8 +418,7 @@ class AtmosphericExtinction(Spectrum1D):
 
     Parameters
     ----------
-    model : str
-        Name of atmospheric extinction model provided by ``specreduce_data``. Valid
+    model : Name of atmospheric extinction model provided by ``specreduce_data``. Valid
         options are:
 
         kpno - Kitt Peak National Observatory (default)
@@ -420,29 +429,31 @@ class AtmosphericExtinction(Spectrum1D):
         mtham - Lick Observatory, Mt. Hamilton station
         paranal - European Southern Observatory, Cerro Paranal station
 
-    extinction : `~astropy.units.LogUnit`, `~astropy.units.Magnitude`,
-    `~astropy.units.dimensionless_unscaled`, 1D list-like, or None
-        Optionally provided extinction data for this spectrum. Used along with spectral_axis
-        to build custom atmospheric extinction model. If no units are provided, assumed to
-        be given in magnitudes.
+    extinction : Optionally provided extinction data for this spectrum. Used along with
+        spectral_axis to build custom atmospheric extinction model. If no units are provided,
+        assumed to be given in magnitudes.
 
-    spectral_axis : `~astropy.units.Quantity` or `~astropy.coordinates.SpectralCoord` or None
-        Optional Dispersion information with the same shape as the last (or only)
+    spectral_axis : Optional Dispersion information with the same shape as the last (or only)
         dimension of flux, or one greater than the last dimension of flux
         if specifying bin edges. Used along with flux to build custom atmospheric
         extinction model.
 
     Properties
     ----------
-    extinction_mag : `~astropy.units.Magnitude`
-        Extinction expressed in dimensionless magnitudes
+    extinction_mag : Extinction expressed in dimensionless magnitudes
 
-    transmission : `~astropy.units.dimensionless_unscaled`
-        Extinction expressed as fractional transmission
+    transmission : Extinction expressed as fractional transmission
 
     """
-    def __init__(self, model="kpno", extinction=None, spectral_axis=None,
-                 cache=True, show_progress=False, **kwargs):
+    def __init__(
+        self,
+        model: str = "kpno",
+        extinction: Sequence[float] | u.Quantity | None = None,
+        spectral_axis: SpectralCoord | u.Quantity | None = None,
+        cache: bool = True,
+        show_progress: bool = False,
+        **kwargs: str
+    ) -> None:
         if extinction is not None:
             if not isinstance(extinction, u.Quantity):
                 warnings.warn(
@@ -472,7 +483,7 @@ class AtmosphericExtinction(Spectrum1D):
                     f"of available models: {SUPPORTED_EXTINCTION_MODELS}"
                 )
                 raise ValueError(msg)
-            model_file = os.path.join("extinction", f"{model}extinct.dat")
+            model_file = Path("extinction") / Path(f"{model}extinct.dat")
             model_path = get_reference_file_path(
                 path=model_file,
                 cache=cache,
@@ -501,14 +512,14 @@ class AtmosphericExtinction(Spectrum1D):
         )
 
     @property
-    def extinction_mag(self):
+    def extinction_mag(self) -> u.Quantity:
         """
         This property returns the extinction in magnitudes
         """
         return self.flux.to(u.mag(u.dimensionless_unscaled))
 
     @property
-    def transmission(self):
+    def transmission(self) -> u.Quantity:
         """
         This property returns the transmission as a fraction between 0 and 1
         """
@@ -521,8 +532,7 @@ class AtmosphericTransmission(AtmosphericExtinction):
 
     Parameters
     ----------
-    data_file : str or `~pathlib.Path` or None
-        Name to file containing atmospheric transmission data. Data is assumed to have
+    data_file : Name to file containing atmospheric transmission data. Data is assumed to have
         two columns, wavelength and transmission (unscaled dimensionless). If
         this isn't provided, a model is built from a pre-calculated table of values
         from 0.9 to 5.6 microns. The values were generated by the ATRAN model,
@@ -530,15 +540,19 @@ class AtmosphericTransmission(AtmosphericExtinction):
         Technical Memorandum 103957). The extinction is given as a linear transmission
         fraction at an airmass of 1 and 1 mm of precipitable water.
 
-    wave_unit : `~astropy.units.Unit` (default = u.um)
-        Units for spectral axis.
+    wave_unit : Units for spectral axis.
     """
-    def __init__(self, data_file=None, wave_unit=u.um, **kwargs):
+    def __init__(
+        self,
+        data_file: str | Path | None = None,
+        wave_unit: u.Unit = u.um,
+        **kwargs: str
+    ) -> None:
         if data_file is None:
-            data_path = os.path.join("extinction", "atm_trans_am1.0.dat")
+            data_path = Path("extinction") / Path("atm_trans_am1.0.dat")
             data_file = get_reference_file_path(path=data_path)
 
-        t = Table.read(data_file, format="ascii", names=['wavelength', 'extinction'])
+        t = Table.read(Path(data_file), format="ascii", names=['wavelength', 'extinction'])
 
         # spectral axis is given in microns
         spectral_axis = t['wavelength'].data * wave_unit

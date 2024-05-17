@@ -9,22 +9,9 @@ from gwcs import coordinate_frames as cf
 from gwcs import wcs
 from specutils import Spectrum1D
 
-__all__ = ['WavelengthCalibration1D']
-
-
-def get_available_catalogs():
-    """
-    ToDo: Decide in what format to store calibration line catalogs (e.g., for lamps)
-          and write this function to determine the list of available catalog names.
-    """
-    return []
-
-
-def concatenate_catalogs():
-    """
-    ToDo: Code logic to combine the lines from multiple catalogs if needed
-    """
-    pass
+__all__ = [
+    'WavelengthCalibration1D'
+]
 
 
 def _check_arr_monotonic(arr):
@@ -79,9 +66,6 @@ class WavelengthCalibration1D():
 
         if not isinstance(input_spectrum, Spectrum1D):
             raise ValueError('Input spectrum must be Spectrum1D.')
-
-        # ToDo: Implement having line catalogs
-        self._available_catalogs = get_available_catalogs()
 
         # We use either line_pixels or matched_line_list to create self._matched_line_list,
         # and check that various requirements are fulfilled by the input args.
@@ -164,9 +148,6 @@ class WavelengthCalibration1D():
                     if isinstance(cat, str):
                         if cat not in self._available_catalogs:
                             raise ValueError(f"Line list '{cat}' is not an available catalog.")
-
-            # Get the potential lines from any specified catalogs to use in matching
-            self._potential_wavelengths = concatenate_catalogs(self._catalog)
 
     def identify_lines(self):
         """

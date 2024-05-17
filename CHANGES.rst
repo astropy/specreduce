@@ -11,6 +11,10 @@ New Features
   the ``interp_degree_interpolated_profile`` parameter) to generate a continuously varying
   spatial profile that can be evaluated at any wavelength. [#173]
 
+- Added a function to measure a cross-dispersion profile. A profile can be
+  obtained at a single pixel/wavelength, or an average profile can be obtained
+  from a range/set of wavelengths. [#214]
+
 API Changes
 ^^^^^^^^^^^
 
@@ -33,6 +37,9 @@ Bug Fixes
   peak_method='max' these were set to 0.0, and for peak_method='centroid' they
   were set to the number of rows in the image, biasing the final fit to all bin
   peaks. Previously for Gaussian, the entire fit failed. [#205, #206]
+
+- Fixed input of `traces` in `Background`. Added a condition to 'FlatTrace' that
+  trace position must be a positive number. [#211]
 
 Other changes
 ^^^^^^^^^^^^^

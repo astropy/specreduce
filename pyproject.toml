@@ -7,7 +7,7 @@ authors = [
 license = {file = "licenses/LICENSE.rst"}
 description = "Astropy coordinated package for Spectroscopic Reductions"
 readme = "README.rst"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "astropy",
@@ -20,6 +20,7 @@ dependencies = [
 test = [
     "pytest-astropy",
     "photutils",
+    "tox",
 ]
 docs = [
     "sphinx-astropy",

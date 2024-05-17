@@ -1,8 +1,10 @@
 # Licensed under a 3-clause BSD style license - see ../../licenses/LICENSE.rst
 
+from typing import Sequence
+
 import numpy as np
 from astropy import units as u
-from astropy.modeling import models
+from astropy.modeling import models, Model
 from astropy.nddata import CCDData
 from astropy.stats import gaussian_fwhm_to_sigma
 from astropy.wcs import WCS
@@ -17,16 +19,15 @@ __all__ = [
 
 
 def make_2d_trace_image(
-    nx=3000,
-    ny=1000,
-    background=5,
-    trace_center=None,
-    trace_order=3,
-    trace_coeffs={'c0': 0, 'c1': 50, 'c2': 100},
-    source_amplitude=10,
-    source_alpha=0.1,
-    add_noise=True
-):
+    nx: int = 3000,
+    ny: int = 1000,
+    background: int | float = 5,
+    trace_center: int | float | None = None,
+    trace_order: int = 3,
+    trace_coeffs: dict[str, int | float] = {'c0': 0, 'c1': 50, 'c2': 100},
+    profile: Model = models.Moffat1D(amplitude=10, alpha=0.1),
+    add_noise: bool = True
+) -> CCDData:
     """
     Create synthetic 2D spectroscopic image with a single source. The spatial (y-axis) position
     of the source along the dispersion (x-axis) direction is modeled using a Chebyshev polynomial.
@@ -34,37 +35,30 @@ def make_2d_trace_image(
 
     Parameters
     ----------
-    nx : int (default=3000)
-        Size of image in X axis which is assumed to be the dispersion axis
-    ny : int (default=1000)
-        Size of image in Y axis which is assumed to be the spatial axis
-    background : int (default=5)
-        Level of constant background in counts
-    trace_center : int (default=None)
-        Zeropoint of the trace. If None, then use center of Y (spatial) axis.
-    trace_order : int (default=3)
-        Order of the Chebyshev polynomial used to model the source's trace
-    trace_coeffs : dict (default={'c0': 0, 'c1': 50, 'c2': 100})
-        Dict containing the Chebyshev polynomial coefficients to use in the trace model
-    source_amplitude : int (default=10)
-        Amplitude of modeled source in counts
-    source_alpha : float (default=0.1)
-        Power index of the source's Moffat profile. Use small number here to emulate
-        extended source.
-    add_noise : bool (default=True)
-        If True, add Poisson noise to the image; requires ``photutils`` to be installed.
+    nx : Size of image in X axis which is assumed to be the dispersion axis
+
+    ny : Size of image in Y axis which is assumed to be the spatial axis
+
+    background : Level of constant background in counts
+
+    trace_center : Zeropoint of the trace. If None, then use center of Y (spatial) axis.
+
+    trace_order : Order of the Chebyshev polynomial used to model the source's trace
+
+    trace_coeffs : Dict containing the Chebyshev polynomial coefficients to use in the trace model
+
+    profile : Model to use for the source's spatial profile
+
+    add_noise : If True, add Poisson noise to the image
+
+
     Returns
     -------
-    ccd_im : `~astropy.nddata.CCDData`
-        CCDData instance containing synthetic 2D spectroscopic image
+    ccd_im : CCDData instance containing synthetic 2D spectroscopic image
     """
     x = np.arange(nx)
     y = np.arange(ny)
     xx, yy = np.meshgrid(x, y)
-
-    profile = models.Moffat1D()
-    profile.amplitude = source_amplitude
-    profile.alpha = source_alpha
 
     if trace_center is None:
         trace_center = ny / 2
@@ -85,19 +79,19 @@ def make_2d_trace_image(
 
 
 def make_2d_arc_image(
-    nx=3000,
-    ny=1000,
-    wcs=None,
-    extent=[3500, 7000],
-    wave_unit=u.Angstrom,
-    wave_air=False,
-    background=5,
-    line_fwhm=5.,
-    linelists=['HeI'],
-    amplitude_scale=1.,
-    tilt_func=None,
-    add_noise=True
-):
+    nx: int = 3000,
+    ny: int = 1000,
+    wcs: WCS | None = None,
+    extent: Sequence[int | float] = (3500, 7000),
+    wave_unit: u.Unit = u.Angstrom,
+    wave_air: bool = False,
+    background: int | float = 5,
+    line_fwhm: float = 5.,
+    linelists: list[str] = ['HeI'],
+    amplitude_scale: float = 1.,
+    tilt_func: Model = models.Legendre1D(degree=0),
+    add_noise: bool = True
+) -> CCDData:
     """
     Create synthetic 2D spectroscopic image of reference emission lines, e.g. a calibration
     arc lamp. Currently, linelists from ``pypeit`` are supported and are selected by string or
@@ -107,39 +101,36 @@ def make_2d_arc_image(
 
     Parameters
     ----------
-    nx : int (default=3000)
-        Size of image in X axis which is assumed to be the dispersion axis
-    ny : int (default=1000)
-        Size of image in Y axis which is assumed to be the spatial axis
-    wcs : `~astropy.wcs.WCS` instance or None (default: None)
-        2D WCS to apply to the image. Must have a spectral axis defined along with
+    nx : Size of image in X axis which is assumed to be the dispersion axis
+
+    ny : Size of image in Y axis which is assumed to be the spatial axis
+
+    wcs : 2D WCS to apply to the image. Must have a spectral axis defined along with
         appropriate spectral wavelength units.
-    extent : 2-element list-like
-        If ``wcs`` is not provided, this defines the beginning and end wavelengths
+
+    extent : If ``wcs`` is not provided, this defines the beginning and end wavelengths
         of the dispersion axis.
-    wave_unit : `~astropy.units.Unit`
-        If ``wcs`` is not provided, this defines the wavelength units of the
+
+    wave_unit : If ``wcs`` is not provided, this defines the wavelength units of the
         dispersion axis.
-    wave_air : bool (default: False)
-        If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
-    background : int (default=5)
-        Level of constant background in counts
-    line_fwhm : float (default=5)
-        Gaussian FWHM of the emission lines in pixels
-    linelists : str or list of str (default: ['HeI'])
-        Specification for linelists to load from ``pypeit``
-    amplitude_scale : float (default: 1)
-        Scale factor to apply to amplitudes provided in the linelists
-    tilt_func : 1D polynomial from `~astropy.modeling.polynomial`
-        The tilt function to apply along the cross-dispersion axis to simulate
+
+    wave_air : If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
+
+    background : Level of constant background in counts
+
+    line_fwhm : Gaussian FWHM of the emission lines in pixels
+
+    linelists : Specification for linelists to load from ``pypeit``
+
+    amplitude_scale : Scale factor to apply to amplitudes provided in the linelists
+
+    tilt_func : The tilt function to apply along the cross-dispersion axis to simulate
         tilted or curved emission lines.
-    add_noise : bool (default=True)
-        If True, add Poisson noise to the image; requires ``photutils`` to be installed.
+    add_noise : If True, add Poisson noise to the image; requires ``photutils`` to be installed.
 
     Returns
     -------
-    ccd_im : `~astropy.nddata.CCDData`
-        CCDData instance containing synthetic 2D spectroscopic image
+    ccd_im : CCDData instance containing synthetic 2D spectroscopic image
 
     Examples
     --------
@@ -299,7 +290,7 @@ def make_2d_arc_image(
     linelist = load_pypeit_calibration_lines(linelists, wave_air=wave_air)
 
     if linelist is not None:
-        line_disp_positions = wcs.spectral.world_to_pixel(linelist['wave'])
+        line_disp_positions = wcs.spectral.world_to_pixel(linelist['wavelength'])
 
         line_sigma = gaussian_fwhm_to_sigma * line_fwhm
         for line_pos, ampl in zip(line_disp_positions, linelist['amplitude']):
@@ -325,69 +316,69 @@ def make_2d_arc_image(
 
 
 def make_2d_spec_image(
-    nx=3000,
-    ny=1000,
-    wcs=None,
-    extent=[6500, 9500],
-    wave_unit=u.Angstrom,
-    wave_air=False,
-    background=5,
-    line_fwhm=5.,
-    linelists=['OH_GMOS'],
-    amplitude_scale=1.,
-    tilt_func=None,
-    trace_center=None,
-    trace_order=3,
-    trace_coeffs={'c0': 0, 'c1': 50, 'c2': 100},
-    source_amplitude=10,
-    source_alpha=0.1,
-    add_noise=True
-):
+    nx: int = 3000,
+    ny: int = 1000,
+    wcs: WCS | None = None,
+    extent: Sequence[int | float] = (6500, 9500),
+    wave_unit: u.Unit = u.Angstrom,
+    wave_air: bool = False,
+    background: int | float = 5,
+    line_fwhm: float = 5.,
+    linelists: list[str] = ['OH_GMOS'],
+    amplitude_scale: float = 1.,
+    tilt_func: Model = models.Legendre1D(degree=0),
+    trace_center: int | float | None = None,
+    trace_order: int = 3,
+    trace_coeffs: dict[str, int | float] = {'c0': 0, 'c1': 50, 'c2': 100},
+    source_profile: Model = models.Moffat1D(amplitude=10, alpha=0.1),
+    add_noise: bool = True
+) -> CCDData:
     """
     Make a synthetic 2D spectrum image containing both emission lines and
     a trace of a continuum source.
 
     Parameters
     ----------
-    nx : int
-        Number of pixels in the dispersion direction.
-    ny : int
-        Number of pixels in the spatial direction.
-    wcs : `~astropy.wcs.WCS` instance or None (default: None)
-        2D WCS to apply to the image. Must have a spectral axis defined along with
+    nx : Number of pixels in the dispersion direction.
+
+    ny : Number of pixels in the spatial direction.
+
+    wcs : 2D WCS to apply to the image. Must have a spectral axis defined along with
         appropriate spectral wavelength units.
-    extent : 2-element list-like (default: [6500, 9000])
-        If ``wcs`` is not provided, this defines the beginning and end wavelengths
+
+    extent : If ``wcs`` is not provided, this defines the beginning and end wavelengths
         of the dispersion axis.
-    wave_unit : `~astropy.units.Unit` (default: u.Angstrom)
-        If ``wcs`` is not provided, this defines the wavelength units of the
+
+    wave_unit : If ``wcs`` is not provided, this defines the wavelength units of the
         dispersion axis.
-    wave_air : bool (default: False)
-        If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
-    background : float (default: 5)
-        Constant background level in counts.
-    line_fwhm : float (default: 5)
-        Gaussian FWHM of the emission lines in pixels
-    linelists : str or list of str (default: ['HeI'])
-        Specification for linelists to load from ``pypeit``
-    amplitude_scale : float (default: 1)
-        Scale factor to apply to amplitudes provided in the linelists
-    tilt_func : 1D polynomial from `~astropy.modeling.polynomial`
-        The tilt function to apply along the cross-dispersion axis to simulate
+
+    wave_air : If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
+
+    background : Constant background level in counts.
+
+    line_fwhm : Gaussian FWHM of the emission lines in pixels
+
+    linelists : Specification for linelists to load from ``pypeit``
+
+    amplitude_scale : Scale factor to apply to amplitudes provided in the linelists
+
+    tilt_func : The tilt function to apply along the cross-dispersion axis to simulate
         tilted or curved emission lines.
-    trace_center : int (default=None)
-        Zeropoint of the trace. If None, then use center of Y (spatial) axis.
-    trace_order : int (default=3)
-        Order of the Chebyshev polynomial used to model the source's trace
-    trace_coeffs : dict (default={'c0': 0, 'c1': 50, 'c2': 100})
-        Dict containing the Chebyshev polynomial coefficients to use in the trace model
-    source_amplitude : int (default=10)
-        Amplitude of modeled source in counts
-    source_alpha : float (default=0.1)
-        Power index of the source's Moffat profile. Use small number here to emulate
-        extended source.
-    add_noise : bool (default=True)
-        If True, add Poisson noise to the image; requires ``photutils`` to be installed.
+
+    trace_center : Zeropoint of the trace. If None, then use center of Y (spatial) axis.
+
+    trace_order : Order of the Chebyshev polynomial used to model the source's trace
+
+    trace_coeffs : Dict containing the Chebyshev polynomial coefficients to use in the trace model
+
+    source_profile : Model to use for the source's spatial profile
+
+    add_noise : If True, add Poisson noise to the image; requires ``photutils`` to be installed.
+
+
+    Returns
+    -------
+    ccd_im : CCDData instance containing synthetic 2D spectroscopic image
     """
     arc_image = make_2d_arc_image(
         nx=nx,
@@ -411,8 +402,7 @@ def make_2d_spec_image(
         trace_center=trace_center,
         trace_order=trace_order,
         trace_coeffs=trace_coeffs,
-        source_amplitude=source_amplitude,
-        source_alpha=source_alpha,
+        profile=source_profile,
         add_noise=False
     )
 
