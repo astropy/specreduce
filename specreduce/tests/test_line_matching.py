@@ -16,7 +16,6 @@ from specreduce.calibration_data import load_pypeit_calibration_lines
 from specreduce.line_matching import match_lines_wcs, find_arc_lines
 
 
-@pytest.mark.remote_data
 @pytest.fixture
 def mk_test_data():
     """
