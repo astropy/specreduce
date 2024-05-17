@@ -11,6 +11,7 @@ from astropy.nddata import CCDData, NDData, VarianceUncertainty
 from astropy.utils.data import get_pkg_data_filename
 from specutils import Spectrum1D, SpectralAxis
 
+
 try:
     from pytest_astropy_header.display import PYTEST_HEADER_MODULES, TESTED_VERSIONS
     ASTROPY_HEADER = True
