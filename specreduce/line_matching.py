@@ -1,4 +1,5 @@
 from typing import Sequence
+import warnings
 
 import numpy as np
 
@@ -47,9 +48,13 @@ def find_arc_lines(
     QTable
         A table of detected arc lines and their properties: centroid, fwhm, and amplitude.
     """
-    # Asssume FWHM is given in pixels if unit is not specified
+    # If fwhm is a float, convert it to a Quantity with the same unit as the spectral axis
+    # of the input spectrum.
     if not isinstance(fwhm, u.Quantity):
-        fwhm *= u.pix
+        fwhm *= spectrum.spectral_axis.unit
+
+    if fwhm.unit != spectrum.spectral_axis.unit:
+        raise ValueError("fwhm must have the same units as the spectral axis of the input spectrum.")
 
     detected_lines = find_lines_threshold(spectrum, noise_factor=noise_factor)
     detected_lines = detected_lines[detected_lines['line_type'] == 'emission']
@@ -102,9 +107,9 @@ def match_lines_wcs(
     """
 
     # This routine uses numpy broadcasting which doesn't always behave with Quantity objects.
-    # Convert to u.pix and pull out the np.ndarray values.
+    # Pull out the np.ndarray values to avoid those issues.
     if isinstance(pixel_positions, u.Quantity):
-        pixel_positions = pixel_positions.to(u.pix).value
+        pixel_positions = pixel_positions.value
 
     # Extra sanity handling to make sure the input Sequence can be converted to an np.array
     try:
@@ -118,4 +123,8 @@ def match_lines_wcs(
     matched_table = QTable()
     matched_table["pixel_center"] = pixel_positions[matched_loc[0]] * u.pix
     matched_table["wavelength"] = catalog_wavelengths[matched_loc[1]]
+
+    if len(matched_table) == 0:
+        warnings.warn("No lines matched within the given tolerance.")
+
     return matched_table
