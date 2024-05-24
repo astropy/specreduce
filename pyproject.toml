@@ -13,6 +13,7 @@ dependencies = [
     "astropy",
     "scipy",
     "specutils>=1.9.1",
+    "gwcs",
 ]
 
 [project.optional-dependencies]
