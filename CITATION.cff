@@ -29,6 +29,11 @@ authors:
     email: erik.tollerud@gmail.com
     affiliation: Space Telescope Science Institute
     orcid: 'https://orcid.org/0000-0002-9599-310X'
+  - given-names: Clare
+    family-names: Shanahan
+    email: cshanahan@stsci.edu
+    affiliation: Space Telescope Science Institute
+    orcid: 'https://orcid.org/0009-0008-4112-7418X'
 identifiers:
   - type: doi
     value: 10.5281/zenodo.6608788
