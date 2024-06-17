@@ -9,6 +9,21 @@ API Changes
 
 Bug Fixes
 ^^^^^^^^^
+
+
+Other changes
+
+1.4.1 (unreleased)
+------------------
+
+New Features
+^^^^^^^^^^^^
+
+API Changes
+^^^^^^^^^^^
+
+Bug Fixes
+^^^^^^^^^
 - Fix bug where Background one sided / two sided was not correctly assigning units to data. [#221]
 
 Other changes
