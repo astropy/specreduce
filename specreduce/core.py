@@ -52,8 +52,8 @@ class _ImageParser:
             return self.image
 
         img = self._get_data_from_image(image, disp_axis=disp_axis)
-        return img
 
+        return img
 
     @staticmethod
     def _get_data_from_image(image, disp_axis=1):
@@ -87,7 +87,6 @@ class _ImageParser:
 
         return Spectrum1D(img * unit, spectral_axis=spectral_axis,
                           uncertainty=uncertainty, mask=mask)
-
 
         return img
 

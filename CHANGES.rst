@@ -9,6 +9,7 @@ API Changes
 
 Bug Fixes
 ^^^^^^^^^
+- Fix bug where Background one sided / two sided was not correctly assigning units to data. [#221]
 
 Other changes
 ^^^^^^^^^^^^^
