@@ -13,7 +13,7 @@ Bug Fixes
 
 Other changes
 
-1.4.1 (unreleased)
+1.4.1 (2024-06-20)
 ------------------
 
 New Features
