@@ -32,9 +32,9 @@ class Background(_ImageParser):
     ----------
     image : `~astropy.nddata.NDData`-like or array-like
         image with 2-D spectral image data
-    traces : List, `tracing.Trace`, int, float
+    traces : List, `specreduce.tracing.Trace`, int, float
         Individual or list of trace object(s) (or integers/floats to define
-        FlatTraces) to extract the background. If None, a `FlatTrace` at the
+        FlatTraces) to extract the background. If None, a ``FlatTrace`` at the
         center of the image (according to `disp_axis`) will be used.
     width : float
         width of extraction aperture in pixels
@@ -50,11 +50,11 @@ class Background(_ImageParser):
         [default: 0]
     mask_treatment : string, optional
         The method for handling masked or non-finite data. Choice of `filter`,
-        `omit`, or `zero-fill`. If `filter` is chosen, masked and non-finite
+        ``omit``, or ``zero-fill``. If ``filter`` is chosen, masked and non-finite
         data will not contribute to the background statistic that is calculated
         in each column along `disp_axis`. If `omit` is chosen, columns along
         disp_axis with any masked/non-finite data values will be fully masked
-        (i.e, 2D mask is collapsed to 1D and applied). If `zero-fill` is chosen,
+        (i.e, 2D mask is collapsed to 1D and applied). If ``zero-fill`` is chosen,
         masked/non-finite data will be replaced with 0.0 in the input image,
         and the mask will then be dropped. For all three options, the input mask
         (optional on input NDData object) will be combined with a mask generated
