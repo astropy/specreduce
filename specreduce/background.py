@@ -49,7 +49,7 @@ class Background(_ImageParser):
         cross-dispersion axis
         [default: 0]
     mask_treatment : string, optional
-        The method for handling masked or non-finite data. Choice of `filter`,
+        The method for handling masked or non-finite data. Choice of ``filter``,
         ``omit``, or ``zero-fill``. If ``filter`` is chosen, masked and non-finite
         data will not contribute to the background statistic that is calculated
         in each column along `disp_axis`. If `omit` is chosen, columns along
