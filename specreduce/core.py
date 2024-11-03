@@ -61,7 +61,7 @@ class _ImageParser:
             return self.image
 
         return self._get_data_from_image(image, disp_axis=disp_axis,
-                                        mask_treatment=mask_treatment)
+                                         mask_treatment=mask_treatment)
 
     @staticmethod
     def _get_data_from_image(image,
