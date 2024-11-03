@@ -213,7 +213,7 @@ class BoxcarExtract(SpecreduceOperation):
         # Parse image, including masked/nonfinite data handling based on
         # choice of `mask_treatment`, which for BoxcarExtract can be filter, zero-fill, or
         # omit. non-finite data will be masked, always. Returns a Spectrum1D.
-        self.image = self._parse_image(image)
+        self.image = self._parse_image(image, disp_axis=disp_axis, mask_treatment=self.mask_treatment)
 
         # # _parse_image returns a Spectrum1D. convert this to a masked array
         # # for ease of calculations here (even if there is no masked data).
