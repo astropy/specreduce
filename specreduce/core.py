@@ -30,22 +30,28 @@ class _ImageParser:
 
     implemented_mask_treatment_methods = 'filter', 'zero-fill', 'omit'
 
-    def _parse_image(self, image, disp_axis=1):
+    def _parse_image(self, image,
+                     disp_axis: int = 1,
+                     mask_treatment: str = 'filter') -> Spectrum1D:
         """
-        Convert all accepted image types to a consistently formatted
-        Spectrum1D object.
+        Convert all accepted image types to a consistently formatted Spectrum1D object.
 
         Parameters
         ----------
-        image : `~astropy.nddata.NDData`-like or array-like, required
+        image : `~astropy.nddata.NDData`-like or array-like
             The image to be parsed. If None, defaults to class' own
             image attribute.
-        disp_axis : int, optional
+        disp_axis
             The index of the image's dispersion axis. Should not be
             changed until operations can handle variable image
             orientations. [default: 1]
-        """
+        mask_treatment
+            Treatment method for the mask.
 
+        Returns
+        -------
+        Spectrum1D
+        """
         # would be nice to handle (cross)disp_axis consistently across
         # operations (public attribute? private attribute? argument only?) so
         # it can be called from self instead of via kwargs...
@@ -54,9 +60,8 @@ class _ImageParser:
             # useful for Background's instance methods
             return self.image
 
-        img = self._get_data_from_image(image, disp_axis=disp_axis)
-
-        return img
+        return self._get_data_from_image(image, disp_axis=disp_axis,
+                                        mask_treatment=mask_treatment)
 
     @staticmethod
     def _get_data_from_image(image,
@@ -73,7 +78,10 @@ class _ImageParser:
         disp_axis : int, optional
             The dispersion axis of the image.
         mask_treatment : str, optional
-            Treatment method for the mask.
+            Treatment method for the mask:
+            - 'filter' (default): Return the unmodified input image and combined mask.
+            - 'zero-fill': Set masked values in the image to zero.
+            - 'omit': Mask all pixels along the cross dispersion axis if any value is masked.
 
         Returns
         -------
