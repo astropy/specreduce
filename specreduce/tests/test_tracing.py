@@ -252,7 +252,7 @@ class TestMasksTracing():
 
         # ensure correct warning is raised when entire trace is masked.
         trace_arr = np.ma.MaskedArray([1, 2, np.nan, 4, 5], mask=[1, 1, 0, 1, 1])
-        with pytest.raises(UserWarning, match=r'Entire trace array is masked.'):
+        with pytest.warns(UserWarning, match=r'Entire trace array is masked.'):
             array_trace = ArrayTrace(img, trace_arr)
 
     def test_fit_trace_fully_masked_image(self):
