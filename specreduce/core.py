@@ -28,6 +28,8 @@ class _ImageParser:
         - `~numpy.ndarray`
     """
 
+    # The '_valid_mask_treatment_methods' in the Background, Trace, and Extract
+    # classes is a subset of implemented methods.
     implemented_mask_treatment_methods = 'filter', 'zero-fill', 'omit'
 
     def _parse_image(self, image,
