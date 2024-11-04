@@ -288,7 +288,8 @@ class FitTrace(Trace, _ImageParser):
 
         # Parse image, including masked/nonfinite data handling based on
         # choice of `mask_treatment`. returns a Spectrum1D
-        self.image = self._parse_image(self.image)
+        self.image = self._parse_image(self.image, disp_axis=self._disp_axis,
+                                       mask_treatment=self.mask_treatment)
 
         # _parse_image returns a Spectrum1D. convert this to a masked array
         # for ease of calculations here (even if there is no masked data).
