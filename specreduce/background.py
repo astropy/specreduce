@@ -114,7 +114,8 @@ class Background(_ImageParser):
         # Parse image, including masked/nonfinite data handling based on
         # choice of `mask_treatment`. Any uncaught nonfinte data values will be
         # masked as well. Returns a Spectrum1D.
-        self.image = self._parse_image(self.image)
+        self.image = self._parse_image(self.image, disp_axis=self.disp_axis,
+                                       mask_treatment=self.mask_treatment)
 
         # always work with masked array, even if there is no masked
         # or nonfinite data, in case padding is needed. if not, mask will be
