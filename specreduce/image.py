@@ -19,6 +19,16 @@ class Image:
         else:
             raise ValueError('The cross dispersion axis must be given for for image cubes with ndim > 2.')
 
+        if self._disp_axis == self._crossdisp_axis:
+            raise ValueError('The dispersion and cross-dispersion axes cannot be the same.')
+
+        if self._disp_axis < 0 or self._crossdisp_axis < 0:
+            raise ValueError('The dispersion and cross-dispersion axes cannot be negative.')
+
+        if self._disp_axis >= self.ndim or self._crossdisp_axis >= self.ndim:
+            raise ValueError('The dispersion and cross-dispersion axes '
+                             'must be smaller than the number of image dimensions.')
+
     def __repr__(self) -> str:
         return f"<Image unit={self.unit} shape={self.shape}>"
 
@@ -70,6 +80,10 @@ class Image:
     @property
     def shape(self) -> tuple:
         return self._image.data.shape
+
+    @property
+    def ndim(self) -> int:
+        return self._image.data.ndim
 
     @property
     def data(self) -> np.ndarray:
