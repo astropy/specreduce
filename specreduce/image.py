@@ -98,7 +98,7 @@ class SRImage:
         return self._image.data
 
     @property
-    def ordered_data(self) -> np.ndarray:
+    def cdata(self) -> np.ndarray:
         """Image data arranged to a shape (crossdisp_axis, disp_axis).
 
         A view to the data with cross-dispersion axis as the first dimension
@@ -111,7 +111,7 @@ class SRImage:
         return self._image.mask
 
     @property
-    def ordered_mask(self) -> np.ndarray:
+    def cmask(self) -> np.ndarray:
         """
         Image mask arranged to a shape (crossdisp_axis, disp_axis).
 
@@ -131,7 +131,7 @@ class SRImage:
         return self._image.uncertainty
 
     @property
-    def ordered_uncertainty(self):
+    def cuncertainty(self):
         return self._st_uncertainty
 
     @property
@@ -167,8 +167,8 @@ class SRImage:
         return self._crossdisp_axis
 
     def copy(self) -> 'SRImage':
-        """Copy the image object."""
-        return deepcopy(self)
+        """Copy the SRImage object."""
+        return SRImage(self._image, disp_axis=self._disp_axis, crossdisp_axis=self._crossdisp_axis)
 
     def masked(self, mask_treatment: str = 'filter') -> 'SRImage':
         """
