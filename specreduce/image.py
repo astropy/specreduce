@@ -2,15 +2,23 @@ from copy import deepcopy
 
 import astropy.units as u
 import numpy as np
-
 from astropy.nddata import NDData, VarianceUncertainty
 
 
-class Image:
+class SRImage:
     implemented_masking_methods = 'filter', 'zero-fill', 'omit'
 
     def __init__(self, image, disp_axis: int = 1, crossdisp_axis: int | None = None):
-        self._image: NDData = Image._parse_image(image)
+        self._image: NDData = SRImage._parse_image(image)
+
+        if disp_axis == crossdisp_axis:
+            raise ValueError('The dispersion and cross-dispersion axes cannot be the same.')
+        if disp_axis < 0 or crossdisp_axis < 0:
+            raise ValueError('The dispersion and cross-dispersion axes cannot be negative.')
+        if disp_axis >= self.ndim or crossdisp_axis >= self.ndim:
+            raise ValueError('The dispersion and cross-dispersion axes '
+                             'must be smaller than the number of image dimensions.')
+
         self._disp_axis: int = disp_axis
         self._crossdisp_axis: int = crossdisp_axis
 
@@ -19,15 +27,23 @@ class Image:
         else:
             raise ValueError('The cross dispersion axis must be given for for image cubes with ndim > 2.')
 
-        if self._disp_axis == self._crossdisp_axis:
-            raise ValueError('The dispersion and cross-dispersion axes cannot be the same.')
+        # A view to the image data with cross-dispersion axis as the first dimension
+        # and dispersion axis as the second dimension.
+        self._st_data = np.moveaxis(self._image.data,
+                                    [self._crossdisp_axis, self._disp_axis],
+                                    [0, 1])
 
-        if self._disp_axis < 0 or self._crossdisp_axis < 0:
-            raise ValueError('The dispersion and cross-dispersion axes cannot be negative.')
+        # A view to the image mask with cross-dispersion axis as the first dimension
+        # and dispersion axis as the second dimension.
+        self._st_mask = np.moveaxis(self._image.mask,
+                                    [self._crossdisp_axis, self._disp_axis],
+                                    [0, 1])
 
-        if self._disp_axis >= self.ndim or self._crossdisp_axis >= self.ndim:
-            raise ValueError('The dispersion and cross-dispersion axes '
-                             'must be smaller than the number of image dimensions.')
+        # A view to the image mask with cross-dispersion axis as the first dimension
+        # and dispersion axis as the second dimension.
+        self._st_uncertainty = np.moveaxis(self._image.uncertainty,
+                                    [self._crossdisp_axis, self._disp_axis],
+                                    [0, 1])
 
     def __repr__(self) -> str:
         return f"<Image unit={self.unit} shape={self.shape}>"
@@ -74,6 +90,51 @@ class Image:
         return NDData(data * unit, uncertainty=uncertainty, mask=mask)
 
     @property
+    def nddata(self) -> NDData:
+        return self._image
+
+    @property
+    def data(self) -> np.ndarray:
+        return self._image.data
+
+    @property
+    def ordered_data(self) -> np.ndarray:
+        """Image data arranged to a shape (crossdisp_axis, disp_axis).
+
+        A view to the data with cross-dispersion axis as the first dimension
+        and the dispersion axis as the second dimension.
+        """
+        return self._st_data
+
+    @property
+    def mask(self) -> np.ndarray:
+        return self._image.mask
+
+    @property
+    def ordered_mask(self) -> np.ndarray:
+        """
+        Image mask arranged to a shape (crossdisp_axis, disp_axis).
+
+        A view to the image mask with cross-dispersion axis as the first
+        dimension and the dispersion axis as the second dimension.
+        """
+        return self._st_mask
+
+    @property
+    def uncertainty(self):
+        """
+        Image uncertainty arranged to a shape (crossdisp_axis, disp_axis, ...).
+
+        A view to the image uncertainty with cross-dispersion axis as the first
+        dimension and the dispersion axis as the second dimension.
+        """
+        return self._image.uncertainty
+
+    @property
+    def ordered_uncertainty(self):
+        return self._st_uncertainty
+
+    @property
     def unit(self) -> u.Unit:
         return self._image.unit
 
@@ -82,18 +143,34 @@ class Image:
         return self._image.data.shape
 
     @property
+    def ordered_shape(self) -> tuple:
+        return self._st_data.shape
+
+    @property
     def ndim(self) -> int:
         return self._image.data.ndim
 
     @property
-    def data(self) -> np.ndarray:
-        return self._image.data
+    def wcs(self):
+        return self._image.wcs
 
     @property
-    def mask(self) -> np.ndarray:
-        return self._image.mask
+    def meta(self):
+        return self._image.meta
 
-    def masked(self, mask_treatment: str = 'filter') -> NDData:
+    @property
+    def disp_axis(self) -> int:
+        return self._disp_axis
+
+    @property
+    def crossdisp_axis(self) -> int:
+        return self._crossdisp_axis
+
+    def copy(self) -> 'SRImage':
+        """Copy the image object."""
+        return deepcopy(self)
+
+    def masked(self, mask_treatment: str = 'filter') -> 'SRImage':
         """
         Get the NDData image with the given mask treatment applied.
 
@@ -120,15 +197,13 @@ class Image:
             raise ValueError("`mask_treatment` must be one of "
                              f"{self.implemented_masking_methods}")
 
-        image = deepcopy(self._image)
+        image = self.copy()
         if mask_treatment == 'filter':
             return image
         elif mask_treatment == 'zero-fill':
-            image = deepcopy(self._image)
-            image.data[image.mask] = 0.
-            image.mask[:] = False
+            image._image.data[image.mask] = 0.
+            image._image.mask[:] = False
             return image
         elif mask_treatment == 'omit':
-            image = deepcopy(self._image)
-            image.mask[:] = np.any(image.mask, axis=self._crossdisp_axis, keepdims=True)
+            image._image.mask[:] = np.any(image.mask, axis=self._crossdisp_axis, keepdims=True)
             return image
