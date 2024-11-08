@@ -1,15 +1,22 @@
 import astropy.units as u
 import numpy as np
-from astropy.nddata import NDData, VarianceUncertainty
+from astropy.nddata import NDData, NDDataRef, VarianceUncertainty
 
 CROSSDISP_AXIS: int = 0
 DISP_AXIS: int = 1
+
+def as_image(image, disp_axis: int = 1, crossdisp_axis: int | None = None):
+    if isinstance(image, SRImage):
+        return image
+    else:
+        return SRImage(image, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis)
+
 
 class SRImage:
     implemented_masking_methods = 'filter', 'zero-fill', 'omit'
 
     def __init__(self, image, disp_axis: int = 1, crossdisp_axis: int | None = None):
-        self._nddata: NDData | None = None
+        self._nddata: NDDataRef | None = None
 
         # Extract the ndarray from the image object
         # -----------------------------------------
@@ -20,7 +27,7 @@ class SRImage:
         elif isinstance(image, NDData):
             data = image.data
         else:
-                raise ValueError('Unrecognized image type.')
+            raise ValueError('Unrecognized image type.')
 
         # Carry out dispersion and cross-dispersion axis sanity checks
         # ------------------------------------------------------------
@@ -41,7 +48,7 @@ class SRImage:
         # Create the mask
         # ---------------
         if getattr(image, 'mask', None) is not None:
-            mask = image.mask | (~np.isfinite(data))
+            mask = image.mask.astype(bool) | (~np.isfinite(data))
         else:
             mask =  ~np.isfinite(data)
         if mask.all():
@@ -61,7 +68,7 @@ class SRImage:
         mask = np.moveaxis(mask, [crossdisp_axis, disp_axis], [0, 1])
         uncertainty._array = np.moveaxis(uncertainty._array, [crossdisp_axis, disp_axis], [0, 1])
 
-        self._nddata = NDData(data * unit, uncertainty=uncertainty, mask=mask)
+        self._nddata = NDDataRef(data * unit, uncertainty=uncertainty, mask=mask)
 
 
     def __repr__(self) -> str:
@@ -69,11 +76,15 @@ class SRImage:
 
 
     @property
-    def nddata(self) -> NDData:
+    def nddata(self) -> NDDataRef:
         return self._nddata
 
     @property
     def data(self) -> np.ndarray:
+        return self._nddata.data
+
+    @property
+    def flux(self) -> np.ndarray:
         return self._nddata.data
 
     @property
@@ -90,11 +101,11 @@ class SRImage:
 
     @property
     def shape(self) -> tuple:
-        return self.data.shape
+        return self.flux.shape
 
     @property
     def ndim(self) -> int:
-        return self.data.ndim
+        return self.flux.ndim
 
     @property
     def wcs(self):
@@ -112,16 +123,21 @@ class SRImage:
     def crossdisp_axis(self) -> int:
         return CROSSDISP_AXIS
 
+    def subtract(self, image, propagate_uncertainties: bool = True) -> 'SRImage':
+        image = SRImage(image)
+        return SRImage(self._nddata.subtract(image.nddata,
+                                             propagate_uncertainties=propagate_uncertainties))
+
     def to_masked_array(self) -> np.ma.masked_array:
-        return np.ma.masked_array(self.data, mask=self.mask)
+        return np.ma.masked_array(self.flux, mask=self.mask)
 
     def copy(self) -> 'SRImage':
         """Copy the SRImage object."""
         return SRImage(self._nddata, disp_axis=DISP_AXIS, crossdisp_axis=CROSSDISP_AXIS)
 
-    def masked(self, mask_treatment: str = 'filter') -> 'SRImage':
+    def apply_mask(self, mask_treatment: str = 'filter') -> 'SRImage':
         """
-        Get the NDData image with the given mask treatment applied.
+        Get the image with the given mask treatment applied.
 
         Parameters
         ----------
@@ -134,7 +150,7 @@ class SRImage:
 
         Returns
         -------
-        NDData
+        SRImage
             An image object with the specified mask treatment applied.
 
         Raises

@@ -180,7 +180,7 @@ class TestMasksBackground():
         img[:, 0:1] = np.nan
 
         bkg = Background(img, traces=FlatTrace(img, 6), mask_treatment=mask)
-        assert np.all(bkg.bkg_image().data[:, 0:1] == 0.0)
+        assert np.all(bkg.bkg_image().flux[:, 0:1] == 0.0)
 
     @pytest.mark.parametrize("mask", ["filter", "omit"])
     def test_fully_masked_image(self, mask):
@@ -258,7 +258,7 @@ class TestMasksBackground():
             bk_img = background.bkg_image()
             # change this and following assertions to assert_quantity_allclose once
             # issue #213 is fixed
-            np.testing.assert_allclose(bk_img.flux.value,
+            np.testing.assert_allclose(bk_img.flux,
                                        np.tile(expected, (img_size, 1)))
 
             # test background spectrum matches 'expected' times the number of rows
