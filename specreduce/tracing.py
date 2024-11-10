@@ -6,11 +6,10 @@ from dataclasses import dataclass, field, InitVar
 
 import numpy as np
 from astropy.modeling import Model, fitting, models
-from astropy.nddata import NDData
 from astropy.stats import gaussian_sigma_to_fwhm
 from astropy.utils.decorators import deprecated
 
-from specreduce.image import SRImage, as_image
+from specreduce.image import SRImage, as_image, DISP_AXIS, CROSSDISP_AXIS
 
 __all__ = ['Trace', 'FlatTrace', 'ArrayTrace', 'FitTrace']
 
@@ -34,8 +33,8 @@ class Trace:
 
     def __post_init__(self):
         self.image = im = as_image(self.image)
-        self.trace_pos: float = im.shape[im.crossdisp_axis] / 2
-        self.trace: np.ma.MaskedArray = np.ma.masked_array(np.full(im.shape[im.disp_axis], self.trace_pos))
+        self.trace_pos: float = im.size_crossdisp_axis / 2
+        self.trace: np.ma.MaskedArray = np.ma.masked_array(np.full(im.size_disp_axis, self.trace_pos))
         self._bound_trace()
 
         # masking options not relevant for basic Trace
@@ -72,7 +71,7 @@ class Trace:
         """
         Mask trace positions that are outside the upper/lower bounds of the image.
         """
-        ny = self.image.shape[self.image.crossdisp_axis]
+        ny = self.image.size_crossdisp_axis
         self.trace = np.ma.masked_outside(self.trace, 0, ny - 1)
 
     def __add__(self, delta: float) -> 'Trace':
@@ -136,7 +135,7 @@ class FlatTrace(Trace):
         if trace_pos < 1:
             raise ValueError('`trace_pos` must be positive.')
         self.trace_pos = trace_pos
-        self.trace = np.ma.masked_array(np.full(self.image.shape[self.image.disp_axis], self.trace_pos))
+        self.trace = np.ma.masked_array(np.full(self.image.size_disp_axis, self.trace_pos))
         self._bound_trace()
 
 
@@ -176,7 +175,7 @@ class ArrayTrace(Trace):
 
         self.image = as_image(self.image)
 
-        nx = self.image.shape[self.image.disp_axis]
+        nx = self.image.size_disp_axis
         nt = len(self.trace)
         if nt != nx:
             if nt > nx:
@@ -286,8 +285,8 @@ class FitTrace(Trace):
 
         # Parse image, including masked/nonfinite data handling based on
         # choice of `mask_treatment`. returns a Spectrum1D
-        self.image = as_image(self.image, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis).apply_mask(self.mask_treatment)
-        img = self.image.to_masked_array()
+        self.image = as_image(self.image, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis)
+        img = self.image.to_masked_array(mask_treatment=self.mask_treatment)
         # self.image = self._parse_image(self.image, disp_axis=self._disp_axis,
         #                                mask_treatment=self.mask_treatment)
 
@@ -309,7 +308,7 @@ class FitTrace(Trace):
             raise ValueError("trace_model must be one of "
                              f"{', '.join([m.name for m in valid_models])}.")
 
-        cols = img.shape[self.image.disp_axis]
+        cols = img.shape[DISP_AXIS]
         model_deg = self.trace_model.degree
         if self.bins is None:
             self.bins = cols
@@ -328,7 +327,7 @@ class FitTrace(Trace):
             self.bins = int(self.bins)
 
         if (self.window is not None
-            and (self.window > img.shape[self.image.disp_axis]
+            and (self.window > img.shape[DISP_AXIS]
                  or self.window < 1)):
             raise ValueError(f"window must be >= 2 and less than {cols}, the "
                              "length of the image's spatial direction")
@@ -341,10 +340,10 @@ class FitTrace(Trace):
 
     def _fit_trace(self, img):
 
-        yy = np.arange(img.shape[self.image.crossdisp_axis])
+        yy = np.arange(img.shape[CROSSDISP_AXIS])
 
         # set max peak location by user choice or wavelength with max avg flux
-        ztot = img.sum(axis=self.image.disp_axis) / img.shape[self.image.disp_axis]
+        ztot = img.sum(axis=DISP_AXIS) / img.shape[DISP_AXIS]
         peak_y = self.guess if self.guess is not None else ztot.argmax()
         # NOTE: peak finder can be bad if multiple objects are on slit
 
@@ -378,7 +377,7 @@ class FitTrace(Trace):
             raise ValueError('All pixels in window region are masked. Check '
                              'for invalid values or use a larger window value.')
 
-        x_bins = np.linspace(0, img.shape[self.image.disp_axis],
+        x_bins = np.linspace(0, img.shape[DISP_AXIS],
                              self.bins + 1, dtype=int)
         y_bins = np.tile(np.nan, self.bins)
 
@@ -387,7 +386,7 @@ class FitTrace(Trace):
 
             # binned columns, summed along disp. axis.
             # or just a single, unbinned column if no bins
-            z_i = img[ilum2, x_bins[i]:x_bins[i + 1]].sum(axis=self.image.disp_axis)
+            z_i = img[ilum2, x_bins[i]:x_bins[i + 1]].sum(axis=DISP_AXIS)
 
             # if this bin is fully masked, set bin peak to NaN, so it can be
             # filtered in the final fit to all bin peaks for the trace
@@ -476,11 +475,11 @@ class FitTrace(Trace):
             self._y_bins = y_bins
             self.trace_model_fit = fitter(self.trace_model, x_bins, y_bins)
 
-            trace_x = np.arange(img.shape[self.image.disp_axis])
+            trace_x = np.arange(img.shape[DISP_AXIS])
             trace_y = self.trace_model_fit(trace_x)
         else:
             warnings.warn("TRACE ERROR: No valid points found in trace")
-            trace_y = np.tile(np.nan, img.shape[self.image.disp_axis])
+            trace_y = np.tile(np.nan, img.shape[DISP_AXIS])
 
         self.trace = np.ma.masked_invalid(trace_y)
 

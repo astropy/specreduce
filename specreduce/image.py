@@ -123,13 +123,22 @@ class SRImage:
     def crossdisp_axis(self) -> int:
         return CROSSDISP_AXIS
 
+    @property
+    def size_disp_axis(self):
+        return self.shape[self.disp_axis]
+
+    @property
+    def size_crossdisp_axis(self):
+        return self.shape[self.crossdisp_axis]
+
     def subtract(self, image, propagate_uncertainties: bool = True) -> 'SRImage':
         image = SRImage(image)
         return SRImage(self._nddata.subtract(image.nddata,
                                              propagate_uncertainties=propagate_uncertainties))
 
-    def to_masked_array(self) -> np.ma.masked_array:
-        return np.ma.masked_array(self.flux, mask=self.mask)
+    def to_masked_array(self, mask_treatment: str = 'filter') -> np.ma.MaskedArray:
+        image = self.apply_mask(mask_treatment)
+        return np.ma.masked_array(image.flux, mask=image.mask)
 
     def copy(self) -> 'SRImage':
         """Copy the SRImage object."""
