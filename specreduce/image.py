@@ -2,17 +2,28 @@ import warnings
 
 import astropy.units as u
 import numpy as np
-from astropy.nddata import NDData, NDDataRef, VarianceUncertainty
+from astropy.nddata import (NDData, NDDataRef, VarianceUncertainty, NDUncertainty,
+                            StdDevUncertainty, InverseVariance)
 
 CROSSDISP_AXIS: int = 0
 DISP_AXIS: int = 1
 
 
-def as_image(image, disp_axis: int = 1, crossdisp_axis: int | None = None):
+def as_image(image, disp_axis: int = 1, crossdisp_axis: int | None = None,
+             unit: u.Unit | None = None,
+             mask: np.ndarray | None = None, mask_nonfinite: bool = True,
+             uncertainty: [np.ndarray | NDUncertainty | None] = None,
+             uncertainty_type: str = 'var',
+             ensure_var_uncertainty: bool = False,
+             require_uncertainty: bool = False):
     if isinstance(image, SRImage):
         return image
     else:
-        return SRImage(image, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis)
+        return SRImage(image, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis,
+                       unit=unit, mask=mask, mask_nonfinite=mask_nonfinite,
+                       uncertainty=uncertainty, uncertainty_type=uncertainty_type,
+                       ensure_var_uncertainty=ensure_var_uncertainty,
+                       require_uncertainty=require_uncertainty)
 
 
 class SRImage:
@@ -21,13 +32,18 @@ class SRImage:
     def __init__(self, image, disp_axis: int = 1, crossdisp_axis: int | None = None,
                  unit: u.Unit | None = None,
                  mask: np.ndarray | None = None, mask_nonfinite: bool = True,
-                 variance: np.ndarray | None = None, ensure_var_uncertainty: bool = False,
+                 uncertainty: [np.ndarray | NDUncertainty | None] = None,
+                 uncertainty_type: str = 'var',
+                 ensure_var_uncertainty: bool = False,
                  require_uncertainty: bool = False) -> None:
         self._nddata: NDDataRef | None = None
 
         # Extract the ndarray from the image object
         # -----------------------------------------
-        if isinstance(image, u.quantity.Quantity):
+        if isinstance(image, SRImage):
+            data = image.data
+            disp_axis = image.disp_axis
+        elif isinstance(image, u.quantity.Quantity):
             data = image.value
         elif isinstance(image, np.ndarray):
             data = image
@@ -60,7 +76,7 @@ class SRImage:
         if getattr(image, 'mask', None) is not None:
             mask = image.mask.astype(bool)
         elif mask is not None:
-            pass
+            mask = mask.astype(bool)
         else:
             mask = np.zeros(data.shape, dtype=bool)
 
@@ -79,46 +95,58 @@ class SRImage:
 
         # Extract the uncertainty
         # -----------------------
-        if variance is not None:
-            uncertainty = VarianceUncertainty(variance)
+        unc_types = {'var': VarianceUncertainty,
+                     'std': StdDevUncertainty,
+                     'ivar': InverseVariance}
+        if uncertainty is not None:
+            if isinstance(uncertainty, np.ndarray):
+                uncertainty = unc_types[uncertainty_type](uncertainty)
+            elif isinstance(uncertainty, NDUncertainty):
+                pass
+            else:
+                raise ValueError('Unrecognized uncertainty type.')
         elif getattr(image, 'uncertainty', None) is not None:
             uncertainty = image.uncertainty
         elif not require_uncertainty:
-            uncertainty = VarianceUncertainty(np.ones_like(data))
+            uncertainty = None
         else:
             raise ValueError('Uncertainty information is required but missing.')
 
         # Try to convert the uncertainty into VarianceUncertainty
         if ensure_var_uncertainty:
             if uncertainty.uncertainty_type != 'var':
-                warnings.warn("image NDData object's uncertainty is not"
+                warnings.warn("image object's uncertainty is not"
                               "given as VarianceUncertainty. Trying to "
                               "convert the uncertainty to VarianceUncertainty.")
                 uncertainty = uncertainty.represent_as(VarianceUncertainty)
 
-        if uncertainty.array.shape != data.shape:
-            raise ValueError('Image and uncertainty shapes must match.')
-        if np.any(uncertainty.array < 0):
-            raise ValueError("Uncertainty must be fully positive")
-        if np.all(uncertainty.array == 0):
-            # technically would result in infinities, but since they're all
-            # zeros, we can override ones to simulate an unweighted case
-            uncertainty._array[:] = 1.0
-        if np.any(uncertainty.array == 0):
-            m = uncertainty.array == 0
-            # exclude such elements by editing the input mask
-            mask[m] = True
-            # replace the variances to avoid a divide by zero warning
-            uncertainty._array[m] = np.nan
+        if uncertainty is not None:
+            if uncertainty.array.shape != data.shape:
+                raise ValueError('Image and uncertainty shapes must match.')
+            if np.any(uncertainty.array < 0):
+                raise ValueError("Uncertainty must be fully positive")
+            if np.all(uncertainty.array == 0):
+                # technically would result in infinities, but since they're all
+                # zeros, we can override ones to simulate an unweighted case
+                uncertainty._array[:] = 1.0
+            if np.any(uncertainty.array == 0):
+                m = uncertainty.array == 0
+                # exclude such elements by editing the input mask
+                mask[m] = True
+                # replace the variances to avoid a divide by zero warning
+                uncertainty._array[m] = np.nan
 
         # Standardise the axes
         # --------------------
         # Force the cross-dispersion axis as the first axis and the dispersion
         # axis as the second axis. This could be done using transpose as well, but this
         # approach works also with image cubes (although we're not supporting them yet).
-        data = np.moveaxis(data, [crossdisp_axis, disp_axis], [0, 1])
-        mask = np.moveaxis(mask, [crossdisp_axis, disp_axis], [0, 1])
-        uncertainty._array = np.moveaxis(uncertainty._array, [crossdisp_axis, disp_axis], [0, 1])
+        if (crossdisp_axis, disp_axis) != (0, 1):
+            data = np.moveaxis(data, [crossdisp_axis, disp_axis], [0, 1])
+            mask = np.moveaxis(mask, [crossdisp_axis, disp_axis], [0, 1])
+            uncertainty._array = np.moveaxis(uncertainty._array,
+                                             [crossdisp_axis, disp_axis],
+                                             [0, 1])
 
         self._nddata = NDDataRef(data * unit, uncertainty=uncertainty, mask=mask)
 
