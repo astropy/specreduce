@@ -34,7 +34,8 @@ class Trace:
     crossdisp_axis: InitVar[int | None] = field(default=None, kw_only=True)
     trace: np.ma.MaskedArray | None = field(default=None, init=False, repr=False)
     mask_treatment: str | None = field(default=None, init=False, repr=False, kw_only=True)
-    _valid_mask_treatment_methods: tuple[str | None] = field(default=(None,), init=False, repr=False)
+    _valid_mask_treatment_methods: tuple[str | None] = field(default=(None,),
+                                                             init=False, repr=False)
 
     def __post_init__(self, disp_axis, crossdisp_axis):
         self.image = im = as_image(self.image, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis)
@@ -265,7 +266,10 @@ class FitTrace(Trace):
     trace_model: Model = field(default=models.Polynomial1D(degree=1))
     peak_method: str = 'max'
     mask_treatment: str = 'filter'
-    _valid_mask_treatment_methods: tuple[str | None] = field(default=('filter', 'omit', 'zero-fill'), init=False, repr=False)
+    _valid_mask_treatment_methods: tuple[str | None] = field(default=('filter',
+                                                                      'omit',
+                                                                      'zero-fill'),
+                                                             init=False, repr=False)
     # for testing purposes only, save bin peaks if requested
     _save_bin_peaks_testing: bool = False
 

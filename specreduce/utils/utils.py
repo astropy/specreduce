@@ -1,6 +1,6 @@
 import numpy as np
 
-from specreduce.core import _ImageParser
+from specreduce.image import SRImage
 from specreduce.tracing import Trace, FlatTrace
 from specreduce.extract import _ap_weight_image, _align_along_trace
 
@@ -17,7 +17,7 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
     along the dispersion axis.
 
     If a single number is specified for `pixel`, then the profile at that pixel
-    (i.e wavelength) will be returned. If several pixels are specified in a list or
+    (i.e. wavelength) will be returned. If several pixels are specified in a list or
     array, then they will be averaged (median or mean, set by `statistic` which
     defaults to median). Alternatively, `pixel_range` can be specified as a tuple
     of integers specifying the minimum and maximum pixel range to average the
@@ -85,20 +85,7 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
 
     unit = getattr(image, 'unit', None)
 
-    # parse image, which will return a spectrum1D (note: this is not ideal,
-    # but will be addressed at some point)
-    parser = _ImageParser()
-    image = parser._parse_image(image, disp_axis=disp_axis)
-
-    # which we then need to make back into a masked array
-    # again this way of parsing the image is not ideal but
-    # thats just how it is for now.
-    image = np.ma.MaskedArray(image.data, mask=image.mask)
-
-    # transpose if disp_axis = 0 just for simplicity of calculations
-    # image is already copied so this won't modify input
-    if disp_axis == 0:
-        image = image.T
+    image = SRImage(image, disp_axis=disp_axis).to_masked_array()
 
     nrows = image.shape[crossdisp_axis]
     ncols = image.shape[disp_axis]
@@ -157,16 +144,13 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
     else:
         raise ValueError('`width` must be an integer, or None to use all '
                          'cross-dispersion pixels.')
-        width = int(width)
 
     # rectify trace, if _align_along_trace is True and trace is not flat
     aligned_trace = None
     if align_along_trace:
         if not isinstance(trace, FlatTrace):
             # note: img was transposed according to `crossdisp_axis`: disp_axis will always be 1
-            aligned_trace = _align_along_trace(image, trace.trace,
-                                               disp_axis=1,
-                                               crossdisp_axis=0)
+            aligned_trace = _align_along_trace(image, trace.trace)
 
             # new trace will be a flat trace at the center of the image
             trace_pos = nrows / 2
@@ -183,7 +167,7 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
 
     # now that we have figured out the mask for the window in cross-disp. axis,
     # select only the pixel(s) we want to include in measuring the avg. profile
-    pixel_mask = np.ones((image.shape))
+    pixel_mask = np.ones(image.shape)
     pixel_mask[:, pixels] = 0
 
     # combine these masks to isolate the rows and cols used to measure profile

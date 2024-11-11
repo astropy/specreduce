@@ -4,8 +4,6 @@ import warnings
 from dataclasses import dataclass, field, InitVar
 
 import numpy as np
-from astropy import units as u
-from astropy.nddata import NDData
 from astropy.utils.decorators import deprecated_attribute
 from specutils import Spectrum1D
 
@@ -302,7 +300,9 @@ class Background:
         kwargs['traces'] = [trace_object+separation]
         return cls(image=image, **kwargs)
 
-    def bkg_image(self, image=None, disp_axis: int = 1, crossdisp_axis: int | None = None) -> SRImage:
+    def bkg_image(self, image=None,
+                  disp_axis: int = 1,
+                  crossdisp_axis: int | None = None) -> SRImage:
         """
         Expose the background tiled to the dimension of ``image``.
 
@@ -319,7 +319,8 @@ class Background:
         `~specutils.SRImage` object with same shape as ``image``.
         """
         image = self.image if image is None else as_image(image, disp_axis, crossdisp_axis)
-        return SRImage(np.tile(self._bkg_array,(image.shape[image.crossdisp_axis], 1)) * image.unit)
+        return SRImage(np.tile(self._bkg_array,
+                               (image.shape[image.crossdisp_axis], 1)) * image.unit)
 
     def bkg_spectrum(self, image=None) -> Spectrum1D:
         """

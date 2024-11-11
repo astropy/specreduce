@@ -1,12 +1,11 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
-import warnings
 from dataclasses import dataclass, field, InitVar
 
 import numpy as np
 from astropy import units as u
 from astropy.modeling import Model, models, fitting
-from astropy.nddata import NDData, VarianceUncertainty
+from astropy.nddata import VarianceUncertainty
 from scipy.integrate import trapezoid
 from scipy.interpolate import RectBivariateSpline
 from specutils import Spectrum1D
@@ -18,7 +17,7 @@ from specreduce.tracing import Trace, FlatTrace
 __all__ = ['BoxcarExtract', 'HorneExtract', 'OptimalExtract']
 
 
-def _get_boxcar_weights(center, hwidth, npix):
+def _get_boxcar_weights(center: float, hwidth: float, npix: int):
     """
     Compute weights given an aperture center, half width,
     and number of pixels.
@@ -28,14 +27,14 @@ def _get_boxcar_weights(center, hwidth, npix):
 
     Parameters
     ----------
-    center : float, required
+    center
         The index of the aperture's center pixel on the larger image's
         cross-dispersion axis.
 
-    hwidth : float, required
+    hwidth
         Half of the aperture's width in the cross-dispersion direction.
 
-    npix : float, required
+    npix
         The number of pixels in the larger image's cross-dispersion
         axis.
 
@@ -156,18 +155,22 @@ class BoxcarExtract(SpecreduceOperation):
     image: SRImage
     trace_object: Trace
     width: float = 5
-    disp_axis: int = 1
-    crossdisp_axis: int = 0
-    # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
+    disp_axis: InitVar[int] = 1
+    crossdisp_axis: InitVar[int | None] = None
     mask_treatment: str = 'filter'
     _valid_mask_treatment_methods = ('filter', 'omit', 'zero-fill')
+
+    def __post_init__(self, disp_axis, crossdisp_axis):
+        self.image = as_image(self.image,
+                              disp_axis=disp_axis,
+                              crossdisp_axis=crossdisp_axis)
 
     @property
     def spectrum(self):
         return self.__call__()
 
     def __call__(self, image=None, trace_object=None, width=None,
-                 disp_axis=None, crossdisp_axis=None,
+                 disp_axis=1, crossdisp_axis=None,
                  mask_treatment: str = 'filter') -> Spectrum1D:
         """
         Extract the 1D spectrum using the boxcar method.
@@ -208,8 +211,6 @@ class BoxcarExtract(SpecreduceOperation):
         """
         trace_object = trace_object if trace_object is not None else self.trace_object
         width = width if width is not None else self.width
-        disp_axis = disp_axis if disp_axis is not None else self.disp_axis
-        crossdisp_axis = crossdisp_axis if crossdisp_axis is not None else self.crossdisp_axis
 
         # Parse image, including masked/nonfinite data handling based on
         # choice of `mask_treatment`, which for BoxcarExtract can be filter, zero-fill, or
@@ -218,7 +219,7 @@ class BoxcarExtract(SpecreduceOperation):
         #                                mask_treatment=self.mask_treatment)
         # TODO: Mask treatment
         self.image = as_image(image if image is not None else self.image,
-                              self.disp_axis, self.crossdisp_axis)
+                              disp_axis, crossdisp_axis)
 
         # # _parse_image returns a Spectrum1D. convert this to a masked array
         # # for ease of calculations here (even if there is no masked data).
@@ -321,133 +322,27 @@ class HorneExtract(SpecreduceOperation):
     trace_object: Trace
     bkgrd_prof: Model = field(default=models.Polynomial1D(2))
     spatial_profile: str | dict = 'gaussian'  # can actually be str, dict
-    variance: np.ndarray | None = field(default=None)
-    mask: np.ndarray | None = field(default=None)
-    unit: u.Unit | None = field(default=None)
-    disp_axis: InitVar[int] = 1
-    crossdisp_axis: InitVar[int | None] = None
+    variance: InitVar[np.ndarray | None] = field(default=None)
+    mask: InitVar[np.ndarray | None] = field(default=None)
+    unit: InitVar[u.Unit | None] = field(default=None)
+    disp_axis: InitVar[int] = field(default=1)
+    crossdisp_axis: InitVar[int | None] = field(default=None)
 
-    def __post_init__(self, disp_axis, crossdisp_axis):
-        self.image = as_image(self.image, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis)
+    def __post_init__(self, variance, mask, unit, disp_axis, crossdisp_axis):
+        self.image = SRImage(self.image,
+                        disp_axis=disp_axis,
+                        crossdisp_axis=crossdisp_axis,
+                        unit=unit,
+                        mask=mask,
+                        uncertainty=variance,
+                        uncertainty_type='var',
+                        ensure_var_uncertainty=False,
+                        require_uncertainty=False)
+
 
     @property
     def spectrum(self):
         return self.__call__()
-
-    def _parse_image(self, image,
-                     variance=None, mask=None, unit=None, disp_axis=1):
-        """
-        Convert all accepted image types to a consistently formatted
-        Spectrum1D object.
-
-        HorneExtract needs its own version of this method because it is
-        more stringent in its requirements for input images. The extra
-        arguments are needed to handle cases where these parameters were
-        specified as arguments and those where they came as attributes
-        of the image object.
-
-        Parameters
-        ----------
-        image : `~astropy.nddata.NDData`-like or array-like, required
-            The image to be parsed. If None, defaults to class' own
-            image attribute.
-        variance : `~numpy.ndarray`, optional
-            (Only used if ``image`` is not an NDData object.)
-            The associated variances for each pixel in the image. Must
-            have the same dimensions as ``image``. If all zeros, the variance
-            will be ignored and treated as all ones.  If any zeros, those
-            elements will be excluded via masking.  If any negative values,
-            an error will be raised.
-        mask : `~numpy.ndarray`, optional
-            (Only used if ``image`` is not an NDData object.)
-            Whether to mask each pixel in the image. Must have the same
-            dimensions as ``image``. If blank, all non-NaN pixels are
-            unmasked.
-        unit : `~astropy.units.Unit` or str, optional
-            (Only used if ``image`` is not an NDData object.)
-            The associated unit for the data in ``image``. If blank,
-            fluxes are interpreted in DN.
-        disp_axis : int, optional
-            The index of the image's dispersion axis. Should not be
-            changed until operations can handle variable image
-            orientations. [default: 1]
-        """
-
-        if isinstance(image, np.ndarray):
-            img = image
-        elif isinstance(image, u.quantity.Quantity):
-            img = image.value
-        else:  # NDData, including CCDData and Spectrum1D
-            img = image.data
-
-        # mask is set as None when not specified upon creating a Spectrum1D
-        # object, so we must check whether it is absent *and* whether it's
-        # present but set as None
-        if getattr(image, 'mask', None) is not None:
-            mask = image.mask
-        elif mask is not None:
-            pass
-        else:
-            # if user provides no mask at all, don't mask anywhere
-            mask = np.zeros_like(img)
-
-        if img.shape != mask.shape:
-            raise ValueError('image and mask shapes must match.')
-
-        # Process uncertainties, converting to variances when able and throwing
-        # an error when uncertainties are missing or less easily converted
-        if (hasattr(image, 'uncertainty')
-                and image.uncertainty is not None):
-            if image.uncertainty.uncertainty_type == 'var':
-                variance = image.uncertainty.array
-            elif image.uncertainty.uncertainty_type == 'std':
-                warnings.warn("image NDData object's uncertainty "
-                              "interpreted as standard deviation. if "
-                              "incorrect, use VarianceUncertainty when "
-                              "assigning image object's uncertainty.")
-                variance = image.uncertainty.array**2
-            elif image.uncertainty.uncertainty_type == 'ivar':
-                variance = 1 / image.uncertainty.array
-            else:
-                # other options are InverseUncertainty and UnknownUncertainty
-                raise ValueError("image NDData object has unexpected "
-                                 "uncertainty type. instead, try "
-                                 "VarianceUncertainty or StdDevUncertainty.")
-        elif (hasattr(image, 'uncertainty')
-              and image.uncertainty is None):
-            # ignore variance arg to focus on updating NDData object
-            raise ValueError('image NDData object lacks uncertainty')
-        else:
-            if variance is None:
-                raise ValueError("if image is a numpy or Quantity array, a "
-                                 "variance must be specified. consider "
-                                 "wrapping it into one object by instead "
-                                 "passing an NDData image.")
-            elif image.shape != variance.shape:
-                raise ValueError("image and variance shapes must match")
-
-        if np.any(variance < 0):
-            raise ValueError("variance must be fully positive")
-        if np.all(variance == 0):
-            # technically would result in infinities, but since they're all
-            # zeros, we can override ones to simulate an unweighted case
-            variance = np.ones_like(variance)
-        if np.any(variance == 0):
-            # exclude such elements by editing the input mask
-            mask[variance == 0] = True
-            # replace the variances to avoid a divide by zero warning
-            variance[variance == 0] = np.nan
-
-        variance = VarianceUncertainty(variance)
-
-        unit = getattr(image, 'unit',
-                       u.Unit(unit) if unit is not None else u.Unit('DN'))
-
-        spectral_axis = getattr(image, 'spectral_axis',
-                                np.arange(img.shape[disp_axis]) * u.pix)
-
-        return Spectrum1D(img * unit, spectral_axis=spectral_axis,
-                          uncertainty=variance, mask=mask)
 
     def _fit_gaussian_spatial_profile(self, img, disp_axis, crossdisp_axis,
                                       or_mask, bkgrd_prof):
@@ -609,15 +504,29 @@ class HorneExtract(SpecreduceOperation):
             The final, Horne extracted 1D spectrum.
         """
         image = image if image is not None else self.image
+
+        if variance is not None:
+            uncertainty = VarianceUncertainty(variance)
+        else:
+            uncertainty = getattr(image, 'uncertainty', None)
+            if uncertainty is None:
+                raise ValueError('variance must be specified if the image data does '
+                                 'not contain uncertainty information.')
+
+        image = SRImage(image,
+                        disp_axis=disp_axis or self.image.disp_axis,
+                        crossdisp_axis=crossdisp_axis or self.image.crossdisp_axis,
+                        unit=unit or self.image.unit,
+                        mask=mask if mask is not None else self.image.mask,
+                        uncertainty=uncertainty,
+                        uncertainty_type='var',
+                        ensure_var_uncertainty=True,
+                        require_uncertainty=True)
+
         trace_object = trace_object if trace_object is not None else self.trace_object
-        disp_axis = disp_axis if disp_axis is not None else self.disp_axis
-        crossdisp_axis = crossdisp_axis if crossdisp_axis is not None else self.crossdisp_axis
         bkgrd_prof = bkgrd_prof if bkgrd_prof is not None else self.bkgrd_prof
         spatial_profile = (spatial_profile if spatial_profile is not None else
                            self.spatial_profile)
-        variance = variance if variance is not None else self.variance
-        mask = mask if mask is not None else self.mask
-        unit = unit if unit is not None else self.unit
 
         # figure out what 'spatial_profile' was provided
         # put this parsing into another method at some point, its a lot..
@@ -665,42 +574,22 @@ class HorneExtract(SpecreduceOperation):
         else:
             raise ValueError('``spatial_profile`` must either be string or dictionary.')
 
-        # parse image and replace optional arguments with updated values
-        self.image = SRImage(image,
-                             disp_axis=disp_axis,
-                             unit=unit,
-                             mask=mask,
-                             variance=variance,
-                             ensure_var_uncertainty=True,
-                             require_uncertainty=True)
-        #self.image = self._parse_image(image, variance, mask, unit, disp_axis)
-        variance = self.image.uncertainty.array
-        mask = self.image.mask
-        unit = self.image.unit
-
-        img = np.ma.masked_array(self.image.data, mask=mask)
-
-        # create separate mask including any previously uncaught non-finite
-        # values for purposes of calculating fit
-        or_mask = np.logical_or(img.mask,
-                                ~np.isfinite(self.image.data))
+        img = image.to_masked_array()
+        variance = image.uncertainty.array
+        mask = img.mask
+        unit = image.unit
 
         # If the trace is not flat, shift the rows in each column
         # so the image is aligned along the trace:
         if not isinstance(trace_object, FlatTrace):
-            img = _align_along_trace(
-                img,
-                trace_object.trace,
-                disp_axis=disp_axis,
-                crossdisp_axis=crossdisp_axis)
+            img = _align_along_trace(img, trace_object.trace)
 
         if self.spatial_profile == 'gaussian':
-
             # fit profile to average (mean) profile along crossdisp axis
             fit_ext_kernel = self._fit_gaussian_spatial_profile(img,
-                                                                disp_axis,
-                                                                crossdisp_axis,
-                                                                or_mask,
+                                                                DISP_AXIS,
+                                                                CROSSDISP_AXIS,
+                                                                mask,
                                                                 bkgrd_prof)
 
             # this is just creating an array of the trace to shift the mean
@@ -712,7 +601,7 @@ class HorneExtract(SpecreduceOperation):
                 mean_init_guess = trace_object.trace
             else:
                 mean_init_guess = np.broadcast_to(
-                    img.shape[crossdisp_axis] // 2, img.shape[disp_axis]
+                    img.shape[CROSSDISP_AXIS] // 2, img.shape[DISP_AXIS]
                 )
 
         else:  # interpolated_profile
@@ -725,7 +614,7 @@ class HorneExtract(SpecreduceOperation):
                                  ' be fit and subtracted from `img` beforehand.')
             # make sure n_bins doesnt exceed the number of (for now) finite
             # columns. update this when masking is fixed.
-            n_finite_cols = np.logical_or.reduce(or_mask, axis=crossdisp_axis)
+            n_finite_cols = np.logical_or.reduce(mask, axis=crossdisp_axis)
             n_finite_cols = np.count_nonzero(n_finite_cols.astype(int) == 0)
 
             # determine interpolation degree from input and make tuple if int
@@ -750,25 +639,26 @@ class HorneExtract(SpecreduceOperation):
                                  'must be less than the number of fully-finite '
                                  f'wavelength columns ({n_finite_cols}).')
 
-            interp_spatial_prof = self._fit_self_spatial_profile(img, disp_axis,
-                                                                 crossdisp_axis,
-                                                                 or_mask,
+            interp_spatial_prof = self._fit_self_spatial_profile(img,
+                                                                 DISP_AXIS,
+                                                                 CROSSDISP_AXIS,
+                                                                 mask,
                                                                  n_bins_interpolated_profile,
                                                                  kx, ky)
 
             # add private attribute to save fit profile. should this be public?
             self._interp_spatial_prof = interp_spatial_prof
 
-        col_mask = np.logical_or.reduce(or_mask, axis=crossdisp_axis)
-        nonf_col = [np.nan] * img.shape[crossdisp_axis]
+        col_mask = np.logical_or.reduce(mask, axis=CROSSDISP_AXIS)
+        nonf_col = [np.nan] * img.shape[CROSSDISP_AXIS]
 
         # array of 'x' values for each wavelength for extraction
-        nrows = img.shape[crossdisp_axis]
+        nrows = img.shape[CROSSDISP_AXIS]
         xd_pixels = np.arange(nrows)
 
         kernel_vals = []
         norms = []
-        for col_pix in range(img.shape[disp_axis]):
+        for col_pix in range(img.shape[DISP_AXIS]):
 
             # for now, skip columns with any non-finite values
             # NOTE: fit and other kernel operations should support masking again
@@ -807,11 +697,11 @@ class HorneExtract(SpecreduceOperation):
         norms = np.array(norms)
 
         # calculate kernel normalization
-        g_x = np.sum(kernel_vals**2 / variance, axis=crossdisp_axis)
+        g_x = np.sum(kernel_vals**2 / variance, axis=CROSSDISP_AXIS)
 
         # sum by column weights
         weighted_img = np.divide(img * kernel_vals, variance)
-        result = np.sum(weighted_img, axis=crossdisp_axis) / g_x
+        result = np.sum(weighted_img, axis=CROSSDISP_AXIS) / g_x
 
         # multiply kernel normalization into the extracted signal
         extraction = result * norms
@@ -820,7 +710,7 @@ class HorneExtract(SpecreduceOperation):
         return Spectrum1D(extraction * unit)
 
 
-def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):
+def _align_along_trace(img, trace_array):
     """
     Given an arbitrary trace ``trace_array`` (an np.ndarray), roll
     all columns of ``nddata`` to shift the NDData's pixels nearest
@@ -828,10 +718,6 @@ def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):
     NDData.
     """
     # TODO: this workflow does not support extraction for >2D spectra
-    if not (disp_axis == 1 and crossdisp_axis == 0):
-        # take the transpose to ensure the rows are the cross-disp axis:
-        img = img.T
-
     n_rows, n_cols = img.shape
 
     # indices of all columns, in their original order

@@ -2,8 +2,9 @@ import astropy.units as u
 import numpy as np
 import pytest
 
-from astropy.nddata import NDData, VarianceUncertainty
+from astropy.nddata import NDData, VarianceUncertainty  # noqa
 from specreduce.image import SRImage
+
 
 def create_image(imtype: str, nrow: int = 7, ncol: int = 11):
     img = np.tile((np.arange(ncol)), (nrow, 1)).astype('d')
@@ -15,8 +16,6 @@ def create_image(imtype: str, nrow: int = 7, ncol: int = 11):
         return NDData(img*u.DN)
     else:
         raise NotImplementedError('unkown image type')
-
-img = np.tile((np.arange(5, 15)), (7, 1)).astype('d')
 
 
 @pytest.mark.parametrize("imtype", ["ndarray", "quantity", 'nddata'])
@@ -46,4 +45,4 @@ def test_init(imtype):
 
 def test_init_bad():
     with pytest.raises(ValueError, match='Unrecognized image type.'):
-        image = SRImage([[0.0, 1.0],[2.0, 3.0]])
+        image = SRImage([[0.0, 1.0],[2.0, 3.0]])  # noqa

@@ -10,6 +10,7 @@ from specreduce.background import Background
 from specreduce.extract import (
     BoxcarExtract, HorneExtract, OptimalExtract, _align_along_trace
 )
+from specreduce.image import SRImage
 from specreduce.tracing import FitTrace, FlatTrace, ArrayTrace
 
 
@@ -122,15 +123,15 @@ def test_horne_image_validation(mk_test_img):
         ext = extract()
 
     # an NDData-type image can't have an empty uncertainty attribute
-    with pytest.raises(ValueError, match=r'.*NDData object lacks uncertainty'):
+    with pytest.raises(ValueError, match=r'.*variance must be specified.*'):
         ext = extract(image=image)
 
     # an NDData-type image's uncertainty must be of type VarianceUncertainty
     # or type StdDevUncertainty
-    with pytest.raises(ValueError, match=r'.*unexpected uncertainty type.*'):
-        err = UnknownUncertainty(np.ones_like(image))
-        image.uncertainty = err
-        ext = extract(image=image)
+    with pytest.raises(TypeError, match=r'.*does not support conversion*'):
+        err = UnknownUncertainty(np.ones_like(image.data))
+        im = SRImage(image, uncertainty=err)
+        ext = extract(image=im)
 
     # an array-type image must have the same dimensions as its variance argument
     with pytest.raises(ValueError, match=r'.*shapes must match.*'):
