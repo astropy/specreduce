@@ -1,9 +1,12 @@
+import warnings
+
 import astropy.units as u
 import numpy as np
 from astropy.nddata import NDData, NDDataRef, VarianceUncertainty
 
 CROSSDISP_AXIS: int = 0
 DISP_AXIS: int = 1
+
 
 def as_image(image, disp_axis: int = 1, crossdisp_axis: int | None = None):
     if isinstance(image, SRImage):
@@ -15,7 +18,11 @@ def as_image(image, disp_axis: int = 1, crossdisp_axis: int | None = None):
 class SRImage:
     implemented_masking_methods = 'filter', 'zero-fill', 'omit'
 
-    def __init__(self, image, disp_axis: int = 1, crossdisp_axis: int | None = None):
+    def __init__(self, image, disp_axis: int = 1, crossdisp_axis: int | None = None,
+                 unit: u.Unit | None = None,
+                 mask: np.ndarray | None = None, mask_nonfinite: bool = True,
+                 variance: np.ndarray | None = None, ensure_var_uncertainty: bool = False,
+                 require_uncertainty: bool = False) -> None:
         self._nddata: NDDataRef | None = None
 
         # Extract the ndarray from the image object
@@ -35,7 +42,8 @@ class SRImage:
             if data.ndim == 2:
                 crossdisp_axis = (disp_axis + 1) % 2
             else:
-                raise ValueError('The cross-dispersion axis must be given for for image cubes with ndim > 2.')
+                raise ValueError('The cross-dispersion axis must be given '
+                                 ' for for image cubes with ndim > 2.')
 
         if disp_axis == crossdisp_axis:
             raise ValueError('The dispersion and cross-dispersion axes cannot be the same.')
@@ -47,21 +55,65 @@ class SRImage:
 
         # Create the mask
         # ---------------
+        # TODO: Shouldn't the user-given mask override the default mask in the image?
+        #       The order of tests should probably be changed.
         if getattr(image, 'mask', None) is not None:
-            mask = image.mask.astype(bool) | (~np.isfinite(data))
+            mask = image.mask.astype(bool)
+        elif mask is not None:
+            pass
         else:
-            mask =  ~np.isfinite(data)
+            mask = np.zeros(data.shape, dtype=bool)
+
+        if mask_nonfinite:
+            mask |= ~np.isfinite(data)
+
         if mask.all():
             raise ValueError('Image is fully masked. Check for invalid values.')
+        if data.shape != mask.shape:
+            raise ValueError('Image and mask shapes must match.')
 
-        # Extract the unit and uncertainty
-        # --------------------------------
-        unit = getattr(image, 'unit', u.DN)
-        uncertainty = getattr(image, 'uncertainty', None) or VarianceUncertainty(np.ones_like(data))
+        # Extract the unit
+        # ----------------
+        if unit is None:
+            unit = getattr(image, 'unit', u.DN)
+
+        # Extract the uncertainty
+        # -----------------------
+        if variance is not None:
+            uncertainty = VarianceUncertainty(variance)
+        elif getattr(image, 'uncertainty', None) is not None:
+            uncertainty = image.uncertainty
+        elif not require_uncertainty:
+            uncertainty = VarianceUncertainty(np.ones_like(data))
+        else:
+            raise ValueError('Uncertainty information is required but missing.')
+
+        # Try to convert the uncertainty into VarianceUncertainty
+        if ensure_var_uncertainty:
+            if uncertainty.uncertainty_type != 'var':
+                warnings.warn("image NDData object's uncertainty is not"
+                              "given as VarianceUncertainty. Trying to "
+                              "convert the uncertainty to VarianceUncertainty.")
+                uncertainty = uncertainty.represent_as(VarianceUncertainty)
+
+        if uncertainty.array.shape != data.shape:
+            raise ValueError('Image and uncertainty shapes must match.')
+        if np.any(uncertainty.array < 0):
+            raise ValueError("Uncertainty must be fully positive")
+        if np.all(uncertainty.array == 0):
+            # technically would result in infinities, but since they're all
+            # zeros, we can override ones to simulate an unweighted case
+            uncertainty._array[:] = 1.0
+        if np.any(uncertainty.array == 0):
+            m = uncertainty.array == 0
+            # exclude such elements by editing the input mask
+            mask[m] = True
+            # replace the variances to avoid a divide by zero warning
+            uncertainty._array[m] = np.nan
 
         # Standardise the axes
         # --------------------
-        # This step forces the cross-dispersion axis as the first axis and the dispersion
+        # Force the cross-dispersion axis as the first axis and the dispersion
         # axis as the second axis. This could be done using transpose as well, but this
         # approach works also with image cubes (although we're not supporting them yet).
         data = np.moveaxis(data, [crossdisp_axis, disp_axis], [0, 1])
@@ -70,10 +122,8 @@ class SRImage:
 
         self._nddata = NDDataRef(data * unit, uncertainty=uncertainty, mask=mask)
 
-
     def __repr__(self) -> str:
         return f"<Image unit={self.unit} shape={self.shape}>"
-
 
     @property
     def nddata(self) -> NDDataRef:

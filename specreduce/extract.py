@@ -1,7 +1,7 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 
 import numpy as np
 from astropy import units as u
@@ -12,6 +12,7 @@ from scipy.interpolate import RectBivariateSpline
 from specutils import Spectrum1D
 
 from specreduce.core import SpecreduceOperation
+from specreduce.image import SRImage, as_image, DISP_AXIS, CROSSDISP_AXIS
 from specreduce.tracing import Trace, FlatTrace
 
 __all__ = ['BoxcarExtract', 'HorneExtract', 'OptimalExtract']
@@ -44,7 +45,7 @@ def _get_boxcar_weights(center, hwidth, npix):
         A 2D image with weights assigned to pixels that fall within the
         defined aperture.
     """
-    weights = np.zeros((npix))
+    weights = np.zeros(npix)
     if hwidth == 0:
         # the logic below would return all zeros anyways, so might as well save the time
         # (negative widths should be avoided by earlier logic!)
@@ -152,7 +153,7 @@ class BoxcarExtract(SpecreduceOperation):
     spec : `~specutils.Spectrum1D`
         The extracted 1d spectrum expressed in DN and pixel units
     """
-    image: NDData
+    image: SRImage
     trace_object: Trace
     width: float = 5
     disp_axis: int = 1
@@ -166,7 +167,8 @@ class BoxcarExtract(SpecreduceOperation):
         return self.__call__()
 
     def __call__(self, image=None, trace_object=None, width=None,
-                 disp_axis=None, crossdisp_axis=None):
+                 disp_axis=None, crossdisp_axis=None,
+                 mask_treatment: str = 'filter') -> Spectrum1D:
         """
         Extract the 1D spectrum using the boxcar method.
 
@@ -204,7 +206,6 @@ class BoxcarExtract(SpecreduceOperation):
             The extracted 1d spectrum with flux expressed in the same
             units as the input image, or u.DN, and pixel units
         """
-        image = image if image is not None else self.image
         trace_object = trace_object if trace_object is not None else self.trace_object
         width = width if width is not None else self.width
         disp_axis = disp_axis if disp_axis is not None else self.disp_axis
@@ -213,8 +214,11 @@ class BoxcarExtract(SpecreduceOperation):
         # Parse image, including masked/nonfinite data handling based on
         # choice of `mask_treatment`, which for BoxcarExtract can be filter, zero-fill, or
         # omit. non-finite data will be masked, always. Returns a Spectrum1D.
-        self.image = self._parse_image(image, disp_axis=disp_axis,
-                                       mask_treatment=self.mask_treatment)
+        # self.image = self._parse_image(image, disp_axis=disp_axis,
+        #                                mask_treatment=self.mask_treatment)
+        # TODO: Mask treatment
+        self.image = as_image(image if image is not None else self.image,
+                              self.disp_axis, self.crossdisp_axis)
 
         # # _parse_image returns a Spectrum1D. convert this to a masked array
         # # for ease of calculations here (even if there is no masked data).
@@ -226,16 +230,15 @@ class BoxcarExtract(SpecreduceOperation):
         # weight image to use for extraction
         wimg = _ap_weight_image(trace_object,
                                 width,
-                                disp_axis,
-                                crossdisp_axis,
+                                self.image.disp_axis,
+                                self.image.crossdisp_axis,
                                 self.image.shape)
 
         # extract, assigning no weight to non-finite pixels outside the window
         # (non-finite pixels inside the window will still make it into the sum)
         image_windowed = np.where(wimg, self.image.data*wimg, 0)
-        ext1d = np.sum(image_windowed, axis=crossdisp_axis)
-        return Spectrum1D(ext1d * self.image.unit,
-                          spectral_axis=self.image.spectral_axis)
+        ext1d = np.sum(image_windowed, axis=self.image.crossdisp_axis)
+        return Spectrum1D(ext1d * self.image.unit)
 
 
 @dataclass
@@ -314,16 +317,18 @@ class HorneExtract(SpecreduceOperation):
         fluxes are interpreted in DN. [default: None]
 
     """
-    image: NDData
+    image: SRImage
     trace_object: Trace
     bkgrd_prof: Model = field(default=models.Polynomial1D(2))
-    spatial_profile: str = 'gaussian'  # can actually be str, dict
-    variance: np.ndarray = field(default=None)
-    mask: np.ndarray = field(default=None)
-    unit: np.ndarray = field(default=None)
-    disp_axis: int = 1
-    crossdisp_axis: int = 0
-    # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
+    spatial_profile: str | dict = 'gaussian'  # can actually be str, dict
+    variance: np.ndarray | None = field(default=None)
+    mask: np.ndarray | None = field(default=None)
+    unit: u.Unit | None = field(default=None)
+    disp_axis: InitVar[int] = 1
+    crossdisp_axis: InitVar[int | None] = None
+
+    def __post_init__(self, disp_axis, crossdisp_axis):
+        self.image = as_image(self.image, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis)
 
     @property
     def spectrum(self):
@@ -661,7 +666,14 @@ class HorneExtract(SpecreduceOperation):
             raise ValueError('``spatial_profile`` must either be string or dictionary.')
 
         # parse image and replace optional arguments with updated values
-        self.image = self._parse_image(image, variance, mask, unit, disp_axis)
+        self.image = SRImage(image,
+                             disp_axis=disp_axis,
+                             unit=unit,
+                             mask=mask,
+                             variance=variance,
+                             ensure_var_uncertainty=True,
+                             require_uncertainty=True)
+        #self.image = self._parse_image(image, variance, mask, unit, disp_axis)
         variance = self.image.uncertainty.array
         mask = self.image.mask
         unit = self.image.unit
@@ -805,8 +817,7 @@ class HorneExtract(SpecreduceOperation):
         extraction = result * norms
 
         # convert the extraction to a Spectrum1D object
-        return Spectrum1D(extraction * unit,
-                          spectral_axis=self.image.spectral_axis)
+        return Spectrum1D(extraction * unit)
 
 
 def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):

@@ -30,17 +30,19 @@ class Trace:
         Shape of the array describing the trace
     """
     image: SRImage
+    disp_axis: InitVar[int] = field(default=1, kw_only=True)
+    crossdisp_axis: InitVar[int | None] = field(default=None, kw_only=True)
+    trace: np.ma.MaskedArray | None = field(default=None, init=False, repr=False)
+    mask_treatment: str | None = field(default=None, init=False, repr=False, kw_only=True)
+    _valid_mask_treatment_methods: tuple[str | None] = field(default=(None,), init=False, repr=False)
 
-    def __post_init__(self):
-        self.image = im = as_image(self.image)
-        self.trace_pos: float = im.size_crossdisp_axis / 2
-        self.trace: np.ma.MaskedArray = np.ma.masked_array(np.full(im.size_disp_axis, self.trace_pos))
-        self._bound_trace()
-
-        # masking options not relevant for basic Trace
-        self._mask_treatment = None
-        self._valid_mask_treatment_methods = [None]
+    def __post_init__(self, disp_axis, crossdisp_axis):
+        self.image = im = as_image(self.image, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis)
         self.validate_masking_options()
+        if self.trace is None:
+            trace_pos = im.size_crossdisp_axis / 2
+            self.trace = np.ma.masked_array(np.full(im.size_disp_axis, trace_pos))
+            self._bound_trace()
 
     def __getitem__(self, i: int):
         return self.trace[i]
@@ -91,11 +93,7 @@ class Trace:
         return self.__add__(-delta)
 
     @property
-    def mask_treatment(self) -> str | None:
-        return self._mask_treatment
-
-    @property
-    def valid_mask_treatment_methods(self) -> list[str | None]:
+    def valid_mask_treatment_methods(self) -> tuple[str]:
         return self._valid_mask_treatment_methods
 
 
@@ -115,13 +113,9 @@ class FlatTrace(Trace):
     """
     trace_pos: float
 
-    def __post_init__(self):
-        self.image = as_image(self.image)
+    def __post_init__(self, disp_axis, crossdisp_axis):
+        super().__post_init__(disp_axis, crossdisp_axis)
         self.set_position(self.trace_pos)
-
-        # masking options not relevant for basic Trace
-        self._mask_treatment = None
-        self._valid_mask_treatment_methods = [None]
 
     def set_position(self, trace_pos: float) -> None:
         """
@@ -151,12 +145,8 @@ class ArrayTrace(Trace):
     """
     trace: np.ma.MaskedArray
 
-    def __post_init__(self):
-
-        # masking options not relevant for ArrayTrace. any non-finite or masked
-        # data in `image` will not affect array trace
-        self._mask_treatment = None
-        self._valid_mask_treatment_methods = [None]
+    def __post_init__(self, disp_axis, crossdisp_axis):
+        super().__post_init__(disp_axis, crossdisp_axis)
 
         # masked array will have a .data, regular array will not.
         trace_data = getattr(self.trace, 'data', self.trace)
@@ -248,7 +238,7 @@ class FitTrace(Trace):
         One of ``gaussian``, ``centroid``, or ``max``.
         ``gaussian``: Fits a gaussian to the window within each bin and
         adopts the central value as the peak. May work best with fewer
-        bins on faint targets. (Based on the "kosmos" algorithm from
+        bins on faint targets. (Based on the "Kosmos" algorithm from
         James Davenport's same-named repository.)
         ``centroid``: Takes the centroid of the window within in bin.
         ``max``: Saves the position with the maximum flux in each bin.
@@ -274,18 +264,17 @@ class FitTrace(Trace):
     window: int = None
     trace_model: Model = field(default=models.Polynomial1D(degree=1))
     peak_method: str = 'max'
-    disp_axis: InitVar[int] = 1
-    crossdisp_axis: InitVar[int | None] = None
     mask_treatment: str = 'filter'
-    _valid_mask_treatment_methods = ('filter', 'omit', 'zero-fill')
+    _valid_mask_treatment_methods: tuple[str | None] = field(default=('filter', 'omit', 'zero-fill'), init=False, repr=False)
     # for testing purposes only, save bin peaks if requested
     _save_bin_peaks_testing: bool = False
 
     def __post_init__(self, disp_axis, crossdisp_axis):
+        super().__post_init__(disp_axis, crossdisp_axis)
 
         # Parse image, including masked/nonfinite data handling based on
         # choice of `mask_treatment`. returns a Spectrum1D
-        self.image = as_image(self.image, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis)
+        # self.image = as_image(self.image, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis)
         img = self.image.to_masked_array(mask_treatment=self.mask_treatment)
         # self.image = self._parse_image(self.image, disp_axis=self._disp_axis,
         #                                mask_treatment=self.mask_treatment)
@@ -294,7 +283,7 @@ class FitTrace(Trace):
         # for ease of calculations here (even if there is no masked data).
         # Note: uncertainties are dropped, this should also be addressed at
         # some point probably across the package.
-        #img = np.ma.masked_array(self.image.data, self.image.mask)
+        # img = np.ma.masked_array(self.image.data, self.image.mask)
         self._mask_temp = self.image.mask
 
         # validate input arguments
@@ -431,7 +420,7 @@ class FitTrace(Trace):
                 y_bins[i] = np.interp(z_i_cumsum[-1] / 2., z_i_cumsum, ilum2)
 
                 # NOTE this reflects current behavior, should eventually be changed
-                # to set to nan by default (or zero fill / interpoate option once
+                # to set to nan by default (or zero fill / interpolate option once
                 # available)
 
             elif self.peak_method == 'max':
@@ -439,7 +428,7 @@ class FitTrace(Trace):
                 y_bins[i] = ilum2[z_i.argmax()]
 
                 # NOTE: a fully masked should eventually be changed to set to
-                # nan by default (or zero fill / interpoate option once available)
+                # nan by default (or zero fill / interpolate option once available)
 
         # warn about fully-masked bins
         if len(warn_bins) > 0:
