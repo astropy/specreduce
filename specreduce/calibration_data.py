@@ -280,14 +280,12 @@ def load_pypeit_calibration_lines(
         warnings.warn(f"No calibration lines loaded from {lamps}.")
         linelist = None
     else:
-        linelist = vstack(linelists)
+        linelist = QTable(vstack(linelists))
         linelist.rename_column('wave', 'wavelength')
         # pypeit linelists use vacuum wavelengths in angstroms
         linelist['wavelength'] *= u.Angstrom
         if wave_air:
             linelist['wavelength'] = vac_to_air(linelist['wavelength'])
-        linelist = QTable(linelist)
-
     return linelist
 
 
