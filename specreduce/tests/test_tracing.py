@@ -203,21 +203,21 @@ class TestMasksTracing():
                  4.6474359, 5.25, 5.8525641, 6.4551282, 7.0576923,
                  7.6602564]
         max_trace = FitTrace(img, peak_method='max')
-        np.testing.assert_allclose(truth, max_trace.trace, atol=0.05, rtol=1e-2)
+        np.testing.assert_allclose(truth, max_trace.trace, atol=0.05)
 
         # peak_method = 'gaussian'
         truth = [1.947455, 2.383634, 2.8198131, 3.2559921, 3.6921712,
                  4.1283502, 4.5645293, 5.0007083, 5.4368874, 5.8730665,
                  6.3092455]
         max_trace = FitTrace(img, peak_method='gaussian')
-        np.testing.assert_allclose(truth, max_trace.trace, atol=0.05, rtol=1e-2)
+        np.testing.assert_allclose(truth, max_trace.trace, atol=0.05)
 
         # peak_method = 'centroid'
         truth = [2.5318835, 2.782069, 3.0322546, 3.2824402, 3.5326257,
                  3.7828113, 4.0329969, 4.2831824, 4.533368, 4.7835536,
                  5.0337391]
         max_trace = FitTrace(img, peak_method='centroid')
-        np.testing.assert_allclose(truth, max_trace.trace, atol=0.05, rtol=1e-2)
+        np.testing.assert_allclose(truth, max_trace.trace, atol=0.05)
 
     @pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
     @pytest.mark.filterwarnings("ignore:Model is linear in parameters")
