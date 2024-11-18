@@ -94,6 +94,7 @@ SPECREDUCE_DATA_URL = ("https://raw.githubusercontent.com/astropy/specreduce-dat
 PYPEIT_DATA_URL = ("https://raw.githubusercontent.com/pypeit/"
                    "pypeit/release/pypeit/data/")
 
+
 def get_available_line_catalogs() -> dict:
     """
     Returns a dictionary of available line catalogs. Currently only ``pypeit``
