@@ -1,5 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
+from copy import deepcopy
 import inspect
 from dataclasses import dataclass
 
@@ -11,88 +12,8 @@ from specutils import Spectrum1D
 __all__ = ['SpecreduceOperation']
 
 
-class _ImageParser:
-    """
-    Coerces images from accepted formats to Spectrum1D objects for
-    internal use in specreduce's operation classes.
-
-    Fills any and all of uncertainty, mask, units, and spectral axis
-    that are missing in the provided image with generic values.
-    Accepted image types are:
-
-        - `~specutils.spectra.spectrum1d.Spectrum1D` (preferred)
-        - `~astropy.nddata.ccddata.CCDData`
-        - `~astropy.nddata.ndddata.NDDData`
-        - `~astropy.units.quantity.Quantity`
-        - `~numpy.ndarray`
-    """
-
-    def _parse_image(self, image, disp_axis=1):
-        """
-        Convert all accepted image types to a consistently formatted
-        Spectrum1D object.
-
-        Parameters
-        ----------
-        image : `~astropy.nddata.NDData`-like or array-like, required
-            The image to be parsed. If None, defaults to class' own
-            image attribute.
-        disp_axis : int, optional
-            The index of the image's dispersion axis. Should not be
-            changed until operations can handle variable image
-            orientations. [default: 1]
-        """
-
-        # would be nice to handle (cross)disp_axis consistently across
-        # operations (public attribute? private attribute? argument only?) so
-        # it can be called from self instead of via kwargs...
-
-        if image is None:
-            # useful for Background's instance methods
-            return self.image
-
-        img = self._get_data_from_image(image, disp_axis=disp_axis)
-
-        return img
-
-    @staticmethod
-    def _get_data_from_image(image, disp_axis=1):
-        """Extract data array from various input types for `image`.
-           Retruns `np.ndarray` of image data."""
-
-        if isinstance(image, u.quantity.Quantity):
-            img = image.value
-        elif isinstance(image, np.ndarray):
-            img = image
-        else:  # NDData, including CCDData and Spectrum1D
-            img = image.data
-
-        # mask and uncertainty are set as None when they aren't specified upon
-        # creating a Spectrum1D object, so we must check whether these
-        # attributes are absent *and* whether they are present but set as None
-        if getattr(image, 'mask', None) is not None:
-            mask = image.mask
-        else:
-            mask = ~np.isfinite(img)
-
-        if getattr(image, 'uncertainty', None) is not None:
-            uncertainty = image.uncertainty
-        else:
-            uncertainty = VarianceUncertainty(np.ones(img.shape))
-
-        unit = getattr(image, 'unit', u.Unit('DN'))
-
-        spectral_axis = getattr(image, 'spectral_axis',
-                                np.arange(img.shape[disp_axis]) * u.pix)
-
-        return Spectrum1D(img * unit, spectral_axis=spectral_axis,
-                          uncertainty=uncertainty, mask=mask)
-
-        return img
-
-
 @dataclass
-class SpecreduceOperation(_ImageParser):
+class SpecreduceOperation:
     """
     An operation to perform as part of a spectroscopic reduction pipeline.
 

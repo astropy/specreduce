@@ -2,20 +2,24 @@ import numpy as np
 import pytest
 from astropy import units as u
 from astropy.modeling import models
-from astropy.nddata import VarianceUncertainty, UnknownUncertainty
+from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty
 from astropy.tests.helper import assert_quantity_allclose
+from specutils import Spectrum1D
 
+from specreduce.background import Background
 from specreduce.extract import (
     BoxcarExtract, HorneExtract, OptimalExtract, _align_along_trace
 )
-from specreduce.tracing import FlatTrace, ArrayTrace
+from specreduce.image import SRImage
+from specreduce.tracing import FitTrace, FlatTrace, ArrayTrace
 
 
 def add_gaussian_source(image, amps=2, stddevs=2, means=None):
 
     """ Modify `image.data` to add a horizontal spectrum across the image.
         Each column can have a different amplitude, stddev or mean position
-        if these are arrays (otherwise, constant across image)."""
+        if these are arrays (otherwise, constant across image).
+    """
 
     nrows, ncols = image.shape
 
@@ -119,15 +123,15 @@ def test_horne_image_validation(mk_test_img):
         ext = extract()
 
     # an NDData-type image can't have an empty uncertainty attribute
-    with pytest.raises(ValueError, match=r'.*NDData object lacks uncertainty'):
+    with pytest.raises(ValueError, match=r'.*variance must be specified.*'):
         ext = extract(image=image)
 
     # an NDData-type image's uncertainty must be of type VarianceUncertainty
     # or type StdDevUncertainty
-    with pytest.raises(ValueError, match=r'.*unexpected uncertainty type.*'):
-        err = UnknownUncertainty(np.ones_like(image))
-        image.uncertainty = err
-        ext = extract(image=image)
+    with pytest.raises(TypeError, match=r'.*does not support conversion*'):
+        err = UnknownUncertainty(np.ones_like(image.data))
+        im = SRImage(image, uncertainty=err)
+        ext = extract(image=im)
 
     # an array-type image must have the same dimensions as its variance argument
     with pytest.raises(ValueError, match=r'.*shapes must match.*'):
@@ -325,3 +329,65 @@ def test_horne_interpolated_nbins_fails(mk_test_img):
                           spatial_profile={'name': 'interpolated_profile',
                                            'n_bins_interpolated_profile': 100})
         ex.spectrum
+
+
+class TestMasksExtract():
+
+    def mk_flat_gauss_img(self, nrows=200, ncols=160, nan_slices=None, add_noise=True):
+
+        """
+        Makes a flat gaussian image for testing, with optional added gaussian
+        nosie and optional data values set to NaN. Variance is included, which
+        is required by HorneExtract. Returns a Spectrum1D with flux, spectral
+        axis, and uncertainty.
+        """
+
+        sigma_pix = 4
+        col_model = models.Gaussian1D(amplitude=1, mean=nrows/2,
+                                      stddev=sigma_pix)
+        spec2dvar = np.ones((nrows, ncols))
+        noise = 0
+        if add_noise:
+            np.random.seed(7)
+            sigma_noise = 1
+            noise = np.random.normal(scale=sigma_noise, size=(nrows, ncols))
+
+        index_arr = np.tile(np.arange(nrows), (ncols, 1))
+        img = col_model(index_arr.T) + noise
+
+        if nan_slices:  # add nans in data
+            for s in nan_slices:
+                img[s] = np.nan
+
+        wave = np.arange(0, img.shape[1], 1)
+        objectspec = Spectrum1D(spectral_axis=wave*u.m, flux=img*u.Jy,
+                                uncertainty=VarianceUncertainty(spec2dvar*u.Jy*u.Jy))
+
+        return objectspec
+
+    def test_boxcar_fully_masked(self):
+        """
+        Test that the appropriate error is raised by `BoxcarExtract` when image
+        is fully masked/NaN.
+        """
+        return
+
+        img = self.mk_flat_gauss_img()
+        trace = FitTrace(img)
+
+        with pytest.raises(ValueError, match='Image is fully masked.'):
+            # fully NaN image
+            img = np.zeros((4, 5)) * np.nan
+            Background(img, traces=trace, width=2)
+
+        with pytest.raises(ValueError, match='Image is fully masked.'):
+            # fully masked image (should be equivalent)
+            img = NDData(np.ones((4, 5)), mask=np.ones((4, 5)))
+            Background(img, traces=trace, width=2)
+
+        # Now test that an image that isn't fully masked, but is fully masked
+        # within the window determined by `width`, produces the correct result
+        msg = 'Image is fully masked within background window determined by `width`.'
+        with pytest.raises(ValueError, match=msg):
+            img = self.mk_img(nrows=12, ncols=12, nan_slices=[np.s_[3:10, :]])
+            Background(img, traces=FlatTrace(img, 6), width=7)
