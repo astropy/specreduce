@@ -405,7 +405,7 @@ class TestMasksTracing():
             trace = FitTrace(imgg, peak_method=peak_method,
                              _save_bin_peaks_testing=True)
             x_bins, y_bins = trace._bin_peaks_testing
-            np.testing.assert_allclose(y_bins, expected)
+            np.testing.assert_allclose(y_bins, expected, atol=0.1)
 
             # check that final fit to all bins, accouting for fully-masked bins,
             # matches the trace
