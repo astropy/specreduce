@@ -10,24 +10,32 @@ API Changes
 Bug Fixes
 ^^^^^^^^^
 
+Other changes
+^^^^^^^^^^^^^
+
+1.4.2
+------
+
+Bug Fixes
+^^^^^^^^^
+- Fixed Astropy v7.0 incompatibility bug [#229] in ``tracing.FitTrace``: changed to use
+  ``astropy.modeling.fitting.DogBoxLSQFitter`` when fitting a Gaussian peak model instead of
+  ``astropy.modeling.fitting.LevMarLSQFitter`` that may be deprecated in the future. Also
+  changed to use ``fitting.LMLSQFitter`` instead of ``fitting.LevMarLSQFitter`` when fitting
+  a generic nonlinear trace model.
 
 Other changes
+^^^^^^^^^^^^^
+- Changed ``tracing.FitTrace`` to use ``astropy.modeling.fitting.LinearLSQFitter``
+  if the trace model is linear.
 
 1.4.1 (2024-06-20)
 ------------------
-
-New Features
-^^^^^^^^^^^^
-
-API Changes
-^^^^^^^^^^^
 
 Bug Fixes
 ^^^^^^^^^
 - Fix bug where Background one sided / two sided was not correctly assigning units to data. [#221]
 
-Other changes
-^^^^^^^^^^^^^
 
 1.4.0 (2024-05-29)
 ------------------
