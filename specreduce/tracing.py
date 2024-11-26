@@ -190,7 +190,8 @@ class FitTrace(Trace, _ImageParser):
             or `~astropy.modeling.spline.Spline1D`, optional
         The 1-D polynomial model used to fit the trace to the bins' peak
         pixels. Spline1D models are fit with Astropy's
-        'SplineSmoothingFitter', while the other models are fit with the
+        'SplineSmoothingFitter', generic linear models are fit with the
+        'LinearLSQFitter', while the other models are fit with the
         'LMLSQFitter'. [default: ``models.Polynomial1D(degree=1)``]
     peak_method : string, optional
         One of ``gaussian``, ``centroid``, or ``max``.
@@ -295,7 +296,7 @@ class FitTrace(Trace, _ImageParser):
             offset_init = models.Const1D(np.ma.median(ztot))
             profile = g1d_init + offset_init
 
-            fitter = fitting.LMLSQFitter()
+            fitter = fitting.DogBoxLSQFitter()
             popt_tot = fitter(profile, yy, ztot)
 
         # restrict fit to window (if one exists)
