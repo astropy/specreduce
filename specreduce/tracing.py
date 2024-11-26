@@ -394,9 +394,13 @@ class FitTrace(Trace, _ImageParser):
             y_bins = y_bins[y_finite]
 
             # use given model to bin y-values; interpolate over all wavelengths
-            fitter = (fitting.SplineSmoothingFitter()
-                      if isinstance(self.trace_model, models.Spline1D)
-                      else fitting.LMLSQFitter())
+            if isinstance(self.trace_model, models.Spline1D):
+                fitter = fitting.SplineSmoothingFitter()
+            elif self.trace_model.linear:
+                fitter = fitting.LinearLSQFitter()
+            else:
+                fitter = fitting.LMLSQFitter()
+
             self.trace_model_fit = fitter(self.trace_model, x_bins, y_bins)
 
             trace_x = np.arange(img.shape[self._disp_axis])
