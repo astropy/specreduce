@@ -58,6 +58,15 @@ def test_custom_linear_model():
 
 
 @pytest.mark.remote_data
+def test_unsupported_model():
+    """
+    Test loading of a nonexistent model
+    """
+    with pytest.raises(ValueError, match='Requested extinction model,'):
+        ext = AtmosphericExtinction(model='bad_model')
+
+
+@pytest.mark.remote_data
 def test_missing_extinction_unit():
     """
     Test creation of custom model from Quantity arrays

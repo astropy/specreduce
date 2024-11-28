@@ -54,6 +54,15 @@ def test_pypeit_empty():
 
 
 @pytest.mark.remote_data
+def test_pypeit_none():
+    """
+    Test to make sure None is returned if calibration lamp list is None.
+    """
+    line_tab = load_pypeit_calibration_lines(None, cache=True, show_progress=False)
+    assert line_tab is None
+
+
+@pytest.mark.remote_data
 def test_pypeit_input_validation():
     """
     Check that bad inputs for ``pypeit`` linelists raise the appropriate warnings and exceptions
