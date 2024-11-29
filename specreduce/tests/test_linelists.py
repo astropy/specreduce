@@ -49,7 +49,7 @@ def test_pypeit_nonexisting_lamp():
     Test to make sure a warning is raised if the lamp list includes a bad lamp name.
     """
     with pytest.warns(UserWarning, match='NeJ not in the list'):
-        line_tab = load_pypeit_calibration_lines(["HeI", "NeJ"], cache=True, show_progress=False)  # noqa
+        load_pypeit_calibration_lines(["HeI", "NeJ"], cache=True, show_progress=False)
 
 
 @pytest.mark.remote_data
