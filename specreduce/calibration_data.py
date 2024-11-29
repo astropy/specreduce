@@ -353,13 +353,13 @@ class AtmosphericExtinction(Spectrum1D):
                     extinction,
                     u.MagUnit(u.dimensionless_unscaled)
                 ).to(u.dimensionless_unscaled)  # Spectrum1D wants this to be linear
-            if isinstance(extinction, (u.LogUnit, u.Magnitude)) or extinction.unit == u.mag:
+            elif isinstance(extinction, (u.LogUnit, u.Magnitude)) or extinction.unit == u.mag:
                 # if in log or magnitudes, recast into Magnitude with dimensionless physical units
                 extinction = u.Magnitude(
                     extinction.value,
                     u.MagUnit(u.dimensionless_unscaled)
                 ).to(u.dimensionless_unscaled)
-            if extinction.unit != u.dimensionless_unscaled:
+            elif extinction.unit != u.dimensionless_unscaled:
                 # if we're given something linear that's not dimensionless_unscaled,
                 # it's an error
                 msg = "Input extinction must have unscaled dimensionless units."
