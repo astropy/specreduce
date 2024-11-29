@@ -1,5 +1,3 @@
-from urllib.error import URLError
-
 import pytest
 from astropy.utils.exceptions import AstropyUserWarning
 
@@ -16,7 +14,7 @@ def test_load_MAST():
 @pytest.mark.remote_data
 def test_load_MAST_bad_filename():
     with pytest.warns(AstropyUserWarning, match="Downloading of"):
-        sp = load_MAST_calspec("j191b2b_005.fits", show_progress=False)
+        load_MAST_calspec("j191b2b_005.fits", show_progress=False)
 
 
 @pytest.mark.remote_data

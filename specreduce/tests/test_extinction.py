@@ -63,7 +63,7 @@ def test_unsupported_model():
     Test loading of a nonexistent model
     """
     with pytest.raises(ValueError, match='Requested extinction model,'):
-        ext = AtmosphericExtinction(model='bad_model')
+        AtmosphericExtinction(model='bad_model')
 
 
 @pytest.mark.remote_data
@@ -75,7 +75,6 @@ def test_missing_extinction_unit():
     extinction = 1. / wave
     with pytest.warns(AstropyUserWarning):
         ext = AtmosphericExtinction(extinction=extinction, spectral_axis=wave * u.um)
-
     assert len(ext.extinction_mag) > 0
     assert len(ext.transmission) > 0
 
