@@ -18,7 +18,7 @@ def test_load_MAST_bad_filename():
     assert sp is None
 
 
-@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
+#@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 @pytest.mark.remote_data
 def test_load_onedstds():
     sp = load_onedstds()
