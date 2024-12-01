@@ -4,13 +4,12 @@ Utilities for defining, loading, and handling spectroscopic calibration data
 
 import warnings
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, Literal
 from urllib.error import URLError
 
 from astropy import units as u
 from astropy.table import Table, vstack, QTable
-from astropy.utils import deprecated_renamed_argument
-from astropy.utils.data import get_pkg_data_filename, conf, get_pkg_data_fileobj
+from astropy.utils.data import download_file
 from astropy.utils.exceptions import AstropyUserWarning
 from astropy.coordinates import SpectralCoord
 
@@ -106,11 +105,10 @@ def get_available_line_catalogs() -> dict:
     }
 
 
-@deprecated_renamed_argument('show_progress', None, '1.4.2', pending=True)
 def load_pypeit_calibration_lines(
         lamps: Sequence | None = None,
         wave_air: bool = False,
-        cache: bool = True,
+        cache: bool | Literal['update'] = True,
         show_progress: bool = False
 ) -> QTable | None:
     """
@@ -156,41 +154,38 @@ def load_pypeit_calibration_lines(
         else:
             lamps = [lamps]
 
-    with conf.set_temp("dataurl", PYPEIT_DATA_URL):
-        linelists = []
-        for lamp in lamps:
-            if lamp in PYPEIT_CALIBRATION_LINELISTS:
-                data_path = f"arc_lines/lists/{lamp}_lines.dat"
-                try:
-                    with get_pkg_data_fileobj(data_path, cache=cache) as data_file:
-                        linelists.append(Table.read(data_file.read(),
-                                                    format='ascii.fixed_width',
-                                                    comment='#'))
-                except URLError as e:
-                    warnings.warn(f"Downloading of {data_path} failed: {e}",
-                                  AstropyUserWarning)
-            else:
-                warnings.warn(
-                    f"{lamp} not in the list of supported calibration "
-                    f"line lists: {PYPEIT_CALIBRATION_LINELISTS}."
-                )
-        if len(linelists) == 0:
-            warnings.warn(f"No calibration lines loaded from {lamps}.")
-            linelist = None
+    linelists = []
+    for lamp in lamps:
+        if lamp in PYPEIT_CALIBRATION_LINELISTS:
+            data_url = f"{PYPEIT_DATA_URL}/arc_lines/lists/{lamp}_lines.dat"
+            try:
+                data_path = download_file(data_url, cache=cache,
+                                          show_progress=show_progress,
+                                          pkgname='specreduce')
+                linelists.append(Table.read(data_path, format='ascii.fixed_width', comment='#'))
+            except URLError as e:
+                warnings.warn(f"Downloading of {data_url} failed: {e}", AstropyUserWarning)
         else:
-            linelist = QTable(vstack(linelists))
-            linelist.rename_column('wave', 'wavelength')
-            # pypeit linelists use vacuum wavelengths in angstroms
-            linelist['wavelength'] *= u.Angstrom
-            if wave_air:
-                linelist['wavelength'] = vac_to_air(linelist['wavelength'])
-        return linelist
+            warnings.warn(
+                f"{lamp} not in the list of supported calibration "
+                f"line lists: {PYPEIT_CALIBRATION_LINELISTS}."
+            )
+    if len(linelists) == 0:
+        warnings.warn(f"No calibration lines loaded from {lamps}.")
+        linelist = None
+    else:
+        linelist = QTable(vstack(linelists))
+        linelist.rename_column('wave', 'wavelength')
+        # pypeit linelists use vacuum wavelengths in angstroms
+        linelist['wavelength'] *= u.Angstrom
+        if wave_air:
+            linelist['wavelength'] = vac_to_air(linelist['wavelength'])
+    return linelist
 
 
-@deprecated_renamed_argument('cache', None, '1.4.2', pending=True)
 def load_MAST_calspec(
         filename: str | Path,
-        cache: bool = True,
+        cache: bool | Literal['update'] = True,
         show_progress: bool = False
 ) -> Spectrum1D | None:
     """
@@ -223,14 +218,14 @@ def load_MAST_calspec(
     if filename.exists() and filename.is_file():
         file_path = filename
     else:
-        with conf.set_temp("dataurl",
-                           "https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/"):
-            try:
-                file_path = get_pkg_data_filename(str(filename), show_progress=show_progress)
-            except URLError as e:
-                msg = f"Downloading of {filename} failed: {e}"
-                warnings.warn(msg, AstropyUserWarning)
-                file_path = None
+        try:
+            data_url = f"https://archive.stsci.edu/hlsps/reference-atlases/cdbs/calspec/{filename}"
+            file_path = download_file(data_url, cache=cache,
+                                      show_progress=show_progress,
+                                      pkgname='specreduce')
+        except URLError as e:
+            warnings.warn(f"Downloading of {filename} failed: {e}", AstropyUserWarning)
+            file_path = None
 
     if file_path is None:
         return None
@@ -247,11 +242,10 @@ def load_MAST_calspec(
         return spectrum
 
 
-@deprecated_renamed_argument('show_progress', None, '1.4.2', pending=True)
 def load_onedstds(
         dataset: str = "snfactory",
         specfile: str = "EG131.dat",
-        cache: bool = True,
+        cache : bool | Literal['update'] = True,
         show_progress: bool = False
 ) -> Spectrum1D | None:
     """
@@ -281,17 +275,14 @@ def load_onedstds(
         warnings.warn(msg, AstropyUserWarning)
         return None
 
-    with conf.set_temp("dataurl", SPECREDUCE_DATA_URL):
-        try:
-            data_path = str(Path("onedstds") / Path(dataset) / Path(specfile))
-            with get_pkg_data_fileobj(data_path, cache=cache) as data_file:
-                t = Table.read(data_file.read(),
-                               format="ascii",
-                               names=['wavelength', 'ABmag', 'binsize'])
-        except URLError as e:
-            msg = f"Can't load {specfile} from {dataset}: {e}."
-            warnings.warn(msg, AstropyUserWarning)
-            return None
+    try:
+        data_path = download_file(f"{SPECREDUCE_DATA_URL}/onedstds/{dataset}/{specfile}",
+                                  cache=cache, show_progress=show_progress, pkgname="specreduce")
+        t = Table.read(data_path, format="ascii", names=['wavelength', 'ABmag', 'binsize'])
+    except URLError as e:
+        msg = f"Can't load {specfile} from {dataset}: {e}."
+        warnings.warn(msg, AstropyUserWarning)
+        return None
 
     # the specreduce_data standard star spectra all provide wavelengths in angstroms
     spectral_axis = t['wavelength'].data * u.angstrom
@@ -339,13 +330,12 @@ class AtmosphericExtinction(Spectrum1D):
     transmission : Extinction expressed as fractional transmission
 
     """
-    @deprecated_renamed_argument('show_progress', None, '1.4.2', pending=True)
     def __init__(
         self,
         model: str = "kpno",
         extinction: Sequence[float] | u.Quantity | None = None,
         spectral_axis: SpectralCoord | u.Quantity | None = None,
-        cache: bool = True,
+        cache: bool | Literal['update'] = True,
         show_progress: bool = False,
         **kwargs: str
     ) -> None:
@@ -378,12 +368,11 @@ class AtmosphericExtinction(Spectrum1D):
                     f"of available models: {SUPPORTED_EXTINCTION_MODELS}"
                 )
                 raise ValueError(msg)
-            with conf.set_temp("dataurl", SPECREDUCE_DATA_URL):
-                data_path = str(Path("extinction") / Path(f"{model}extinct.dat"))
-                with get_pkg_data_fileobj(data_path, cache=cache) as data_file:
-                    t = Table.read(data_file.read(),
-                                   format="ascii",
-                                   names=['wavelength', 'extinction'])
+
+            data_file = download_file(f"{SPECREDUCE_DATA_URL}/extinction/{model}extinct.dat",
+                                      cache=cache, show_progress=show_progress,
+                                      pkgname='specreduce')
+            t = Table.read(data_file, format="ascii", names=['wavelength', 'extinction'])
 
             # the specreduce_data models all provide wavelengths in angstroms
             spectral_axis = t['wavelength'].data * u.angstrom
@@ -443,10 +432,7 @@ class AtmosphericTransmission(AtmosphericExtinction):
         **kwargs: str
     ) -> None:
         if data_file is None:
-            with conf.set_temp("dataurl", SPECREDUCE_DATA_URL):
-                data_path = str(Path("extinction") / Path("atm_trans_am1.0.dat"))
-                data_file = get_pkg_data_filename(data_path)
-
+            data_file = download_file(f"{SPECREDUCE_DATA_URL}/extinction/atm_trans_am1.0.dat")
         t = Table.read(data_file, format="ascii", names=['wavelength', 'extinction'])
 
         # spectral axis is given in microns
