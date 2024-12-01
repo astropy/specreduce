@@ -30,7 +30,6 @@ def test_make_2d_arc_image_defaults():
 
 @pytest.mark.remote_data
 @pytest.mark.filterwarnings("ignore:No observer defined on WCS")
-#@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
 def test_make_2d_arc_pass_wcs():
     nx = 3000
     ny = 1000
