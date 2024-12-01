@@ -245,7 +245,7 @@ def load_MAST_calspec(
 def load_onedstds(
         dataset: str = "snfactory",
         specfile: str = "EG131.dat",
-        cache : bool | Literal['update'] = True,
+        cache: bool | Literal['update'] = True,
         show_progress: bool = False
 ) -> Spectrum1D | None:
     """

@@ -14,7 +14,7 @@ def test_load_MAST():
 @pytest.mark.remote_data
 def test_load_MAST_bad_filename():
     with pytest.warns(AstropyUserWarning, match="Downloading of"):
-       sp = load_MAST_calspec("j191b2b_005.fits", show_progress=False)
+        sp = load_MAST_calspec("j191b2b_005.fits", show_progress=False)
     assert sp is None
 
 
