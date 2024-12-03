@@ -78,6 +78,7 @@ filterwarnings = [
     "ignore:Can\\'t import specreduce_data package",
     # Python 3.12 warning from dateutil imported by matplotlib
     "ignore:.*utcfromtimestamp:DeprecationWarning",
+    "ignore:.*unclosed <ssl.SSLSocket",
 ]
 
 [tool.coverage]
