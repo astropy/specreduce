@@ -417,21 +417,11 @@ class TestMasksTracing():
             np.testing.assert_allclose(trace.trace, all_bin_fit)
 
     @pytest.mark.filterwarnings("ignore:All pixels in bins")
-    @pytest.mark.parametrize("peak_method,expected",
-                             [("max", [5., 3., 5., 5., 7., 5.,
-                                       0., 5., 5., 5., 2., 5.]),
-                              ("gaussian", [5., 1.09382384, 5., 5., 7.81282206,
-                                            5., 0., 5., 5., 5., 1.28216332, 5.]),
-                              ("centroid", [4.27108332, 2.24060342, 4.27108332,
-                                            4.27108332, 6.66827608, 4.27108332,
-                                            9., 4.27108332, 4.27108332,
-                                            4.27108332, 1.19673467, 4.27108332])])
-    def test_mask_treatment_zero_fill(self, peak_method, expected):
+    @pytest.mark.parametrize("peak_method", ["max", "gaussian", "centroid"])
+    def test_mask_treatment_zero_fill(self, peak_method):
         """
-        Test for mask_treatment=`zero_fill` for FitTrace.
-        Masked and nonfinite data are replaced with zero in the data array,
-        and the input mask is then dropped. Parametrized over different
-        `peak_method` options.
+        Test to ensure mask_treatment=`zero_fill` for FitTrace raises a `ValueError`.
+        Parametrized over different `peak_method` options.
         """
 
         # Make an image with some nonfinite values.
@@ -441,27 +431,12 @@ class TestMasksTracing():
 
         # Also make an image that doesn't have nonf data values, but has masked
         # values at the same locations, to make sure they give the same results.
-        mask = ~np.isfinite(image1)
         dat = mk_img(nrows=10, ncols=12, add_noise=False)
-        image2 = NDData(dat, mask=mask)
+        image2 = NDData(dat, mask=~np.isfinite(image1))
 
         for imgg in [image1, image2]:
-            # run FitTrace, with the testing-only flag _save_bin_peaks_testing set
-            # to True to return the bin peak values before fitting the trace
-            trace = FitTrace(imgg, peak_method=peak_method,
-                             mask_treatment='zero-fill',
-                             _save_bin_peaks_testing=True)
-            x_bins, y_bins = trace._bin_peaks_testing
-            np.testing.assert_allclose(y_bins, expected)
-
-            # check that final fit to all bins, accouting for fully-masked bins,
-            # matches the trace
-            fitter = fitting.LevMarLSQFitter()
-            mask = np.isfinite(y_bins)
-            all_bin_fit = fitter(trace.trace_model, x_bins[mask], y_bins[mask])
-            all_bin_fit = all_bin_fit((np.arange(12)))
-
-            np.testing.assert_allclose(trace.trace, all_bin_fit)
+            with pytest.raises(ValueError):
+                FitTrace(imgg, peak_method=peak_method, mask_treatment='zero-fill')
 
     @pytest.mark.filterwarnings("ignore:All pixels in bins")
     @pytest.mark.parametrize("peak_method,expected",

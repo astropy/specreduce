@@ -3,6 +3,7 @@
 import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
+from typing import Literal
 
 import numpy as np
 from astropy.modeling import Model, fitting, models
@@ -257,30 +258,27 @@ class FitTrace(Trace, _ImageParser):
         ``max``: Saves the position with the maximum flux in each bin.
         [default: ``max``]
     mask_treatment : string, optional
-        The method for handling masked or non-finite data. Choice of `filter`,
-        `omit`, or `zero-fill`. If `filter` is chosen, masked/non-finite data
-        will be filtered during the fit to each bin/column (along disp. axis) to
-        find the peak. If `omit` is chosen, columns along disp_axis with any
-        masked/non-finite data values will be fully masked (i.e, 2D mask is
-        collapsed to 1D and applied). If `zero-fill` is chosen, masked/non-finite
-        data will be replaced with 0.0 in the input image, and the mask will then
-        be dropped. For all three options, the input mask (optional on input
-        NDData object) will be combined with a mask generated from any non-finite
-        values in the image data. Also note that because binning is an option in
-        FitTrace, that masked data will contribute zero to the sum when binning
-        adjacent columns.
+        The method for handling masked or non-finite data. Choice of `filter` or
+        `omit`. If `filter` is chosen, masked/non-finite data will be filtered
+        during the fit to each bin/column (along disp. axis) to find the peak.
+        If `omit` is chosen, columns along disp_axis with any masked/non-finite
+        data values will be fully masked (i.e, 2D mask is collapsed to 1D and applied).
+        For both options, the input mask (optional on input NDData object) will
+        be combined with a mask generated from any non-finite values in the image
+        data. Also note that because binning is an option in FitTrace, that masked
+        data will contribute zero to the sum when binning adjacent columns.
         [default: ``filter``]
 
     """
-    bins: int = None
-    guess: float = None
-    window: int = None
+    bins: int | None = None
+    guess: float | None = None
+    window: int | None = None
     trace_model: Model = field(default=models.Polynomial1D(degree=1))
-    peak_method: str = 'max'
-    _crossdisp_axis = 0
-    _disp_axis = 1
-    mask_treatment: str = 'filter'
-    _valid_mask_treatment_methods = ('filter', 'omit', 'zero-fill')
+    peak_method: Literal['gaussian', 'centroid', 'max'] = 'max'
+    _crossdisp_axis: int = 0
+    _disp_axis: int = 1
+    mask_treatment: Literal['filter', 'omit'] = 'filter'
+    _valid_mask_treatment_methods = ('filter', 'omit')
     # for testing purposes only, save bin peaks if requested
     _save_bin_peaks_testing: bool = False
 
@@ -288,6 +286,10 @@ class FitTrace(Trace, _ImageParser):
 
         # Parse image, including masked/nonfinite data handling based on
         # choice of `mask_treatment`. returns a Spectrum1D
+        if self.mask_treatment not in self._valid_mask_treatment_methods:
+            raise ValueError("`mask_treatment` must be one of "
+                             f"{self._valid_mask_treatment_methods}")
+
         self.image = self._parse_image(self.image, disp_axis=self._disp_axis,
                                        mask_treatment=self.mask_treatment)
 
