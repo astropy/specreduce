@@ -9,7 +9,7 @@ from specreduce.core import _ImageParser
 from specreduce.tracing import Trace, FlatTrace
 from specreduce.extract import _ap_weight_image, _align_along_trace
 
-__all__ = ['measure_cross_dispersion_profile', '_align_along_trace', 'align_spectrum_along_trace']
+__all__ = ['measure_cross_dispersion_profile', '_align_along_trace', 'align_2d_spectrum_along_trace']
 
 
 def _get_image_ndim(image):
@@ -21,38 +21,45 @@ def _get_image_ndim(image):
         raise ValueError('Unrecognized image data format.')
 
 
-def align_spectrum_along_trace(image: NDData | np.ndarray,
-                               trace: Trace | np.ndarray | Number,
-                               method: Literal['interpolate', 'shift'] = 'interpolate',
-                               disp_axis: int = 1) -> Spectrum1D:
+def align_2d_spectrum_along_trace(image: NDData | np.ndarray,
+                                  trace: Trace | np.ndarray | Number,
+                                  method: Literal['interpolate', 'shift'] = 'interpolate',
+                                  disp_axis: int = 1) -> Spectrum1D:
     """
     Align a 2D spectrum image along a trace either with an integer or sub-pixel precision.
+
+    This function rectifies a 2D spectrum by aligning its cross-dispersion profile along a given
+    trace. The function also updates the mask to reflect alignment operations and propagates
+    uncertainties when using the 'interpolate' method.  The rectification process can use either
+    sub-pixel precision through interpolation or integer shifts for simplicity. The method assumes
+    the input spectrum is rectilinear, meaning the dispersion direction and spatial direction are
+    aligned with the pixel grid.
 
     Parameters
     ----------
     image
         The 2D image to align.
     trace
-        A Trace object that defines the center of the cross-dispersion profile.
+        Either a ``Trace`` object, a 1D ndarray, or a single value that defines the center
+        of the cross-dispersion profile.
     method
-        The method used to align the image columns: ``interpolate`` aligns the
-        image columns with a sub-pixel precision while ``shift`` does this using
-        integer shifts.
+        The method used to align the image: ``interpolate`` aligns the image
+        with a sub-pixel precision using linear interpolation while ``shift``
+        aligns the image using integer shifts.
     disp_axis
         The index of the image's dispersion axis. [default: 1]
 
     Returns
     -------
     Spectrum1D
-        A 1D spectral representation of the input image, aligned along the specified
-        trace and corrected for displacements. The output includes adjusted mask
-        and uncertainty information.
+        A rectified version of the image aligned along the specified trace.
 
-    Raises
-    ------
-    ValueError
-        If the number of dimensions of the image is not equal to 2, or
-        if the displacement axis is not 0 or 1.
+    Notes
+    -----
+    - This function is intended only for rectilinear spectra, where the dispersion
+      and spatial axes are already aligned with the image grid. Non-rectilinear spectra
+      require additional pre-processing (e.g., geometric rectification) before using
+      this function.
     """
     if _get_image_ndim(image) > 2:
         raise ValueError('The number of image dimensions must be 2.')
@@ -300,7 +307,7 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
 
     # now that we have figured out the mask for the window in cross-disp. axis,
     # select only the pixel(s) we want to include in measuring the avg. profile
-    pixel_mask = np.ones((image.shape))
+    pixel_mask = np.ones(image.shape)
     pixel_mask[:, pixels] = 0
 
     # combine these masks to isolate the rows and cols used to measure profile
