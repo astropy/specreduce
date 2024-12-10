@@ -25,6 +25,13 @@ New Features
 API Changes
 ^^^^^^^^^^^
 
+New Features
+^^^^^^^^^^^^
+- Added a ``specreduce.utils.align_2d_spectrum_along_trace`` utility function that aligns a
+  rectilinear 2D spectrum image along a spectrum trace. The rectification can be done using
+  either linear interpolation, giving a sub-pixel shift resolution, or using integer shifts.
+  The function also updates the image mask and propagates the uncertainties.
+
 Bug Fixes
 ^^^^^^^^^
 
