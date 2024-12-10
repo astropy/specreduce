@@ -9,7 +9,8 @@ from specreduce.core import _ImageParser
 from specreduce.tracing import Trace, FlatTrace
 from specreduce.extract import _ap_weight_image, _align_along_trace
 
-__all__ = ['measure_cross_dispersion_profile', '_align_along_trace', 'align_2d_spectrum_along_trace']
+__all__ = ['measure_cross_dispersion_profile', '_align_along_trace',
+           'align_2d_spectrum_along_trace']
 
 
 def _get_image_ndim(image):
