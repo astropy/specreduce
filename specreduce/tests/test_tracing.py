@@ -373,7 +373,7 @@ class TestMasksTracing():
     @pytest.mark.parametrize("peak_method,expected",
                              [("max", [5., 3., 5., 5., 7., 5.,
                                        np.nan, 5., 5., 5., 2., 5.]),
-                              ("gaussian", [5., 2.10936004, 5., 5., 7.80744334,
+                              ("gaussian", [5., 1.696159, 5., 5., 7.80744334,
                                             5., np.nan, 5., 5., 5., 1.28216332, 5.]),
                               ("centroid", [4.27108332, 2.24060342, 4.27108332,
                                             4.27108332, 6.66827608, 4.27108332,
@@ -409,7 +409,7 @@ class TestMasksTracing():
 
             # check that final fit to all bins, accouting for fully-masked bins,
             # matches the trace
-            fitter = fitting.LevMarLSQFitter()
+            fitter = fitting.LMLSQFitter()
             mask = np.isfinite(y_bins)
             all_bin_fit = fitter(trace.trace_model, x_bins[mask], y_bins[mask])
             all_bin_fit = all_bin_fit((np.arange(12)))
