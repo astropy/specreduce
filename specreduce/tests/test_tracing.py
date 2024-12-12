@@ -485,4 +485,3 @@ class TestMasksTracing():
             all_bin_fit = all_bin_fit((np.arange(12)))
 
             np.testing.assert_allclose(trace.trace, all_bin_fit)
-
