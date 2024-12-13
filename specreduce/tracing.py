@@ -352,7 +352,7 @@ class FitTrace(Trace, _ImageParser):
         yy = np.arange(img.shape[self._crossdisp_axis])
 
         # set max peak location by user choice or wavelength with max avg flux
-        ztot = img.sum(axis=self._disp_axis) / img.shape[self._disp_axis]
+        ztot = img.mean(axis=self._disp_axis)
         peak_y = self.guess if self.guess is not None else ztot.argmax()
         # NOTE: peak finder can be bad if multiple objects are on slit
 
@@ -393,9 +393,9 @@ class FitTrace(Trace, _ImageParser):
         warn_bins = []
         for i in range(self.bins):
 
-            # binned columns, summed along disp. axis.
+            # binned columns, averaged along disp. axis.
             # or just a single, unbinned column if no bins
-            z_i = img[ilum2, x_bins[i]:x_bins[i + 1]].sum(axis=self._disp_axis)
+            z_i = img[ilum2, x_bins[i]:x_bins[i + 1]].mean(axis=self._disp_axis)
 
             # if this bin is fully masked, set bin peak to NaN so it can be
             # filtered in the final fit to all bin peaks for the trace
@@ -424,7 +424,7 @@ class FitTrace(Trace, _ImageParser):
                 offset_init_i = models.Const1D(np.ma.median(z_i))
 
                 profile_i = g1d_init_i + offset_init_i
-                popt_i = fitter(profile_i, ilum2, z_i)
+                popt_i = fitter(profile_i, ilum2[~z_i.mask], z_i.data[~z_i.mask])
 
                 # if gaussian fits off chip, then fall back to previous answer
                 if not ilum2.min() <= popt_i.mean_0 <= ilum2.max():
