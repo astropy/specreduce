@@ -44,12 +44,30 @@ def test_pypeit_comma_list():
 
 
 @pytest.mark.remote_data
+def test_pypeit_nonexisting_lamp():
+    """
+    Test to make sure a warning is raised if the lamp list includes a bad lamp name.
+    """
+    with pytest.warns(UserWarning, match='NeJ not in the list'):
+        load_pypeit_calibration_lines(["HeI", "NeJ"], cache=True, show_progress=False)
+
+
+@pytest.mark.remote_data
 def test_pypeit_empty():
     """
     Test to make sure None is returned if an empty list is passed.
     """
     with pytest.warns(UserWarning, match='No calibration lines'):
         line_tab = load_pypeit_calibration_lines([], cache=True, show_progress=False)
+    assert line_tab is None
+
+
+@pytest.mark.remote_data
+def test_pypeit_none():
+    """
+    Test to make sure None is returned if calibration lamp list is None.
+    """
+    line_tab = load_pypeit_calibration_lines(None, cache=True, show_progress=False)
     assert line_tab is None
 
 

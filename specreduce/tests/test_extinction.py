@@ -58,6 +58,15 @@ def test_custom_linear_model():
 
 
 @pytest.mark.remote_data
+def test_unsupported_model():
+    """
+    Test loading of a nonexistent model
+    """
+    with pytest.raises(ValueError, match='Requested extinction model,'):
+        AtmosphericExtinction(model='bad_model')
+
+
+@pytest.mark.remote_data
 def test_missing_extinction_unit():
     """
     Test creation of custom model from Quantity arrays
@@ -66,7 +75,6 @@ def test_missing_extinction_unit():
     extinction = 1. / wave
     with pytest.warns(AstropyUserWarning):
         ext = AtmosphericExtinction(extinction=extinction, spectral_axis=wave * u.um)
-
     assert len(ext.extinction_mag) > 0
     assert len(ext.transmission) > 0
 
