@@ -113,6 +113,10 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
     for i in range(image_shape[disp_axis]):
         # TODO trace must handle transposed data (disp_axis == 0)
         # pass trace.trace.data[i] to avoid any mask if part of the regions is out-of-bounds
+
+        # ArrayTrace can have nonfinite or masked data in trace, and this will fail,
+        # so figure out how to handle that...
+
         wimage[:, i] = _get_boxcar_weights(trace.trace.data[i], hwidth, image_sizes)
 
     return wimage
@@ -154,6 +158,8 @@ class BoxcarExtract(SpecreduceOperation):
     disp_axis: int = 1
     crossdisp_axis: int = 0
     # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
+    mask_treatment: str = 'filter'
+    _valid_mask_treatment_methods = ('filter', 'omit', 'zero-fill')
 
     @property
     def spectrum(self):
@@ -176,6 +182,20 @@ class BoxcarExtract(SpecreduceOperation):
             dispersion axis [default: 1]
         crossdisp_axis : int, optional
             cross-dispersion axis [default: 0]
+        mask_treatment : string, optional
+            The method for handling masked or non-finite data. Choice of `filter`,
+            `omit`, or `zero-fill`. If `filter` is chosen, masked/non-finite data
+            will be filtered during the fit to each bin/column (along disp. axis) to
+            find the peak. If `omit` is chosen, columns along disp_axis with any
+            masked/non-finite data values will be fully masked (i.e, 2D mask is
+            collapsed to 1D and applied). If `zero-fill` is chosen, masked/non-finite
+            data will be replaced with 0.0 in the input image, and the mask will then
+            be dropped. For all three options, the input mask (optional on input
+            NDData object) will be combined with a mask generated from any non-finite
+            values in the image data. Also note that because binning is an option in
+            FitTrace, that masked data will contribute zero to the sum when binning
+            adjacent columns.
+            [default: ``filter``]
 
 
         Returns
@@ -190,24 +210,25 @@ class BoxcarExtract(SpecreduceOperation):
         disp_axis = disp_axis if disp_axis is not None else self.disp_axis
         crossdisp_axis = crossdisp_axis if crossdisp_axis is not None else self.crossdisp_axis
 
-        # handle image processing based on its type
-        self.image = self._parse_image(image)
+        # Parse image, including masked/nonfinite data handling based on
+        # choice of `mask_treatment`, which for BoxcarExtract can be filter, zero-fill, or
+        # omit. non-finite data will be masked, always. Returns a Spectrum1D.
+        self.image = self._parse_image(image, disp_axis=disp_axis,
+                                       mask_treatment=self.mask_treatment)
 
-        # TODO: this check can be removed if/when implemented as a check in FlatTrace
-        if isinstance(trace_object, FlatTrace):
-            if trace_object.trace_pos < 1:
-                raise ValueError('trace_object.trace_pos must be >= 1')
+        # # _parse_image returns a Spectrum1D. convert this to a masked array
+        # # for ease of calculations here (even if there is no masked data).
+        # img = np.ma.masked_array(self.image.data, self.image.mask)
 
-        if width < 0:
+        if width <= 0:
             raise ValueError("width must be positive")
 
         # weight image to use for extraction
-        wimg = _ap_weight_image(
-            trace_object,
-            width,
-            disp_axis,
-            crossdisp_axis,
-            self.image.shape)
+        wimg = _ap_weight_image(trace_object,
+                                width,
+                                disp_axis,
+                                crossdisp_axis,
+                                self.image.shape)
 
         # extract, assigning no weight to non-finite pixels outside the window
         # (non-finite pixels inside the window will still make it into the sum)

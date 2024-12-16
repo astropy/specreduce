@@ -32,9 +32,9 @@ class Background(_ImageParser):
     ----------
     image : `~astropy.nddata.NDData`-like or array-like
         image with 2-D spectral image data
-    traces : trace, int, float (single or list)
+    traces : List, `specreduce.tracing.Trace`, int, float
         Individual or list of trace object(s) (or integers/floats to define
-        FlatTraces) to extract the background. If None, a FlatTrace at the
+        FlatTraces) to extract the background. If None, a ``FlatTrace`` at the
         center of the image (according to `disp_axis`) will be used.
     width : float
         width of extraction aperture in pixels
@@ -44,8 +44,22 @@ class Background(_ImageParser):
         pixels.
     disp_axis : int
         dispersion axis
+        [default: 1]
     crossdisp_axis : int
         cross-dispersion axis
+        [default: 0]
+    mask_treatment : string, optional
+        The method for handling masked or non-finite data. Choice of ``filter``,
+        ``omit``, or ``zero-fill``. If ``filter`` is chosen, masked and non-finite
+        data will not contribute to the background statistic that is calculated
+        in each column along `disp_axis`. If `omit` is chosen, columns along
+        disp_axis with any masked/non-finite data values will be fully masked
+        (i.e, 2D mask is collapsed to 1D and applied). If ``zero-fill`` is chosen,
+        masked/non-finite data will be replaced with 0.0 in the input image,
+        and the mask will then be dropped. For all three options, the input mask
+        (optional on input NDData object) will be combined with a mask generated
+        from any non-finite values in the image data.
+        [default: ``filter``]
     """
     # required so numpy won't call __rsub__ on individual elements
     # https://stackoverflow.com/a/58409215
@@ -57,6 +71,8 @@ class Background(_ImageParser):
     statistic: str = 'average'
     disp_axis: int = 1
     crossdisp_axis: int = 0
+    mask_treatment: str = 'filter'
+    _valid_mask_treatment_methods = ('filter', 'omit', 'zero-fill')
 
     # TO-DO: update bkg_array with Spectrum1D alternative (is bkg_image enough?)
     bkg_array = deprecated_attribute('bkg_array', '1.3')
@@ -82,8 +98,29 @@ class Background(_ImageParser):
             dispersion axis
         crossdisp_axis : int
             cross-dispersion axis
+        mask_treatment : string
+            The method for handling masked or non-finite data. Choice of `filter`,
+            `omit`, or `zero-fill`. If `filter` is chosen, masked/non-finite data
+            will be filtered during the fit to each bin/column (along disp. axis) to
+            find the peak. If `omit` is chosen, columns along disp_axis with any
+            masked/non-finite data values will be fully masked (i.e, 2D mask is
+            collapsed to 1D and applied). If `zero-fill` is chosen, masked/non-finite
+            data will be replaced with 0.0 in the input image, and the mask will then
+            be dropped. For all three options, the input mask (optional on input
+            NDData object) will be combined with a mask generated from any non-finite
+            values in the image data.
         """
-        self.image = self._parse_image(self.image)
+
+        # Parse image, including masked/nonfinite data handling based on
+        # choice of `mask_treatment`. Any uncaught nonfinte data values will be
+        # masked as well. Returns a Spectrum1D.
+        self.image = self._parse_image(self.image, disp_axis=self.disp_axis,
+                                       mask_treatment=self.mask_treatment)
+
+        # always work with masked array, even if there is no masked
+        # or nonfinite data, in case padding is needed. if not, mask will be
+        # dropped at the end and a regular array will be returned.
+        img = np.ma.masked_array(self.image.data, self.image.mask)
 
         if self.width < 0:
             raise ValueError("width must be positive")
@@ -95,9 +132,13 @@ class Background(_ImageParser):
 
         bkg_wimage = np.zeros_like(self.image.data, dtype=np.float64)
         for trace in self.traces:
+            # note: ArrayTrace can have masked values, but if it does a MaskedArray
+            # will be returned so this should be reflected in the window size here
+            # (i.e, np.nanmax is not required.)
             windows_max = trace.trace.data.max() + self.width/2
             windows_min = trace.trace.data.min() - self.width/2
-            if windows_max >= self.image.shape[self.crossdisp_axis]:
+
+            if windows_max > self.image.shape[self.crossdisp_axis]:
                 warnings.warn("background window extends beyond image boundaries " +
                               f"({windows_max} >= {self.image.shape[self.crossdisp_axis]})")
             if windows_min < 0:
@@ -115,6 +156,9 @@ class Background(_ImageParser):
             raise ValueError("background regions overlapped")
         if np.any(np.sum(bkg_wimage, axis=self.crossdisp_axis) == 0):
             raise ValueError("background window does not remain in bounds across entire dispersion axis")  # noqa
+        # check if image contained within background window is fully-nonfinite and raise an error
+        if np.all(img.mask[bkg_wimage > 0]):
+            raise ValueError("Image is fully masked within background window determined by `width`.")  # noqa
 
         if self.statistic == 'median':
             # make it clear in the expose image that partial pixels are fully-weighted
@@ -122,20 +166,16 @@ class Background(_ImageParser):
 
         self.bkg_wimage = bkg_wimage
 
-        # mask user-highlighted and invalid values (if any) before taking stats
-        or_mask = (np.logical_or(~np.isfinite(self.image.data), self.image.mask)
-                   if self.image.mask is not None
-                   else ~np.isfinite(self.image.data))
-
         if self.statistic == 'average':
-            image_ma = np.ma.masked_array(self.image.data, mask=or_mask)
-            self._bkg_array = np.ma.average(image_ma,
+            self._bkg_array = np.ma.average(img,
                                             weights=self.bkg_wimage,
-                                            axis=self.crossdisp_axis).data
+                                            axis=self.crossdisp_axis)
+
         elif self.statistic == 'median':
-            med_mask = np.logical_or(self.bkg_wimage == 0, or_mask)
-            image_ma = np.ma.masked_array(self.image.data, mask=med_mask)
-            self._bkg_array = np.ma.median(image_ma, axis=self.crossdisp_axis).data
+            # combine where background weight image is 0 with image masked (which already
+            # accounts for non-finite data that wasn't already masked)
+            img.mask = np.logical_or(self.bkg_wimage == 0, self.image.mask)
+            self._bkg_array = np.ma.median(img, axis=self.crossdisp_axis)
         else:
             raise ValueError("statistic must be 'average' or 'median'")
 
@@ -204,7 +244,19 @@ class Background(_ImageParser):
             dispersion axis
         crossdisp_axis : int
             cross-dispersion axis
+        mask_treatment : string
+            The method for handling masked or non-finite data. Choice of `filter`,
+            `omit`, or `zero-fill`. If `filter` is chosen, masked/non-finite data
+            will be filtered during the fit to each bin/column (along disp. axis) to
+            find the peak. If `omit` is chosen, columns along disp_axis with any
+            masked/non-finite data values will be fully masked (i.e, 2D mask is
+            collapsed to 1D and applied). If `zero-fill` is chosen, masked/non-finite
+            data will be replaced with 0.0 in the input image, and the mask will then
+            be dropped. For all three options, the input mask (optional on input
+            NDData object) will be combined with a mask generated from any non-finite
+            values in the image data.
         """
+
         image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
         kwargs['traces'] = [trace_object-separation, trace_object+separation]
         return cls(image=image, **kwargs)
@@ -241,6 +293,17 @@ class Background(_ImageParser):
             dispersion axis
         crossdisp_axis : int
             cross-dispersion axis
+        mask_treatment : string
+            The method for handling masked or non-finite data. Choice of `filter`,
+            `omit`, or `zero-fill`. If `filter` is chosen, masked/non-finite data
+            will be filtered during the fit to each bin/column (along disp. axis) to
+            find the peak. If `omit` is chosen, columns along disp_axis with any
+            masked/non-finite data values will be fully masked (i.e, 2D mask is
+            collapsed to 1D and applied). If `zero-fill` is chosen, masked/non-finite
+            data will be replaced with 0.0 in the input image, and the mask will then
+            be dropped. For all three options, the input mask (optional on input
+            NDData object) will be combined with a mask generated from any non-finite
+            values in the image data.
         """
         image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
         kwargs['traces'] = [trace_object+separation]

@@ -3,6 +3,7 @@
 import warnings
 from copy import deepcopy
 from dataclasses import dataclass, field
+from typing import Literal
 
 import numpy as np
 from astropy.modeling import Model, fitting, models
@@ -36,12 +37,24 @@ class Trace:
         self.trace_pos = self.image.shape[0] / 2
         self.trace = np.ones_like(self.image[0]) * self.trace_pos
 
+        # masking options not relevant for basic Trace
+        self._mask_treatment = None
+        self._valid_mask_treatment_methods = [None]
+
+        # eventually move this to common SpecreduceOperation base class
+        self.validate_masking_options()
+
     def __getitem__(self, i):
         return self.trace[i]
 
     @property
     def shape(self):
         return self.trace.shape
+
+    def validate_masking_options(self):
+        if self.mask_treatment not in self.valid_mask_treatment_methods:
+            raise ValueError(
+                f'`mask_treatment` {self.mask_treatment} not one of {self.valid_mask_treatment_methods}')  # noqa
 
     def shift(self, delta):
         """
@@ -61,7 +74,7 @@ class Trace:
         Mask trace positions that are outside the upper/lower bounds of the image.
         """
         ny = self.image.shape[0]
-        self.trace = np.ma.masked_outside(self.trace, 0, ny-1)
+        self.trace = np.ma.masked_outside(self.trace, 0, ny - 1)
 
     def __add__(self, delta):
         """
@@ -78,6 +91,14 @@ class Trace:
         being traced
         """
         return self.__add__(-delta)
+
+    @property
+    def mask_treatment(self):
+        return self._mask_treatment
+
+    @property
+    def valid_mask_treatment_methods(self):
+        return self._valid_mask_treatment_methods
 
 
 @dataclass
@@ -100,6 +121,10 @@ class FlatTrace(Trace, _ImageParser):
         self.image = self._parse_image(self.image)
 
         self.set_position(self.trace_pos)
+
+        # masking options not relevant for basic Trace
+        self._mask_treatment = None
+        self._valid_mask_treatment_methods = [None]
 
     def set_position(self, trace_pos):
         """
@@ -124,12 +149,33 @@ class ArrayTrace(Trace, _ImageParser):
 
     Parameters
     ----------
-    trace : `numpy.ndarray`
-        Array containing trace positions
+    trace : `numpy.ndarray` or `numpy.ma.MaskedArray`
+        Array containing trace positions.
     """
     trace: np.ndarray
 
     def __post_init__(self):
+
+        # masking options not relevant for ArrayTrace. any non-finite or masked
+        # data in `image` will not affect array trace
+        self._mask_treatment = None
+        self._valid_mask_treatment_methods = [None]
+
+        # masked array will have a .data, regular array will not.
+        trace_data = getattr(self.trace, 'data', self.trace)
+
+        # but we do need to mask uncaught non-finite values in input trace array
+        # which should also be combined with any existing mask in the input `trace`
+        if hasattr(self.trace, 'mask'):
+            total_mask = np.logical_or(self.trace.mask, ~np.isfinite(trace_data))
+        else:
+            total_mask = ~np.isfinite(trace_data)
+
+        # always work with masked array, even if there is no masked
+        # or nonfinite data, in case padding is needed. if not, mask will be
+        # dropped at the end and a regular array will be returned.
+        self.trace = np.ma.MaskedArray(trace_data, total_mask)
+
         self.image = self._parse_image(self.image)
 
         nx = self.image.shape[1]
@@ -143,7 +189,16 @@ class ArrayTrace(Trace, _ImageParser):
                 # padding will be the last value of the trace, but will be masked out.
                 padding = np.ma.MaskedArray(np.ones(nx - nt) * self.trace[-1], mask=True)
                 self.trace = np.ma.hstack([self.trace, padding])
+
         self._bound_trace()
+
+        # warn if entire trace is masked
+        if np.all(self.trace.mask):
+            warnings.warn("Entire trace array is masked.")
+
+        # and return plain array if nothing is masked
+        if not np.any(self.trace.mask):
+            self.trace = self.trace.data
 
 
 @dataclass
@@ -202,31 +257,53 @@ class FitTrace(Trace, _ImageParser):
         ``centroid``: Takes the centroid of the window within in bin.
         ``max``: Saves the position with the maximum flux in each bin.
         [default: ``max``]
+    mask_treatment : string, optional
+        The method for handling masked or non-finite data. Choice of `filter` or
+        `omit`. If `filter` is chosen, masked/non-finite data will be filtered
+        during the fit to each bin/column (along disp. axis) to find the peak.
+        If `omit` is chosen, columns along disp_axis with any masked/non-finite
+        data values will be fully masked (i.e, 2D mask is collapsed to 1D and applied).
+        For both options, the input mask (optional on input NDData object) will
+        be combined with a mask generated from any non-finite values in the image
+        data. Also note that because binning is an option in FitTrace, that masked
+        data will contribute zero to the sum when binning adjacent columns.
+        [default: ``filter``]
+
     """
-    bins: int = None
-    guess: float = None
-    window: int = None
+    bins: int | None = None
+    guess: float | None = None
+    window: int | None = None
     trace_model: Model = field(default=models.Polynomial1D(degree=1))
-    peak_method: str = 'max'
-    _crossdisp_axis = 0
-    _disp_axis = 1
+    peak_method: Literal['gaussian', 'centroid', 'max'] = 'max'
+    _crossdisp_axis: int = 0
+    _disp_axis: int = 1
+    mask_treatment: Literal['filter', 'omit'] = 'filter'
+    _valid_mask_treatment_methods = ('filter', 'omit')
+    # for testing purposes only, save bin peaks if requested
+    _save_bin_peaks_testing: bool = False
 
     def __post_init__(self):
 
-        # parse image
-        self.image = self._parse_image(self.image)
+        # Parse image, including masked/nonfinite data handling based on
+        # choice of `mask_treatment`. returns a Spectrum1D
+        if self.mask_treatment not in self._valid_mask_treatment_methods:
+            raise ValueError("`mask_treatment` must be one of "
+                             f"{self._valid_mask_treatment_methods}")
 
-        # mask any previously uncaught invalid values
-        or_mask = np.logical_or(self.image.mask, ~np.isfinite(self.image.data))
-        img = np.ma.masked_array(self.image.data, or_mask)
+        self.image = self._parse_image(self.image, disp_axis=self._disp_axis,
+                                       mask_treatment=self.mask_treatment)
 
-        # validate arguments
+        # _parse_image returns a Spectrum1D. convert this to a masked array
+        # for ease of calculations here (even if there is no masked data).
+        # Note: uncertainties are dropped, this should also be addressed at
+        # some point probably across the package.
+        img = np.ma.masked_array(self.image.data, self.image.mask)
+        self._mask_temp = self.image.mask
+
+        # validate input arguments
         valid_peak_methods = ('gaussian', 'centroid', 'max')
         if self.peak_method not in valid_peak_methods:
             raise ValueError(f"peak_method must be one of {valid_peak_methods}")
-
-        if img.mask.all():
-            raise ValueError('image is fully masked. Check for invalid values')
 
         if self._crossdisp_axis != 0:
             raise ValueError('cross-dispersion axis must equal 0')
@@ -275,7 +352,7 @@ class FitTrace(Trace, _ImageParser):
         yy = np.arange(img.shape[self._crossdisp_axis])
 
         # set max peak location by user choice or wavelength with max avg flux
-        ztot = img.sum(axis=self._disp_axis) / img.shape[self._disp_axis]
+        ztot = img.mean(axis=self._disp_axis)
         peak_y = self.guess if self.guess is not None else ztot.argmax()
         # NOTE: peak finder can be bad if multiple objects are on slit
 
@@ -316,9 +393,9 @@ class FitTrace(Trace, _ImageParser):
         warn_bins = []
         for i in range(self.bins):
 
-            # binned columns, summed along disp. axis.
+            # binned columns, averaged along disp. axis.
             # or just a single, unbinned column if no bins
-            z_i = img[ilum2, x_bins[i]:x_bins[i+1]].sum(axis=self._disp_axis)
+            z_i = img[ilum2, x_bins[i]:x_bins[i + 1]].mean(axis=self._disp_axis)
 
             # if this bin is fully masked, set bin peak to NaN so it can be
             # filtered in the final fit to all bin peaks for the trace
@@ -347,7 +424,7 @@ class FitTrace(Trace, _ImageParser):
                 offset_init_i = models.Const1D(np.ma.median(z_i))
 
                 profile_i = g1d_init_i + offset_init_i
-                popt_i = fitter(profile_i, ilum2, z_i)
+                popt_i = fitter(profile_i, ilum2[~z_i.mask], z_i.data[~z_i.mask])
 
                 # if gaussian fits off chip, then fall back to previous answer
                 if not ilum2.min() <= popt_i.mean_0 <= ilum2.max():
@@ -360,7 +437,7 @@ class FitTrace(Trace, _ImageParser):
                 z_i_cumsum = np.cumsum(z_i)
                 # find the interpolated index where the cumulative array reaches
                 # half the total cumulative values
-                y_bins[i] = np.interp(z_i_cumsum[-1]/2., z_i_cumsum, ilum2)
+                y_bins[i] = np.interp(z_i_cumsum[-1] / 2., z_i_cumsum, ilum2)
 
                 # NOTE this reflects current behavior, should eventually be changed
                 # to set to nan by default (or zero fill / interpoate option once
@@ -389,6 +466,12 @@ class FitTrace(Trace, _ImageParser):
         x_bins = (x_bins[:-1] + x_bins[1:]) / 2
 
         # interpolate the fitted trace over the entire wavelength axis
+
+        # for testing purposes only, save bin peaks if requested
+        if self._save_bin_peaks_testing:
+            self._bin_peaks_testing = (x_bins, y_bins)
+
+        # filter non-finite bin peaks before filtering to all bin peaks
         y_finite = np.where(np.isfinite(y_bins))[0]
         if y_finite.size > 0:
             x_bins = x_bins[y_finite]
@@ -402,6 +485,7 @@ class FitTrace(Trace, _ImageParser):
             else:
                 fitter = fitting.LMLSQFitter()
 
+            self._y_bins = y_bins
             self.trace_model_fit = fitter(self.trace_model, x_bins, y_bins)
 
             trace_x = np.arange(img.shape[self._disp_axis])
