@@ -178,10 +178,10 @@ class BoxcarExtract(SpecreduceOperation):
         return self.__call__()
 
     def __call__(self, image: NDData | None = None,
-                 trace: Trace | None  = None,
-                 width: float | None  = None,
-                 disp_axis: int | None  = None,
-                 crossdisp_axis: int | None  = None):
+                 trace: Trace | None = None,
+                 width: float | None = None,
+                 disp_axis: int | None = None,
+                 crossdisp_axis: int | None = None):
         """
         Extract the 1D spectrum using the boxcar method.
 
