@@ -2,6 +2,7 @@
 
 import warnings
 from dataclasses import dataclass, field
+from typing import Literal
 
 import numpy as np
 from astropy import units as u
@@ -125,7 +126,7 @@ def _ap_weight_image(trace, width, disp_axis, crossdisp_axis, image_shape):
 @dataclass
 class BoxcarExtract(SpecreduceOperation):
     """
-    Does a standard boxcar extraction.
+    Standard boxcar extraction along a trace.
 
     Example: ::
 
@@ -136,37 +137,51 @@ class BoxcarExtract(SpecreduceOperation):
 
     Parameters
     ----------
-    image : `~astropy.nddata.NDData`-like or array-like, required
+    image
         image with 2-D spectral image data
-    trace_object : Trace, required
+    trace_object
         trace object
-    width : float, optional
+    width
         width of extraction aperture in pixels
-    disp_axis : int, optional
+    disp_axis
         dispersion axis
-    crossdisp_axis : int, optional
+    crossdisp_axis
         cross-dispersion axis
+    mask_treatment
+        The method for handling masked or non-finite data. Choice of `filter`,
+        `omit`, or `zero-fill`. If `filter` is chosen, the mask is ignored
+        and the non-finite data will passed to the extraction as is. If `omit`
+        is chosen, columns along disp_axis with any masked or non-finite data
+        values will be fully masked (i.e, 2D mask is collapsed to 1D and applied).
+        If `zero-fill` is chosen, masked and non-finite data will be replaced
+        with 0.0 in the input image, and the mask will then be dropped.
+        For all three options, the input mask (optional on input NDData object)
+        will be combined with a mask generated from any non-finite values in the
+        image data.
 
     Returns
     -------
     spec : `~specutils.Spectrum1D`
         The extracted 1d spectrum expressed in DN and pixel units
     """
-    image: NDData
+    image: NDData | np.ndarray
     trace_object: Trace
     width: float = 5
     disp_axis: int = 1
     crossdisp_axis: int = 0
     # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
-    mask_treatment: str = 'filter'
+    mask_treatment: Literal['filter', 'omit', 'zero-fill'] = 'filter'
     _valid_mask_treatment_methods = ('filter', 'omit', 'zero-fill')
 
     @property
     def spectrum(self):
         return self.__call__()
 
-    def __call__(self, image=None, trace_object=None, width=None,
-                 disp_axis=None, crossdisp_axis=None):
+    def __call__(self, image: NDData | None = None,
+                 trace: Trace | None = None,
+                 width: float | None = None,
+                 disp_axis: int | None = None,
+                 crossdisp_axis: int | None = None):
         """
         Extract the 1D spectrum using the boxcar method.
 
@@ -174,7 +189,7 @@ class BoxcarExtract(SpecreduceOperation):
         ----------
         image : `~astropy.nddata.NDData`-like or array-like, required
             image with 2-D spectral image data
-        trace_object : Trace, required
+        trace : Trace, required
             trace object
         width : float, optional
             width of extraction aperture in pixels [default: 5]
@@ -182,21 +197,6 @@ class BoxcarExtract(SpecreduceOperation):
             dispersion axis [default: 1]
         crossdisp_axis : int, optional
             cross-dispersion axis [default: 0]
-        mask_treatment : string, optional
-            The method for handling masked or non-finite data. Choice of `filter`,
-            `omit`, or `zero-fill`. If `filter` is chosen, masked/non-finite data
-            will be filtered during the fit to each bin/column (along disp. axis) to
-            find the peak. If `omit` is chosen, columns along disp_axis with any
-            masked/non-finite data values will be fully masked (i.e, 2D mask is
-            collapsed to 1D and applied). If `zero-fill` is chosen, masked/non-finite
-            data will be replaced with 0.0 in the input image, and the mask will then
-            be dropped. For all three options, the input mask (optional on input
-            NDData object) will be combined with a mask generated from any non-finite
-            values in the image data. Also note that because binning is an option in
-            FitTrace, that masked data will contribute zero to the sum when binning
-            adjacent columns.
-            [default: ``filter``]
-
 
         Returns
         -------
@@ -205,7 +205,7 @@ class BoxcarExtract(SpecreduceOperation):
             units as the input image, or u.DN, and pixel units
         """
         image = image if image is not None else self.image
-        trace_object = trace_object if trace_object is not None else self.trace_object
+        trace = trace if trace is not None else self.trace_object
         width = width if width is not None else self.width
         disp_axis = disp_axis if disp_axis is not None else self.disp_axis
         crossdisp_axis = crossdisp_axis if crossdisp_axis is not None else self.crossdisp_axis
@@ -224,7 +224,7 @@ class BoxcarExtract(SpecreduceOperation):
             raise ValueError("width must be positive")
 
         # weight image to use for extraction
-        wimg = _ap_weight_image(trace_object,
+        wimg = _ap_weight_image(trace,
                                 width,
                                 disp_axis,
                                 crossdisp_axis,
@@ -317,7 +317,7 @@ class HorneExtract(SpecreduceOperation):
     image: NDData
     trace_object: Trace
     bkgrd_prof: Model = field(default=models.Polynomial1D(2))
-    spatial_profile: str = 'gaussian'  # can actually be str, dict
+    spatial_profile: str | dict = 'gaussian'
     variance: np.ndarray = field(default=None)
     mask: np.ndarray = field(default=None)
     unit: np.ndarray = field(default=None)
