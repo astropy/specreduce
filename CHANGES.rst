@@ -10,19 +10,11 @@ API Changes
 Bug Fixes
 ^^^^^^^^^
 
-Other changes
-^^^^^^^^^^^^^
-
-1.4.2
-------
-
-Bug Fixes
-^^^^^^^^^
-- Fixed Astropy v7.0 incompatibility bug [#229] in ``tracing.FitTrace``: changed to use
+- Fixed Astropy v7.0 incompatibility bug in ``tracing.FitTrace``: changed to use
   ``astropy.modeling.fitting.DogBoxLSQFitter`` when fitting a Gaussian peak model instead of
   ``astropy.modeling.fitting.LevMarLSQFitter`` that may be deprecated in the future. Also
   changed to use ``fitting.LMLSQFitter`` instead of ``fitting.LevMarLSQFitter`` when fitting
-  a generic nonlinear trace model.
+  a generic nonlinear trace model. [#229]
 
 Other changes
 ^^^^^^^^^^^^^
@@ -78,12 +70,7 @@ Bug Fixes
   peaks. Previously for Gaussian, the entire fit failed. [#205, #206]
 
 - Fixed input of `traces` in `Background`. Added a condition to 'FlatTrace' that
-
-- Fix in FitTrace to set fully-masked column bin peaks to NaN. Previously, for
-  peak_method='max' these were set to 0.0, and for peak_method='centroid' they
-  were set to the number of rows in the image, biasing the final fit to all bin
-  peaks. [#206]
-
+  trace position must be a positive number. [#211]
 
 Other changes
 ^^^^^^^^^^^^^
