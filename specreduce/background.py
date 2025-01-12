@@ -49,17 +49,17 @@ class Background(_ImageParser):
         cross-dispersion axis
         [default: 0]
     mask_treatment : string, optional
-        The method for handling masked or non-finite data. Choice of ``filter``,
-        ``omit``, or ``zero-fill``. If ``filter`` is chosen, masked and non-finite
+        The method for handling masked or non-finite data. Choice of `filter`,
+        `omit`, or `zero-fill`. If `filter` is chosen, masked and non-finite
         data will not contribute to the background statistic that is calculated
         in each column along `disp_axis`. If `omit` is chosen, columns along
         disp_axis with any masked/non-finite data values will be fully masked
-        (i.e, 2D mask is collapsed to 1D and applied). If ``zero-fill`` is chosen,
+        (i.e, 2D mask is collapsed to 1D and applied). If `zero-fill` is chosen,
         masked/non-finite data will be replaced with 0.0 in the input image,
         and the mask will then be dropped. For all three options, the input mask
         (optional on input NDData object) will be combined with a mask generated
         from any non-finite values in the image data.
-        [default: ``filter``]
+        [default: `filter`]
     """
     # required so numpy won't call __rsub__ on individual elements
     # https://stackoverflow.com/a/58409215
