@@ -148,12 +148,12 @@ class BoxcarExtract(SpecreduceOperation):
     crossdisp_axis
         cross-dispersion axis
     mask_treatment
-        The method for handling masked or non-finite data. Choice of `filter`,
-        `omit`, or `zero-fill`. If `filter` is chosen, the mask is ignored
-        and the non-finite data will passed to the extraction as is. If `omit`
+        The method for handling masked or non-finite data. Choice of ``filter``,
+        ``omit``, or ``zero-fill``. If `filter` is chosen, the mask is ignored
+        and the non-finite data will passed to the extraction as is. If ``omit``
         is chosen, columns along disp_axis with any masked or non-finite data
         values will be fully masked (i.e, 2D mask is collapsed to 1D and applied).
-        If `zero-fill` is chosen, masked and non-finite data will be replaced
+        If ``zero-fill`` is chosen, masked and non-finite data will be replaced
         with 0.0 in the input image, and the mask will then be dropped.
         For all three options, the input mask (optional on input NDData object)
         will be combined with a mask generated from any non-finite values in the
@@ -248,8 +248,9 @@ class HorneExtract(SpecreduceOperation):
     extraction - by default, a 1D gaussian is fit and as a uniform profile
     across the spectrum. Alternativley, the ``self profile`` option may be
     chosen - when this option is chosen, the spatial profile will be sampled
-    at various locations (set by <>) and interpolated between to produce a
-    smoothly varying spatial profile across the spectrum.
+    (using a default of 10 sample bins, but can be modified with
+    ``spatial_profile``) and interpolated between to produce a smoothly varying
+    spatial profile across the spectrum.
 
     If using the Gaussian option for the spatial profile, a background profile
     may be fit (but not subtracted) simultaneously to the data. By default,
