@@ -52,7 +52,7 @@ class Background(_ImageParser):
         The method for handling masked or non-finite data. Choice of ``filter``,
         ``omit``, or ``zero-fill``. If `filter` is chosen, masked and non-finite
         data will not contribute to the background statistic that is calculated
-        in each column along ``disp_axis``. If `omit` is chosen, columns along
+        in each column along ``disp_axis``. If ``omit`` is chosen, columns along
         disp_axis with any masked/non-finite data values will be fully masked
         (i.e, 2D mask is collapsed to 1D and applied). If ``zero-fill`` is chosen,
         masked/non-finite data will be replaced with 0.0 in the input image,

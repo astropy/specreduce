@@ -150,7 +150,7 @@ class BoxcarExtract(SpecreduceOperation):
     mask_treatment
         The method for handling masked or non-finite data. Choice of ``filter``,
         ``omit``, or ``zero-fill``. If `filter` is chosen, the mask is ignored
-        and the non-finite data will passed to the extraction as is. If `omit`
+        and the non-finite data will passed to the extraction as is. If ``omit``
         is chosen, columns along disp_axis with any masked or non-finite data
         values will be fully masked (i.e, 2D mask is collapsed to 1D and applied).
         If ``zero-fill`` is chosen, masked and non-finite data will be replaced
