@@ -258,10 +258,10 @@ class FitTrace(Trace, _ImageParser):
         ``max``: Saves the position with the maximum flux in each bin.
         [default: ``max``]
     mask_treatment : string, optional
-        The method for handling masked or non-finite data. Choice of `filter` or
-        `omit`. If `filter` is chosen, masked/non-finite data will be filtered
+        The method for handling masked or non-finite data. Choice of ``filter`` or
+        ``omit``. If `filter` is chosen, masked/non-finite data will be filtered
         during the fit to each bin/column (along disp. axis) to find the peak.
-        If `omit` is chosen, columns along disp_axis with any masked/non-finite
+        If ``omit`` is chosen, columns along disp_axis with any masked/non-finite
         data values will be fully masked (i.e, 2D mask is collapsed to 1D and applied).
         For both options, the input mask (optional on input NDData object) will
         be combined with a mask generated from any non-finite values in the image
