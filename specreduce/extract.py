@@ -248,8 +248,9 @@ class HorneExtract(SpecreduceOperation):
     extraction - by default, a 1D gaussian is fit and as a uniform profile
     across the spectrum. Alternativley, the ``self profile`` option may be
     chosen - when this option is chosen, the spatial profile will be sampled
-    at various locations (set by <>) and interpolated between to produce a
-    smoothly varying spatial profile across the spectrum.
+    (using a default of 10 sample bins, but can be modified with
+    ``spatial_profile``) and interpolated between to produce a smoothly varying
+    spatial profile across the spectrum.
 
     If using the Gaussian option for the spatial profile, a background profile
     may be fit (but not subtracted) simultaneously to the data. By default,
