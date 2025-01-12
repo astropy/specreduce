@@ -35,12 +35,12 @@ class Background(_ImageParser):
     traces : List, `specreduce.tracing.Trace`, int, float
         Individual or list of trace object(s) (or integers/floats to define
         FlatTraces) to extract the background. If None, a ``FlatTrace`` at the
-        center of the image (according to `disp_axis`) will be used.
+        center of the image (according to ``disp_axis``) will be used.
     width : float
         width of extraction aperture in pixels
     statistic: string
-        statistic to use when computing the background.  'average' will
-        account for partial pixel weights, 'median' will include all partial
+        statistic to use when computing the background.  ``average`` will
+        account for partial pixel weights, ``median`` will include all partial
         pixels.
     disp_axis : int
         dispersion axis
@@ -49,17 +49,17 @@ class Background(_ImageParser):
         cross-dispersion axis
         [default: 0]
     mask_treatment : string, optional
-        The method for handling masked or non-finite data. Choice of `filter`,
-        `omit`, or `zero-fill`. If `filter` is chosen, masked and non-finite
+        The method for handling masked or non-finite data. Choice of ``filter``,
+        ``omit``, or ``zero-fill``. If `filter` is chosen, masked and non-finite
         data will not contribute to the background statistic that is calculated
-        in each column along `disp_axis`. If `omit` is chosen, columns along
+        in each column along ``disp_axis``. If `omit` is chosen, columns along
         disp_axis with any masked/non-finite data values will be fully masked
-        (i.e, 2D mask is collapsed to 1D and applied). If `zero-fill` is chosen,
+        (i.e, 2D mask is collapsed to 1D and applied). If ``zero-fill`` is chosen,
         masked/non-finite data will be replaced with 0.0 in the input image,
         and the mask will then be dropped. For all three options, the input mask
         (optional on input NDData object) will be combined with a mask generated
         from any non-finite values in the image data.
-        [default: `filter`]
+        [default: ``filter``]
     """
     # required so numpy won't call __rsub__ on individual elements
     # https://stackoverflow.com/a/58409215
@@ -245,12 +245,12 @@ class Background(_ImageParser):
         crossdisp_axis : int
             cross-dispersion axis
         mask_treatment : string
-            The method for handling masked or non-finite data. Choice of `filter`,
-            `omit`, or `zero-fill`. If `filter` is chosen, masked/non-finite data
+            The method for handling masked or non-finite data. Choice of ``filter``,
+            ``omit`, or ``zero-fill``. If `filter` is chosen, masked/non-finite data
             will be filtered during the fit to each bin/column (along disp. axis) to
-            find the peak. If `omit` is chosen, columns along disp_axis with any
+            find the peak. If ``omit`` is chosen, columns along disp_axis with any
             masked/non-finite data values will be fully masked (i.e, 2D mask is
-            collapsed to 1D and applied). If `zero-fill` is chosen, masked/non-finite
+            collapsed to 1D and applied). If ``zero-fill`` is chosen, masked/non-finite
             data will be replaced with 0.0 in the input image, and the mask will then
             be dropped. For all three options, the input mask (optional on input
             NDData object) will be combined with a mask generated from any non-finite
@@ -294,12 +294,12 @@ class Background(_ImageParser):
         crossdisp_axis : int
             cross-dispersion axis
         mask_treatment : string
-            The method for handling masked or non-finite data. Choice of `filter`,
-            `omit`, or `zero-fill`. If `filter` is chosen, masked/non-finite data
+            The method for handling masked or non-finite data. Choice of ``filter``,
+            ``omit``, or ``zero-fill``. If `filter` is chosen, masked/non-finite data
             will be filtered during the fit to each bin/column (along disp. axis) to
-            find the peak. If `omit` is chosen, columns along disp_axis with any
+            find the peak. If ``omit`` is chosen, columns along disp_axis with any
             masked/non-finite data values will be fully masked (i.e, 2D mask is
-            collapsed to 1D and applied). If `zero-fill` is chosen, masked/non-finite
+            collapsed to 1D and applied). If ``zero-fill`` is chosen, masked/non-finite
             data will be replaced with 0.0 in the input image, and the mask will then
             be dropped. For all three options, the input mask (optional on input
             NDData object) will be combined with a mask generated from any non-finite
