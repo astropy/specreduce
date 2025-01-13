@@ -81,20 +81,24 @@ class WavelengthSolution1D:
 
     def resample(self, flux, nbins: int | None = None, wlbounds: tuple[float, float] | None = None,
                  bin_edges: Iterable[float] | None = None):
-        wlbounds = self._p2w([0, flux.size]) if wlbounds is None else wlbounds
         npix = flux.size
         nbins = npix if nbins is None else nbins
-        bin_edges_wav = bin_edges if bin_edges is not None else np.linspace(*wlbounds, num=nbins + 1)
+        if wlbounds is None:
+            l1 = self._p2w(0) - self._p2w_dldx(0)
+            l2 = self._p2w(npix) + self._p2w_dldx(npix)
+        else:
+            l1, l2 = wlbounds
+
+        bin_edges_wav = bin_edges if bin_edges is not None else np.linspace(l1, l2, num=nbins + 1)
         bin_edges_pix = np.clip(self._w2p(bin_edges_wav) + 0.5, 0, npix - 1e-12)
         bin_edge_ix = np.floor(bin_edges_pix).astype(int)
         bin_edge_w = bin_edges_pix - bin_edge_ix
         bin_centers_wav = 0.5 * (bin_edges_wav[:-1] + bin_edges_wav[1:])
         flux_wl = np.zeros(nbins)
-        weights = np.zeros(flux.size)
+        weights = np.zeros(npix)
 
         dldx = self._p2w_dldx(np.arange(npix))
         n = flux.sum() / (dldx * flux).sum()
-
         for i in range(nbins):
             i1, i2 = bin_edge_ix[i:i + 2]
             weights[:] = 0
