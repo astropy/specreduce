@@ -16,6 +16,20 @@ from specreduce.calibration_data import load_pypeit_calibration_lines
 from specreduce.line_matching import find_arc_lines
 
 
+def diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
+    coeffs = {f'c{i-1}': i*getattr(m, f'c{i}').value for i in range(1, m.degree+1)}
+    return models.Polynomial1D(m.degree-1, **coeffs)
+
+
+def diff_poly2d_x(m):
+    coeffs = {}
+    for n in m.param_names:
+        ix, iy = int(n[1]), int(n[3])
+        if ix > 0:
+            coeffs[f"c{ix-1}_{iy}"] = ix*getattr(m, n).value
+    return models.Polynomial2D(m.degree-1, **coeffs)
+
+
 class WavelengthSolution1D:
     def __init__(self, arc_spectra, lamps, wlbounds: tuple[float, float], wave_air: bool = False):
         self.arc_spectra = arc_spectra
@@ -60,12 +74,12 @@ class WavelengthSolution1D:
                  zip(trees, self.lines_pix)])
 
         # Calculate the pixel -> wavelength transform and its derivative along the spectral axis
-        self._fit = fit = optimize.differential_evolution(minfun, [wl0, dwl, [-1e-3, 1e-3], [-1e-4, 1e-4]],
+        self._fit = fit = optimize.differential_evolution(minfun,
+                                                          bounds=[wl0, dwl, [-1e-3, 1e-3], [-1e-4, 1e-4]],
                                                           popsize=popsize)
         self._p2w = p2w = models.Shift(-ref_pixel) | models.Polynomial1D(3, **{f'c{i}': fit.x[i] for i in
                                                                                   range(fit.x.size)})
-        self._p2w_dldx = models.Shift(p2w.offset_0) | models.Polynomial1D(2, c0=p2w.c1_1, c1=2*p2w.c2_1,
-                                                                        c2=3*p2w.c3_1)
+        self._p2w_dldx = models.Shift(p2w.offset_0) | diff_poly1d(p2w[1])
 
         # Calculate the wavelength -> pixel transform and its derivative along the spectral axis
         vpix = self.arc_spectra[0].spectral_axis.value
@@ -74,10 +88,7 @@ class WavelengthSolution1D:
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             self._w2p = w2p = models.Shift(-p2w.c0_1) | fitting.LMLSQFitter()(w2p, vwav - p2w.c0_1.value, vpix)
-        self._w2p_dxdl = models.Shift(w2p.offset_0) | models.Polynomial1D(6, c0=w2p.c1_1, c1=2 * w2p.c2_1,
-                                                                        c2=3 * w2p.c3_1,
-                                                                        c3=4 * w2p.c4_1, c4=5 * w2p.c5_1,
-                                                                        c5=6 * w2p.c6_1, c6=7 * w2p.c7_1)
+        self._w2p_dxdl = models.Shift(w2p.offset_0) | diff_poly1d(w2p[1])
 
     def resample(self, flux, nbins: int | None = None, wlbounds: tuple[float, float] | None = None,
                  bin_edges: Iterable[float] | None = None):
