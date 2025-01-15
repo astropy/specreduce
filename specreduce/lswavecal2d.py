@@ -145,6 +145,18 @@ class WavelengthSolution2D(WavelengthSolution1D):
         if self._w2p is not None:
             self._w2p_dxdl = (self._w2p[0] & self._w2p[1]) | diff_poly2d_x(self._w2p[-1])
 
+    @property
+    def wcs(self):
+        m_forward = models.Mapping((0, 1, 1)) | (self._p2w & models.Identity(1))
+        m_inverse = models.Mapping((0, 1, 1)) | (self._w2p & models.Identity(1))
+        m_forward.inverse = m_inverse
+        pixel_frame = cf.Frame2D(name='detector', axes_names=["x", "y"], unit=[u.pix, u.pix])
+        spectral_frame = cf.Frame2D(name='spectrum', axes_names=["wavelength", "y"],
+                                    unit=[self.linelists[0]['wavelength'].unit, u.pix])
+        pipeline = [(pixel_frame, m_forward), (spectral_frame, None)]
+        self._wcs = wcs.WCS(pipeline)
+        return self._wcs
+
     def resample(self, flux, nbins: int | None = None, wlbounds: tuple[float, float] | None = None,
                  bin_edges: Iterable[float] | None = None):
         ny, nx = flux.shape
