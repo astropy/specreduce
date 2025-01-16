@@ -1,5 +1,5 @@
 import warnings
-from typing import Iterable
+from typing import Sequence, Callable
 
 import astropy.units as u
 import numpy as np
@@ -7,6 +7,8 @@ from astropy.modeling import models, Model, fitting
 from astropy.nddata import VarianceUncertainty
 from gwcs import coordinate_frames as cf
 from gwcs import wcs
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.pyplot import setp, subplots
 from scipy import optimize
 from scipy.spatial import KDTree
@@ -18,7 +20,7 @@ from specreduce.calibration_data import load_pypeit_calibration_lines
 from specreduce.line_matching import find_arc_lines
 
 
-def diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
+def _diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
     """Compute the derivative of a Polynomial1D model.
 
     Computes the derivative of a Polynomial1D model and returns a new Polynomial1D
@@ -33,9 +35,7 @@ def diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
 
     Returns
     -------
-    models.Polynomial1D
-        A new Polynomial1D model representing the derivative of the input
-        Polynomial1D model.
+    A new Polynomial1D model representing the derivative of the input Polynomial1D model.
     """
     coeffs = {f'c{i-1}': i*getattr(m, f'c{i}').value for i in range(1, m.degree+1)}
     return models.Polynomial1D(m.degree-1, **coeffs)
@@ -43,8 +43,8 @@ def diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
 
 class WavelengthSolution1D:
     def __init__(self, *, line_lists,
-                 arc_spectra: Spectrum1D | Iterable[Spectrum1D] | None = None,
-                 obs_lines: ndarray | Iterable[ndarray] | None = None,
+                 arc_spectra: Spectrum1D | Sequence[Spectrum1D] | None = None,
+                 obs_lines: ndarray | Sequence[ndarray] | None = None,
                  wlbounds: tuple[float, float] = (0, np.inf),
                  wave_air: bool = False):
 
@@ -57,11 +57,12 @@ class WavelengthSolution1D:
         self.wlbounds: tuple[float, float] = wlbounds
         self.wave_air: bool = wave_air
 
-        self.arc_spectra: Iterable[Spectrum1D] = [arc_spectra] if isinstance(arc_spectra, Spectrum1D) else arc_spectra
-        self.lines_pix: Iterable[ndarray] = [obs_lines] if isinstance(obs_lines, ndarray) else obs_lines
+        self.arc_spectra: Sequence[Spectrum1D] = [arc_spectra] if isinstance(arc_spectra, Spectrum1D) else arc_spectra
+        self.lines_pix: Sequence[ndarray] = [obs_lines] if isinstance(obs_lines, ndarray) else obs_lines
+        self.ndata: int = len(self.arc_spectra) if self.arc_spectra is not None else len(self.lines_pix)
 
-        self.lines_wav: Iterable[ndarray] | None = None
-        self._trees: Iterable[KDTree] | None = None
+        self.lines_wav: Sequence[ndarray] | None = None
+        self._trees: Sequence[KDTree] | None = None
         self._read_linelists(line_lists)
 
         self._fit: optimize.OptimizeResult | None = None
@@ -124,7 +125,8 @@ class WavelengthSolution1D:
             wavelength_bounds: tuple[float, float],
             dispersion_bounds: tuple[float, float],
             popsize: int = 30,
-            max_distance: float = 100):
+            max_distance: float = 100,
+            refine_fit: bool = True):
         """Calculate and refine the pixel-to-wavelength and wavelength-to-pixel transformations.
 
         This method determines the functional relationships between pixel positions and
@@ -135,16 +137,18 @@ class WavelengthSolution1D:
 
         Parameters
         ----------
-        ref_pixel : float
+        ref_pixel
             The reference pixel position used as the zero point for the transformation.
-        wavelength_bounds : tuple of float
+        wavelength_bounds
             Initial bounds for the wavelength value at the reference pixel.
-        dispersion_bounds : tuple of float
+        dispersion_bounds
             Initial bounds for the dispersion value at the reference pixel.
-        popsize : int, optional
+        popsize
             The population size for differential evolution optimization.
-        max_distance : float, optional
+        max_distance
             The maximum allowable distance when querying the tree in the optimization process.
+        refine_fit
+            Refine the global fit of the pixel-to-wavelength transformation.
 
         Raises
         ------
@@ -153,28 +157,49 @@ class WavelengthSolution1D:
         """
         model = models.Shift(-ref_pixel) | models.Polynomial1D(3)
         def minfun(x):
-            return sum(
-                [np.clip(t.query(model.evaluate(l, -ref_pixel, *x)[:, None])[0], 0, max_distance).sum() for t, l in
-                 zip(self._trees, self.lines_pix)])
+            total_distance = 0.0
+            for t, l in zip(self._trees, self.lines_pix):
+                transformed_lines = model.evaluate(l, -ref_pixel, *x)[:, None]
+                total_distance += np.clip(t.query(transformed_lines)[0], 0, max_distance).sum()
+            return total_distance
 
-        # Calculate the pixel -> wavelength transform and its derivative along the spectral axis
         self._fit = fit = optimize.differential_evolution(minfun,
-                                                          bounds=[wavelength_bounds, dispersion_bounds, [-1e-3, 1e-3], [-1e-4, 1e-4]],
+                                                          bounds=[wavelength_bounds,
+                                                                  dispersion_bounds,
+                                                                  [-1e-3, 1e-3],
+                                                                  [-1e-4, 1e-4]],
                                                           popsize=popsize)
-        self._p2w = models.Shift(-ref_pixel) | models.Polynomial1D(3, **{f'c{i}': fit.x[i] for i in
-                                                                                  range(fit.x.size)})
-        self._refine_fit()
-        p2w = self._p2w
-        self._p2w_dldx = models.Shift(p2w.offset_0) | diff_poly1d(p2w[1])
+        self._p2w = (models.Shift(-ref_pixel) |
+                     models.Polynomial1D(3, **{f'c{i}': fit.x[i] for i in range(fit.x.size)}))
 
-        # Calculate the wavelength -> pixel transform and its derivative along the spectral axis
+        if refine_fit:
+            self._refine_fit()
+        self._calculate_inverse()
+        self._calculate_derivatives()
+
+    def _calculate_inverse(self):
+        """Compute the wavelength-to-pixel mapping from the pixel-to-wavelength transformation.
+
+        Compute and set the inverse mapping from wavelength reference system to pixel reference system
+        through polynomial fitting. This method uses the DogBoxLSQFitter to fit the data and produces
+        a transformation model to establish the inverse relation.
+        """
         vpix = self.arc_spectra[0].spectral_axis.value
-        vwav = p2w(vpix)
-        w2p = models.Polynomial1D(6, c0=-p2w.offset_0, c1=1 / p2w.c1_1, fixed={'c0': True})
+        vwav = self._p2w(vpix)
+        w2p = models.Polynomial1D(6, c0=-self._p2w.offset_0, c1=1/self._p2w.c1_1, fixed={'c0': True})
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            self._w2p = w2p = models.Shift(-p2w.c0_1) | fitting.DogBoxLSQFitter()(w2p, vwav - p2w.c0_1.value, vpix)
-        self._w2p_dxdl = models.Shift(w2p.offset_0) | diff_poly1d(w2p[1])
+            fitter = fitting.DogBoxLSQFitter()
+            self._w2p = models.Shift(-self._p2w.c0_1) | fitter(w2p, vwav - self._p2w.c0_1.value, vpix)
+
+    def _calculate_derivatives(self):
+        """Calculate the forward and reverse mapping derivatives with respect to the spectral axis.
+        """
+        if self._p2w is not None:
+            self._p2w_dldx = models.Shift(self._p2w.offset_0) | _diff_poly1d(self._p2w[1])
+        if self._w2p is not None:
+            self._w2p_dxdl = models.Shift(self._w2p.offset_0) | _diff_poly1d(self._w2p[1])
+
 
     def _refine_fit(self, degree: int = 4, match_distance_bound: float = 5.0):
         """Refine the global fit of the pixel-to-wavelength transformation.
@@ -199,28 +224,27 @@ class WavelengthSolution1D:
         fitter = fitting.LinearLSQFitter()
         self._p2w = self._p2w[0].copy() | fitter(model, matched_pix + self._p2w.offset_0.value, matched_wav)
 
+
     def resample(self, spectrum: Spectrum1D,
                  nbins: int | None = None,
                  wlbounds: tuple[float, float] | None = None,
-                 bin_edges: Iterable[float] | None = None) -> Spectrum1D:
-        """Resample the given 1D spectrum to a specified wavelength bins conserving the flux.
+                 bin_edges: Sequence[float] | None = None) -> Spectrum1D:
+        """Bin the given pixel-space 1D spectrum to a wavelength space conserving the flux.
 
-        This function adjusts the flux data by resampling it over wavelength bins. The wavelength mapping
-        is determined by the object's internal methods `_p2w` and `_p2w_dldx` for pixel-to-wavelength
-        conversion. The resulting flux values are normalized to ensure consistency with the input flux's
-        total spectral intensity.
+        This method bins a pixel-space spectrum to a wavelength space using the computed pixel-to-wavelength and
+        wavelength-to-pixel transformations and their derivatives with respect to the spectral axis. The binning is
+        exact and conserves the total flux.
 
         Parameters
         ----------
-        spectrum : ndarray
-            1D array representing the flux data to be resampled over the wavelength space.
-        nbins : int or None, optional
-            The number of bins for resampling. If not provided, it defaults to the size of the input
-            `flux` array.
-        wlbounds : tuple of float or None, optional
+        spectrum
+            A Spectrum1D instance containing the flux to be resampled over the wavelength space.
+        nbins
+            The number of bins for resampling. If not provided, it defaults to the size of the input spectrum.
+        wlbounds
             A tuple specifying the starting and ending wavelengths for resampling. If not provided, the
             wavelength bounds are inferred from the object's methods and the entire flux array is used.
-        bin_edges : Iterable of float or None, optional
+        bin_edges
             Explicit bin edges in the wavelength space. If provided, `nbins` and `wlbounds` are ignored.
 
         Returns
@@ -265,9 +289,31 @@ class WavelengthSolution1D:
         return Spectrum1D(flux_wl, bin_centers_wav * u.angstrom, uncertainty=ucty_wl)
 
     def pix_to_wav(self, pix: ndarray |float) -> ndarray | float:
+        """Map pixel values into wavelength values.
+
+        Parameters
+        ----------
+        pix
+            Input pixel value(s) to be transformed into wavelength.
+
+        Returns
+        -------
+        Transformed wavelength value(s) corresponding to the input pixel value(s).
+        """
         return self._p2w(pix)
 
     def wav_to_pix(self, wav: ndarray | float) -> ndarray | float:
+        """Map wavelength values into pixel values.
+
+        Parameters
+        ----------
+        wav
+            The wavelength value(s) to be converted into pixel value(s).
+
+        Returns
+        -------
+        The corresponding pixel value(s) for the input wavelength(s).
+        """
         return self._w2p(wav)
 
     @property
@@ -278,11 +324,21 @@ class WavelengthSolution1D:
         self._wcs = wcs.WCS(pipeline)
         return self._wcs
 
-    @property
-    def fitted_model(self):
-        return self._p2w
+    def match_lines(self, upper_bound: float = 5) -> tuple[ndarray, ndarray]:
+        """Match the observed lines to theoretical lines.
+s.
+        Parameters
+        ----------
+        upper_bound
+            The maximum allowed distance between the query points and the KD-tree
+            data points for them to be considered a match.
 
-    def match_lines(self, upper_bound: float = 5):
+        Returns
+        -------
+        A tuple containing two concatenated arrays:
+        - An array of matched line positions in pixel coordinates.
+        - An array of matched line positions in wavelength coordinates.
+        """
         matched_lines_wav = []
         matched_lines_pix = []
         for iframe, tree in enumerate(self._trees):
@@ -292,9 +348,29 @@ class WavelengthSolution1D:
             matched_lines_pix.append(self.lines_pix[iframe][m])
         return np.concatenate(matched_lines_pix), np.concatenate(matched_lines_wav)
 
-    def plot_lines(self, axes=None, figsize=None):
+    def plot_lines(self, axes: Axes | None = None, figsize: tuple[float, float] | None = None) -> Figure:
+        """Plot the arc spectra and mark identified line positions for all the data sets.
+
+        This method plots the spectral data stored in `arc_spectra` for each dataset
+        in separate subplots. It also marks identified spectral line positions within
+        the plots.
+
+        Parameters
+        ----------
+        axes
+            Pre-configured Matplotlib axes to be used for plotting. If `None`, new
+            axes objects are created automatically, arranged in a single-column layout.
+        figsize
+            Specifies the width and height of the figure in inches when creating new
+            axes. Ignored if `axes` is provided.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+        """
         if axes is None:
-            fig, axes = subplots(len(self.arc_spectra), 1, figsize=figsize, sharex='all', constrained_layout=True, squeeze=False)
+            fig, axes = subplots(self.ndata, 1, figsize=figsize, sharex='all',
+                                 constrained_layout=True, squeeze=False)
         else:
             fig = axes[0].figure
         for i, sp in enumerate(self.arc_spectra):
@@ -305,13 +381,38 @@ class WavelengthSolution1D:
         setp(axes[-1], xlabel='Pixel')
         return fig
 
-    def plot_solution(self, axes=None, figsize=None, model = None):
+    def plot_solution(self, axes: Axes | None = None, figsize: tuple[float, float] | None = None,
+                      model: Callable | None = None) -> Figure:
+        """Plot the wavelength solution applied to the provided spectra and overlay it for visualization.
+
+        This method generates plots for the given arc spectra, showcasing the results of the model
+        fit. Each subplot represents a single spectrum with overlaid model predictions and markers
+        indicating the expected wavelengths.
+
+        Parameters
+        ----------
+        axes
+            Array of Matplotlib Axes where the spectra and their corresponding solutions will be plotted.
+            If None, new Axes objects will be created for visualization. Must be provided in the case of
+            external figure context.
+        figsize
+            Tuple specifying the dimensions of the figure in inches if new Axes are created. Ignored if
+            `axes` is provided. Must follow the structure (width, height).
+        model
+            The model function to be applied for prediction on the spectral axis values. If None, the
+            already fitted model within the class instance (`self.fitted_model`) will be utilized.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+        """
         if axes is None:
-            fig, axes = subplots(len(self.arc_spectra), 1, figsize=figsize, sharex='all', constrained_layout=True, squeeze=False)
+            fig, axes = subplots(len(self.arc_spectra), 1, figsize=figsize, sharex='all',
+                                 constrained_layout=True, squeeze=False)
         else:
             fig = axes[0].figure
 
-        model = model if model is not None else self.fitted_model
+        model = model if model is not None else self._p2w
 
         for i, sp in enumerate(self.arc_spectra):
             axes[i,0].plot(model(sp.spectral_axis.value), sp.data / (1.2 * sp.data.max()))
@@ -321,7 +422,23 @@ class WavelengthSolution1D:
         setp(axes[-1], xlabel=f'Wavelength [{self.linelists[0]["wavelength"].unit.to_string(format="latex")}]')
         return fig
 
-    def plot_transforms(self, figsize=None):
+    def plot_transforms(self, figsize: tuple[float, float] | None = None) -> Figure:
+        """ Plot and visualize transformation functions between pixel and wavelength space.
+
+        This method generates a grid of subplots to illustrate the transformations
+        between pixel and wavelength spaces in two directions: Pixel -> Wavelength
+        and Wavelength -> Pixel. It also includes visualizations of the derivatives
+        of these transformations with respect to the spectral axis.
+
+        Parameters
+        ----------
+        figsize
+            Width, height in inches to control the size of the figure.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+        """
         fig, axs = subplots(2, 2, figsize=figsize, constrained_layout=True, sharex='col')
         xpix = self.arc_spectra[0].spectral_axis.value
         xwav = np.linspace(*self.pix_to_wav(xpix[[0, -1]]), num=xpix.size)
