@@ -4,6 +4,7 @@ from typing import Iterable
 import astropy.units as u
 import numpy as np
 from astropy.modeling import models, Model, fitting
+from astropy.nddata import VarianceUncertainty
 from gwcs import coordinate_frames as cf
 from gwcs import wcs
 from matplotlib.pyplot import setp, subplots
@@ -53,15 +54,15 @@ class WavelengthSolution1D:
         if arc_spectra is not None and obs_lines is not None:
             raise ValueError("Only one of arc_spectra or obs_lines can be provided.")
 
+        self.wlbounds: tuple[float, float] = wlbounds
+        self.wave_air: bool = wave_air
+
         self.arc_spectra: Iterable[Spectrum1D] = [arc_spectra] if isinstance(arc_spectra, Spectrum1D) else arc_spectra
         self.lines_pix: Iterable[ndarray] = [obs_lines] if isinstance(obs_lines, ndarray) else obs_lines
 
         self.lines_wav: Iterable[ndarray] | None = None
         self._trees: Iterable[KDTree] | None = None
         self._read_linelists(line_lists)
-
-        self.wlbounds: tuple[float, float] = wlbounds
-        self.wave_air: bool = wave_air
 
         self._fit: optimize.OptimizeResult | None = None
         self._wcs: wcs.WCS | None = None
@@ -198,10 +199,10 @@ class WavelengthSolution1D:
         fitter = fitting.LinearLSQFitter()
         self._p2w = self._p2w[0].copy() | fitter(model, matched_pix + self._p2w.offset_0.value, matched_wav)
 
-    def resample(self, flux: Spectrum1D,
+    def resample(self, spectrum: Spectrum1D,
                  nbins: int | None = None,
                  wlbounds: tuple[float, float] | None = None,
-                 bin_edges: Iterable[float] | None = None):
+                 bin_edges: Iterable[float] | None = None) -> Spectrum1D:
         """Resample the given 1D spectrum to a specified wavelength bins conserving the flux.
 
         This function adjusts the flux data by resampling it over wavelength bins. The wavelength mapping
@@ -211,7 +212,7 @@ class WavelengthSolution1D:
 
         Parameters
         ----------
-        flux : ndarray
+        spectrum : ndarray
             1D array representing the flux data to be resampled over the wavelength space.
         nbins : int or None, optional
             The number of bins for resampling. If not provided, it defaults to the size of the input
@@ -224,11 +225,10 @@ class WavelengthSolution1D:
 
         Returns
         -------
-        bin_centers_wav : ndarray
-            1D array containing the center wavelengths of the resampled bins.
-        flux_wl : ndarray
-            1D array containing the flux values resampled and normalized over the defined bins.
+            1D spectrum binned to the specified wavelength bins.
         """
+        flux = spectrum.flux.value
+        ucty = spectrum.uncertainty.represent_as(VarianceUncertainty).array
         npix = flux.size
         nbins = npix if nbins is None else nbins
         if wlbounds is None:
@@ -243,6 +243,7 @@ class WavelengthSolution1D:
         bin_edge_w = bin_edges_pix - bin_edge_ix
         bin_centers_wav = 0.5 * (bin_edges_wav[:-1] + bin_edges_wav[1:])
         flux_wl = np.zeros(nbins)
+        ucty_wl = np.zeros(nbins)
         weights = np.zeros(npix)
 
         dldx = self._p2w_dldx(np.arange(npix))
@@ -255,10 +256,13 @@ class WavelengthSolution1D:
                 weights[i1] = 1 - bin_edge_w[i]
                 weights[i2] = bin_edge_w[i + 1]
                 flux_wl[i] = (weights[i1:i2 + 1] * flux[i1:i2 + 1] * dldx[i1:i2 + 1]).sum()
+                ucty_wl[i] = (weights[i1:i2 + 1] * ucty[i1:i2 + 1] * dldx[i1:i2 + 1]).sum()
             else:
                 flux_wl[i] = (bin_edges_pix[i + 1] - bin_edges_pix[i]) * flux[i1] * dldx[i1]
-        flux_wl *= n
-        return bin_centers_wav, flux_wl
+                ucty_wl[i] = (bin_edges_pix[i + 1] - bin_edges_pix[i]) * ucty[i1] * dldx[i1]
+        flux_wl = (flux_wl * n) * spectrum.flux.unit
+        ucty_wl = VarianceUncertainty(ucty_wl * n).represent_as(type(spectrum.uncertainty))
+        return Spectrum1D(flux_wl, bin_centers_wav * u.angstrom, uncertainty=ucty_wl)
 
     def pix_to_wav(self, pix: ndarray |float) -> ndarray | float:
         return self._p2w(pix)
