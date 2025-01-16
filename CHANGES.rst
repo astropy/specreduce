@@ -18,12 +18,16 @@ Other changes
 
 New Features
 ^^^^^^^^^^^^
+
 - Added the ``mask_treatment`` parameter to Background, Trace, and Boxcar Extract
   operations to handle non-finite data and boolean masks. Choice of ``filter``,
   ``omit``, or ``zero-fill``. [#216]
 
-API Changes
-^^^^^^^^^^^
+
+- Added a ``specreduce.utils.align_2d_spectrum_along_trace`` utility function that aligns a
+  rectilinear 2D spectrum image along a spectrum trace. The rectification can be done using
+  either linear interpolation, giving a sub-pixel shift resolution, or using integer shifts.
+  The function also updates the image mask and propagates the uncertainties.
 
 Bug Fixes
 ^^^^^^^^^
