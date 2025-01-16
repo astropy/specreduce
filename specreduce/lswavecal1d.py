@@ -1,5 +1,5 @@
 import warnings
-from typing import Sequence, Callable
+from typing import Sequence, Callable, Literal
 
 import astropy.units as u
 import numpy as np
@@ -46,6 +46,7 @@ class WavelengthSolution1D:
                  arc_spectra: Spectrum1D | Sequence[Spectrum1D] | None = None,
                  obs_lines: ndarray | Sequence[ndarray] | None = None,
                  wlbounds: tuple[float, float] = (0, np.inf),
+                 unit: u.Unit = u.angstrom,
                  wave_air: bool = False):
 
         if arc_spectra is None and obs_lines is None:
@@ -55,6 +56,7 @@ class WavelengthSolution1D:
             raise ValueError("Only one of arc_spectra or obs_lines can be provided.")
 
         self.wlbounds: tuple[float, float] = wlbounds
+        self.unit: u.Unit = unit
         self.wave_air: bool = wave_air
 
         self.arc_spectra: Sequence[Spectrum1D] = [arc_spectra] if isinstance(arc_spectra, Spectrum1D) else arc_spectra
@@ -98,7 +100,7 @@ class WavelengthSolution1D:
                 if isinstance(l, str):
                     l = [l]
                 for ll in l:
-                    lines.append(load_pypeit_calibration_lines(l, wave_air=self.wave_air)['wavelength'].value)
+                    lines.append(load_pypeit_calibration_lines(ll, wave_air=self.wave_air)['wavelength'].to(self.unit).value)
                 self.lines_wav.append(np.concatenate(lines))
         for i, l in enumerate(self.lines_wav):
             self.lines_wav[i] = l[(l >= self.wlbounds[0]) & (l <= self.wlbounds[1])]
@@ -319,7 +321,7 @@ class WavelengthSolution1D:
     @property
     def wcs(self):
         pixel_frame = cf.CoordinateFrame(1, "SPECTRAL", [0, ], axes_names=["x", ], unit=[u.pix])
-        spectral_frame = cf.SpectralFrame(axes_names=["wavelength", ], unit=[self.linelists[0]['wavelength'].unit])
+        spectral_frame = cf.SpectralFrame(axes_names=["wavelength", ], unit=[self.unit])
         pipeline = [(pixel_frame, self.fitted_model), (spectral_frame, None)]
         self._wcs = wcs.WCS(pipeline)
         return self._wcs
@@ -347,6 +349,26 @@ s.
             matched_lines_wav.append(tree.data[ix[m], 0])
             matched_lines_pix.append(self.lines_pix[iframe][m])
         return np.concatenate(matched_lines_pix), np.concatenate(matched_lines_wav)
+
+    def rms(self, space: Literal['pixel', 'wavelength'] = 'wavelength') -> float:
+        """Compute the RMS of the residuals between matched lines in either the pixel or wavelength space.
+
+        Parameters
+        ----------
+        space
+            The space in which to calculate the RMS residual. If 'wavelength',
+            the calculation is performed in the wavelength space. If 'pixel',
+            it is performed in the pixel space. Default is 'wavelength'.
+
+        Returns
+        -------
+        float
+        """
+        mpix, mwav = self.match_lines()
+        if space == 'wavelength':
+            return np.sqrt(((mwav - self.pix_to_wav(mpix)) ** 2).mean())
+        else:
+            return np.sqrt(((mpix - self.wav_to_pix(mwav)) ** 2).mean())
 
     def plot_lines(self, axes: Axes | None = None, figsize: tuple[float, float] | None = None) -> Figure:
         """Plot the arc spectra and mark identified line positions for all the data sets.
@@ -419,7 +441,7 @@ s.
             axes[i,0].vlines(self.lines_wav[i], 0.0, 1.0, alpha=0.3, ec='darkorange', zorder=0)
             axes[i,0].vlines(model(self.lines_pix[i]), 0.9, 1.0, alpha=1)
             axes[i,0].autoscale(enable=True, axis='x', tight=True)
-        setp(axes[-1], xlabel=f'Wavelength [{self.linelists[0]["wavelength"].unit.to_string(format="latex")}]')
+        setp(axes[-1], xlabel=f'Wavelength [{self.unit.to_string(format="latex")}]')
         return fig
 
     def plot_transforms(self, figsize: tuple[float, float] | None = None) -> Figure:
@@ -449,10 +471,53 @@ s.
         axs[1, 1].plot(xwav[:-1], np.diff(self._w2p(xwav)) / np.diff(xwav), lw=4, c='k')
         axs[1, 1].plot(xwav, self._w2p_dxdl(xwav), ls='--', lw=2, c='w')
         setp(axs[1,0], xlabel='Pixel', ylabel=r'd$\lambda$/dx')
-        setp(axs[0,0], ylabel=fr'$\lambda$ [{self.linelists[0]["wavelength"].unit}]')
-        setp(axs[1,1], xlabel=fr'$\lambda$ [{self.linelists[0]["wavelength"].unit}]', ylabel=r'dx/d$\lambda$')
+        setp(axs[0,0], ylabel=fr'$\lambda$ [{self.unit}]')
+        setp(axs[1,1], xlabel=fr'$\lambda$ [{self.unit}]', ylabel=r'dx/d$\lambda$')
         setp(axs[0,1], ylabel='Pixel')
         axs[0,0].set_title('Pixel -> wavelength')
         axs[0,1].set_title('Wavelength -> pixel')
         fig.align_labels()
+        return fig
+
+    def plot_residuals(self, ax: Axes | None = None, space: Literal['pixel', 'wavelength'] = 'wavelength',
+                       figsize: tuple[float, float] | None = None) -> Figure:
+        """Plot the residuals of pixel-to-wavelength or wavelength-to-pixel transformation.
+
+        Parameters
+        ----------
+        ax
+            Matplotlib Axes object to plot on. If None, a new figure and axes are created. Default is None.
+        space
+            The reference space used for plotting residuals. Options are 'pixel' for residuals in pixel space or
+            'wavelength' for residuals in wavelength space.
+        figsize
+            The size of the figure in inches, if a new figure is created. Default is None.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+        """
+        if ax is None:
+            fig, ax = subplots(figsize=figsize, constrained_layout=True)
+        else:
+            fig = ax.figure
+
+        mpix, mwav = self.match_lines()
+
+        if space == 'wavelength':
+            twav = self.pix_to_wav(mpix)
+            ax.plot(mwav, mwav - twav, '.')
+            ax.text(0.98, 0.95,
+                    f"RMS = {np.sqrt(((mwav - twav) ** 2).mean()):4.2f} {self.unit.to_string(format="latex")}",
+                    transform=ax.transAxes, ha='right', va='top')
+            setp(ax,
+                 xlabel=f'Wavelength [{self.unit.to_string(format="latex")}]',
+                 ylabel=f'Residuals [{self.unit.to_string(format="latex")}]')
+        else:
+            tpix = self.wav_to_pix(mwav)
+            ax.plot(mpix, mpix - tpix, '.')
+            ax.text(0.98, 0.95, f"RMS = {np.sqrt(((mpix - tpix) ** 2).mean()):4.2f} pix", transform=ax.transAxes,
+                    ha='right', va='top')
+            setp(ax, xlabel='Pixel', ylabel='Residuals [pix]')
+        ax.axhline(0, c='k', lw=1, ls='--')
         return fig
