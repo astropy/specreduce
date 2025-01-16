@@ -76,7 +76,7 @@ class WavelengthSolution2D(WavelengthSolution1D):
         self.lines_pix_y = [np.concatenate(lpy) for lpy in lines_pix_y]
 
     def fit(self, ref_pixel: tuple[float, float],
-            wl0: tuple[float, float] = (7000, 7600), dwl: tuple[float, float] = (2.4, 2.8),
+            wavelength_bounds: tuple[float, float] = (7000, 7600), dispersion_bounds: tuple[float, float] = (2.4, 2.8),
             popsize: int = 30, max_distance: float = 100, workers: int = 1):
 
         self._ref_pixel = ref_pixel
@@ -96,7 +96,7 @@ class WavelengthSolution2D(WavelengthSolution1D):
                                         0, max_distance).sum()
             return distance_sum
 
-        bounds = np.array([wl0, dwl, [-1e-3, 1e-3], [-1e-5, 1e-5], [-1e-1, 1e-1], [-1e-4, 1e-4], [-1e-5, 1e-5]])
+        bounds = np.array([wavelength_bounds, dispersion_bounds, [-1e-3, 1e-3], [-1e-5, 1e-5], [-1e-1, 1e-1], [-1e-4, 1e-4], [-1e-5, 1e-5]])
         res = optimize.differential_evolution(minfun, bounds, popsize=popsize, workers=1, updating='deferred')
         self._p2w = (self._shift |
                      models.Polynomial2D(model[-1].degree,
