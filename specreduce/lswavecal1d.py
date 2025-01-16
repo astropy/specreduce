@@ -11,6 +11,7 @@ from scipy import optimize
 from scipy.spatial import KDTree
 
 from numpy import ndarray
+from specutils import Spectrum1D
 
 from specreduce.calibration_data import load_pypeit_calibration_lines
 from specreduce.line_matching import find_arc_lines
@@ -40,25 +41,37 @@ def diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
 
 
 class WavelengthSolution1D:
-    def __init__(self, arc_spectra, lamps, wlbounds: tuple[float, float], wave_air: bool = False):
-        self.arc_spectra = arc_spectra
-        self.lamps = lamps
-        self.wlbounds = wlbounds
+    def __init__(self, *, line_lists,
+                 arc_spectra: Spectrum1D | Iterable[Spectrum1D] | None = None,
+                 obs_lines: ndarray | Iterable[ndarray] | None = None,
+                 wlbounds: tuple[float, float] = (0, np.inf),
+                 wave_air: bool = False):
+
+        if arc_spectra is None and obs_lines is None:
+            raise ValueError("Either arc_spectra or obs_lines must be provided.")
+
+        if arc_spectra is not None and obs_lines is not None:
+            raise ValueError("Only one of arc_spectra or obs_lines can be provided.")
+
+        self.arc_spectra: Iterable[Spectrum1D] = [arc_spectra] if isinstance(arc_spectra, Spectrum1D) else arc_spectra
+        self.lines_pix: Iterable[ndarray] = [obs_lines] if isinstance(obs_lines, ndarray) else obs_lines
+
+        self.lines_wav: Iterable[ndarray] | None = None
+        self._trees: Iterable[KDTree] | None = None
+        self._read_linelists(line_lists)
+
+        self.wlbounds: tuple[float, float] = wlbounds
         self.wave_air: bool = wave_air
-        self.linelists: list | None = []
-        self.lines_pix: ndarray | None = None
-        self.lines_wav: ndarray | None = None
-        self._fitted_model: Model | None = None
+
         self._fit: optimize.OptimizeResult | None = None
         self._wcs: wcs.WCS | None = None
-        self._trees: Iterable[KDTree] | None = None
+
         self._p2w: Model | None = None           # The fitted pixel -> wavelength model
         self._w2p: Model | None = None           # The fitted wavelength -> pixel model
         self._p2w_dldx: Model | None = None      # delta lambda / delta pixel
         self._w2p_dxdl: Model | None = None      # delta pixel / delta lambda
-        self._read_linelists()
 
-    def _read_linelists(self):
+    def _read_linelists(self, line_lists):
         """Load and filter calibration line lists for specified lamps and wavelength bounds.
 
         Notes
@@ -71,11 +84,22 @@ class WavelengthSolution1D:
         wavelength list and stored in `self._trees` for quick nearest-neighbor
         queries of line wavelengths.
         """
-        for l in self.lamps:
-            ll = load_pypeit_calibration_lines(l, wave_air=self.wave_air)
-            self.linelists.append(ll[(ll['wavelength'].value > self.wlbounds[0]) &
-                                     (ll['wavelength'].value < self.wlbounds[1])])
-        self.lines_wav = [lo['wavelength'].value for lo in self.linelists]
+        if not isinstance(line_lists, (tuple, list)):
+            line_lists = [line_lists]
+
+        self.lines_wav = []
+        for l in line_lists:
+            if isinstance(l, ndarray):
+                self.lines_wav.append(l)
+            else:
+                lines = []
+                if isinstance(l, str):
+                    l = [l]
+                for ll in l:
+                    lines.append(load_pypeit_calibration_lines(l, wave_air=self.wave_air)['wavelength'].value)
+                self.lines_wav.append(np.concatenate(lines))
+        for i, l in enumerate(self.lines_wav):
+            self.lines_wav[i] = l[(l >= self.wlbounds[0]) & (l <= self.wlbounds[1])]
         self._trees = [KDTree(l[:, None]) for l in self.lines_wav]
 
     def find_lines(self, fwhm: float):
@@ -95,9 +119,37 @@ class WavelengthSolution1D:
             lines_obs = [find_arc_lines(sp, fwhm) for sp in self.arc_spectra]
         self.lines_pix = [lo['centroid'].value for lo in lines_obs]
 
-    def fit(self, ref_pixel: float, wl0: tuple[float, float], dwl: tuple[float, float],
-            popsize: int = 30, max_distance: float = 100):
+    def fit(self, ref_pixel: float,
+            wavelength_bounds: tuple[float, float],
+            dispersion_bounds: tuple[float, float],
+            popsize: int = 30,
+            max_distance: float = 100):
+        """Calculate and refine the pixel-to-wavelength and wavelength-to-pixel transformations.
 
+        This method determines the functional relationships between pixel positions and
+        wavelengths in a spectrum, including their derivatives, by fitting calibration data
+        to given constraints. The transformations include forward (pixel-to-wavelength)
+        and backward (wavelength-to-pixel) mappings as well as their respective derivatives
+        across the spectral axis.
+
+        Parameters
+        ----------
+        ref_pixel : float
+            The reference pixel position used as the zero point for the transformation.
+        wavelength_bounds : tuple of float
+            Initial bounds for the wavelength value at the reference pixel.
+        dispersion_bounds : tuple of float
+            Initial bounds for the dispersion value at the reference pixel.
+        popsize : int, optional
+            The population size for differential evolution optimization.
+        max_distance : float, optional
+            The maximum allowable distance when querying the tree in the optimization process.
+
+        Raises
+        ------
+        ValueError
+            Raised if the optimization or fitting process fails due to invalid inputs or constraints.
+        """
         model = models.Shift(-ref_pixel) | models.Polynomial1D(3)
         def minfun(x):
             return sum(
@@ -106,11 +158,11 @@ class WavelengthSolution1D:
 
         # Calculate the pixel -> wavelength transform and its derivative along the spectral axis
         self._fit = fit = optimize.differential_evolution(minfun,
-                                                          bounds=[wl0, dwl, [-1e-3, 1e-3], [-1e-4, 1e-4]],
+                                                          bounds=[wavelength_bounds, dispersion_bounds, [-1e-3, 1e-3], [-1e-4, 1e-4]],
                                                           popsize=popsize)
         self._p2w = models.Shift(-ref_pixel) | models.Polynomial1D(3, **{f'c{i}': fit.x[i] for i in
                                                                                   range(fit.x.size)})
-        self.refine_fit()
+        self._refine_fit()
         p2w = self._p2w
         self._p2w_dldx = models.Shift(p2w.offset_0) | diff_poly1d(p2w[1])
 
@@ -123,14 +175,60 @@ class WavelengthSolution1D:
             self._w2p = w2p = models.Shift(-p2w.c0_1) | fitting.DogBoxLSQFitter()(w2p, vwav - p2w.c0_1.value, vpix)
         self._w2p_dxdl = models.Shift(w2p.offset_0) | diff_poly1d(w2p[1])
 
-    def refine_fit(self, degree: int = 4, match_distance_bound: float = 5.0):
+    def _refine_fit(self, degree: int = 4, match_distance_bound: float = 5.0):
+        """Refine the global fit of the pixel-to-wavelength transformation.
+
+        Refines the fit of a polynomial model to data by performing a fitting operation
+        using matched pixel and wavelength data points. The method uses a linear least
+        squares fitter to optimize the model parameters based on the match.
+
+        Parameters
+        ----------
+        degree : int, optional
+            The degree of the polynomial model used for fitting. Higher values
+            allow for more complex polynomial models. Default is 4.
+
+        match_distance_bound : float, optional
+            Maximum allowable distance used to identify matched pixel and wavelength
+            data points. Points exceeding the bound will not be considered in the fit.
+            Default is 5.0.
+        """
         matched_pix, matched_wav = self.match_lines(match_distance_bound)
         model = models.Polynomial1D(degree, **{n: getattr(self._p2w[-1], n).value for n in self._p2w[-1].param_names})
         fitter = fitting.LinearLSQFitter()
         self._p2w = self._p2w[0].copy() | fitter(model, matched_pix + self._p2w.offset_0.value, matched_wav)
 
-    def resample(self, flux, nbins: int | None = None, wlbounds: tuple[float, float] | None = None,
+    def resample(self, flux: Spectrum1D,
+                 nbins: int | None = None,
+                 wlbounds: tuple[float, float] | None = None,
                  bin_edges: Iterable[float] | None = None):
+        """Resample the given 1D spectrum to a specified wavelength bins conserving the flux.
+
+        This function adjusts the flux data by resampling it over wavelength bins. The wavelength mapping
+        is determined by the object's internal methods `_p2w` and `_p2w_dldx` for pixel-to-wavelength
+        conversion. The resulting flux values are normalized to ensure consistency with the input flux's
+        total spectral intensity.
+
+        Parameters
+        ----------
+        flux : ndarray
+            1D array representing the flux data to be resampled over the wavelength space.
+        nbins : int or None, optional
+            The number of bins for resampling. If not provided, it defaults to the size of the input
+            `flux` array.
+        wlbounds : tuple of float or None, optional
+            A tuple specifying the starting and ending wavelengths for resampling. If not provided, the
+            wavelength bounds are inferred from the object's methods and the entire flux array is used.
+        bin_edges : Iterable of float or None, optional
+            Explicit bin edges in the wavelength space. If provided, `nbins` and `wlbounds` are ignored.
+
+        Returns
+        -------
+        bin_centers_wav : ndarray
+            1D array containing the center wavelengths of the resampled bins.
+        flux_wl : ndarray
+            1D array containing the flux values resampled and normalized over the defined bins.
+        """
         npix = flux.size
         nbins = npix if nbins is None else nbins
         if wlbounds is None:
