@@ -1,8 +1,26 @@
-1.5.0 (unreleased)
+1.5.1 (unreleased)
 ------------------
 
 New Features
 ^^^^^^^^^^^^
+
+API Changes
+^^^^^^^^^^^
+
+Bug Fixes
+^^^^^^^^^
+
+Other changes
+^^^^^^^^^^^^^
+
+1.5.0 (2024-01-16)
+------------------
+
+New Features
+^^^^^^^^^^^^
+- Added the ``mask_treatment`` parameter to Background, Trace, and Boxcar Extract
+  operations to handle non-finite data and boolean masks. Choice of ``filter``,
+  ``omit``, or ``zero-fill``. [#216]
 
 API Changes
 ^^^^^^^^^^^
