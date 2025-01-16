@@ -17,6 +17,24 @@ from specreduce.line_matching import find_arc_lines
 
 
 def diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
+    """Compute the derivative of a Polynomial1D model.
+
+    Computes the derivative of a Polynomial1D model and returns a new Polynomial1D
+    model representing the derivative. The coefficients of the input model are
+    used to calculate the coefficients of the derivative model. For a Polynomial1D
+    of degree n, the derivative is a Polynomial1D of degree n-1.
+
+    Parameters
+    ----------
+    m
+        A Polynomial1D model for which the derivative is to be computed.
+
+    Returns
+    -------
+    models.Polynomial1D
+        A new Polynomial1D model representing the derivative of the input
+        Polynomial1D model.
+    """
     coeffs = {f'c{i-1}': i*getattr(m, f'c{i}').value for i in range(1, m.degree+1)}
     return models.Polynomial1D(m.degree-1, **coeffs)
 
@@ -38,10 +56,21 @@ class WavelengthSolution1D:
         self._w2p: Model | None = None           # The fitted wavelength -> pixel model
         self._p2w_dldx: Model | None = None      # delta lambda / delta pixel
         self._w2p_dxdl: Model | None = None      # delta pixel / delta lambda
-
         self._read_linelists()
 
     def _read_linelists(self):
+        """Load and filter calibration line lists for specified lamps and wavelength bounds.
+
+        Notes
+        -----
+        This method uses the `load_pypeit_calibration_lines` function to load the
+        line lists for each lamp. It filters the loaded data to only include lines
+        within the defined wavelength boundaries. The filtered data is stored in
+        `self.linelists`, and the wavelengths are extracted and stored in
+        `self.lines_wav`. Additionally, KDTree objects are created for each extracted
+        wavelength list and stored in `self._trees` for quick nearest-neighbor
+        queries of line wavelengths.
+        """
         for l in self.lamps:
             ll = load_pypeit_calibration_lines(l, wave_air=self.wave_air)
             self.linelists.append(ll[(ll['wavelength'].value > self.wlbounds[0]) &
@@ -50,6 +79,17 @@ class WavelengthSolution1D:
         self._trees = [KDTree(l[:, None]) for l in self.lines_wav]
 
     def find_lines(self, fwhm: float):
+        """Finds lines in the provided arc spectra.
+
+        This method determines the spectral lines within each spectrum of the arc spectra
+        based on the provided initial guess for the line Full Width at Half Maximum (FWHM).
+
+        Parameters
+        ----------
+        fwhm
+            Initial guess for the FWHM for the spectral lines, used as a parameter in
+            the ``find_arc_lines`` function to locate and identify spectral arc lines.
+        """
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             lines_obs = [find_arc_lines(sp, fwhm) for sp in self.arc_spectra]
