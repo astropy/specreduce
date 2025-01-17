@@ -395,8 +395,10 @@ s.
                                  constrained_layout=True, squeeze=False)
         else:
             fig = axes[0].figure
-        for i, sp in enumerate(self.arc_spectra):
-            axes[i,0].plot(sp.data / (1.2 * sp.data.max()))
+
+        for i in range(self.ndata):
+            if self.arc_spectra is not None:
+                axes[i,0].plot(self.arc_spectra[i].data / (1.2 * self.arc_spectra[i].data.max()))
             axes[i,0].vlines(self.lines_pix[i], 0.0, 1, alpha=0.1)
             axes[i,0].vlines(self.lines_pix[i], 0.9, 1)
             axes[i,0].autoscale(enable=True, axis='x', tight=True)
@@ -436,8 +438,10 @@ s.
 
         model = model if model is not None else self._p2w
 
-        for i, sp in enumerate(self.arc_spectra):
-            axes[i,0].plot(model(sp.spectral_axis.value), sp.data / (1.2 * sp.data.max()))
+        for i in range(self.ndata):
+            if self.arc_spectra is not None:
+                sp = self.arc_spectra[i]
+                axes[i,0].plot(model(sp.spectral_axis.value), sp.data / (1.2 * sp.data.max()))
             axes[i,0].vlines(self.lines_wav[i], 0.0, 1.0, alpha=0.3, ec='darkorange', zorder=0)
             axes[i,0].vlines(model(self.lines_pix[i]), 0.9, 1.0, alpha=1)
             axes[i,0].autoscale(enable=True, axis='x', tight=True)
