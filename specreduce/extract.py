@@ -457,7 +457,6 @@ class HorneExtract(SpecreduceOperation):
         compound model, if `bkgrd_prof` is supplied) fit to data.
         """
         nrows = img.shape[crossdisp_axis]
-        ncols = img.shape[disp_axis]
         xd_pixels = np.arange(nrows)
 
         # co-add signal in each image row, ignore masked pixels
