@@ -186,7 +186,11 @@ class WavelengthSolution1D:
         through polynomial fitting. This method uses the DogBoxLSQFitter to fit the data and produces
         a transformation model to establish the inverse relation.
         """
-        vpix = self.arc_spectra[0].spectral_axis.value
+        if self.arc_spectra is None:
+            vpix = np.concatenate(self.lines_pix)
+        else:
+            vpix = self.arc_spectra[0].spectral_axis.value
+
         vwav = self._p2w(vpix)
         w2p = models.Polynomial1D(6, c0=-self._p2w.offset_0, c1=1/self._p2w.c1_1, fixed={'c0': True})
         with warnings.catch_warnings():
@@ -431,7 +435,7 @@ s.
         fig : matplotlib.figure.Figure
         """
         if axes is None:
-            fig, axes = subplots(len(self.arc_spectra), 1, figsize=figsize, sharex='all',
+            fig, axes = subplots(self.ndata, 1, figsize=figsize, sharex='all',
                                  constrained_layout=True, squeeze=False)
         else:
             fig = axes[0].figure
@@ -448,7 +452,8 @@ s.
         setp(axes[-1], xlabel=f'Wavelength [{self.unit.to_string(format="latex")}]')
         return fig
 
-    def plot_transforms(self, figsize: tuple[float, float] | None = None) -> Figure:
+    def plot_transforms(self, figsize: tuple[float, float] | None = None,
+                        plim: tuple[int, int] | None = None) -> Figure:
         """ Plot and visualize transformation functions between pixel and wavelength space.
 
         This method generates a grid of subplots to illustrate the transformations
@@ -460,13 +465,19 @@ s.
         ----------
         figsize
             Width, height in inches to control the size of the figure.
+        plim
+            Lower and upper limits for pixel values used for plotting.
 
         Returns
         -------
         matplotlib.figure.Figure
         """
         fig, axs = subplots(2, 2, figsize=figsize, constrained_layout=True, sharex='col')
-        xpix = self.arc_spectra[0].spectral_axis.value
+        if self.arc_spectra is not None and plim is None:
+            xpix = self.arc_spectra[0].spectral_axis.value
+        else:
+            xpix = np.arange(*(plim or (0, 2000)))
+
         xwav = np.linspace(*self.pix_to_wav(xpix[[0, -1]]), num=xpix.size)
         axs[0, 0].plot(xpix, self._p2w(xpix), 'k')
         axs[1, 0].plot(xpix[:-1], np.diff(self._p2w(xpix)) / np.diff(xpix), lw=4, c='k')
