@@ -149,15 +149,15 @@ class BoxcarExtract(SpecreduceOperation):
         cross-dispersion axis
     mask_treatment
         The method for handling masked or non-finite data. Choice of ``filter``,
-        ``omit``, or ``zero-fill``. If `filter` is chosen, the mask is ignored
+        ``omit``, or ``exclude``. If ``filter`` is chosen, the mask is ignored
         and the non-finite data will passed to the extraction as is. If ``omit``
         is chosen, columns along disp_axis with any masked or non-finite data
         values will be fully masked (i.e, 2D mask is collapsed to 1D and applied).
-        If ``zero-fill`` is chosen, masked and non-finite data will be replaced
-        with 0.0 in the input image, and the mask will then be dropped.
-        For all three options, the input mask (optional on input NDData object)
-        will be combined with a mask generated from any non-finite values in the
-        image data.
+        If ``exclude`` is chosen, masked and non-finite data will be excluded
+        from the extraction and the spectrum extraction is carried out as a
+        weighted sum. For all three options, the input mask (optional on input
+        NDData object) will be combined with a mask generated from any non-finite
+        values in the image data.
 
     Returns
     -------
@@ -170,8 +170,9 @@ class BoxcarExtract(SpecreduceOperation):
     disp_axis: int = 1
     crossdisp_axis: int = 0
     # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
-    mask_treatment: Literal['filter', 'omit', 'zero-fill'] = 'filter'
-    _valid_mask_treatment_methods = ('filter', 'omit', 'zero-fill')
+    # TODO: should the 'filter' option be changed to 'propagate'
+    mask_treatment: Literal['filter', 'omit', 'exclude'] = 'exclude'
+    _valid_mask_treatment_methods = ('filter', 'omit', 'exclude')
 
     @property
     def spectrum(self):
@@ -181,61 +182,63 @@ class BoxcarExtract(SpecreduceOperation):
                  trace: Trace | None = None,
                  width: float | None = None,
                  disp_axis: int | None = None,
-                 crossdisp_axis: int | None = None):
+                 crossdisp_axis: int | None = None) -> Spectrum1D:
         """
         Extract the 1D spectrum using the boxcar method.
 
         Parameters
         ----------
-        image : `~astropy.nddata.NDData`-like or array-like, required
-            image with 2-D spectral image data
-        trace : Trace, required
-            trace object
-        width : float, optional
-            width of extraction aperture in pixels [default: 5]
-        disp_axis : int, optional
-            dispersion axis [default: 1]
-        crossdisp_axis : int, optional
-            cross-dispersion axis [default: 0]
+        image
+            The image with 2-D spectral image data
+        trace
+            The trace object
+        width
+            The width of extraction aperture in pixels
+        disp_axis
+            The dispersion axis
+        crossdisp_axis
+            The cross-dispersion axis
 
         Returns
         -------
-        spec : `~specutils.Spectrum1D`
+        spec
             The extracted 1d spectrum with flux expressed in the same
             units as the input image, or u.DN, and pixel units
         """
         image = image if image is not None else self.image
-        trace = trace if trace is not None else self.trace_object
-        width = width if width is not None else self.width
-        disp_axis = disp_axis if disp_axis is not None else self.disp_axis
-        crossdisp_axis = crossdisp_axis if crossdisp_axis is not None else self.crossdisp_axis
-
-        # Parse image, including masked/nonfinite data handling based on
-        # choice of `mask_treatment`, which for BoxcarExtract can be filter, zero-fill, or
-        # omit. non-finite data will be masked, always. Returns a Spectrum1D.
-        self.image = self._parse_image(image, disp_axis=disp_axis,
-                                       mask_treatment=self.mask_treatment)
-
-        # # _parse_image returns a Spectrum1D. convert this to a masked array
-        # # for ease of calculations here (even if there is no masked data).
-        # img = np.ma.masked_array(self.image.data, self.image.mask)
+        trace = trace or self.trace_object
+        width = width or self.width
+        disp_axis = disp_axis or self.disp_axis
+        cdisp_axis = crossdisp_axis or self.crossdisp_axis
+        mask_mapping = {'filter': 'filter', 'exclude': 'filter', 'omit': 'omit'}
 
         if width <= 0:
-            raise ValueError("width must be positive")
+            raise ValueError("The window width must be positive")
 
-        # weight image to use for extraction
-        wimg = _ap_weight_image(trace,
-                                width,
-                                disp_axis,
-                                crossdisp_axis,
-                                self.image.shape)
+        # Parse image, including masked/nonfinite data handling based on
+        # choice of `mask_treatment`, which for BoxcarExtract can be filter, omit, or
+        # exclude. non-finite data will be masked, always. Returns a Spectrum1D.
+        self.image = self._parse_image(image, disp_axis=disp_axis,
+                                       mask_treatment=mask_mapping[self.mask_treatment])
 
-        # extract, assigning no weight to non-finite pixels outside the window
-        # (non-finite pixels inside the window will still make it into the sum)
-        image_windowed = np.where(wimg, self.image.data*wimg, 0)
-        ext1d = np.sum(image_windowed, axis=crossdisp_axis)
-        return Spectrum1D(ext1d * self.image.unit,
-                          spectral_axis=self.image.spectral_axis)
+        # Spectrum extraction
+        # ===================
+        # Assign no weight to non-finite pixels outside the window. Non-finite pixels inside
+        # the window will be propagated to the sum if mask treatment is either ``filter`` or
+        # ``omit`` or excluded if the chosen mask treatment option is ``exclude``. In the
+        # latter case, the flux is calculated as the average of the non-masked pixels inside
+        # the window multiplied by the window width.
+        window_weights = _ap_weight_image(trace, width, disp_axis, cdisp_axis, self.image.shape)
+
+        if self.mask_treatment == 'exclude':
+            image_cleaned = np.where(~self.image.mask, self.image.data*window_weights, 0.0)
+            weights = np.where(~self.image.mask, window_weights, 0.0)
+            spectrum = image_cleaned.sum(axis=cdisp_axis) / weights.sum(axis=cdisp_axis) * width
+        else:
+            image_windowed = np.where(window_weights, self.image.data*window_weights, 0.0)
+            spectrum = np.sum(image_windowed, axis=cdisp_axis)
+
+        return Spectrum1D(spectrum * self.image.unit, spectral_axis=self.image.spectral_axis)
 
 
 @dataclass
