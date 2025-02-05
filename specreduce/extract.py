@@ -8,6 +8,7 @@ import numpy as np
 from astropy import units as u
 from astropy.modeling import Model, models, fitting
 from astropy.nddata import NDData, VarianceUncertainty
+from numpy import ndarray
 from scipy.integrate import trapezoid
 from scipy.interpolate import RectBivariateSpline
 from specutils import Spectrum1D
@@ -445,27 +446,21 @@ class HorneExtract(SpecreduceOperation):
         return Spectrum1D(img * unit, spectral_axis=spectral_axis,
                           uncertainty=variance, mask=mask)
 
-    def _fit_gaussian_spatial_profile(self, img, disp_axis, crossdisp_axis,
-                                      or_mask, bkgrd_prof):
+    def _fit_gaussian_spatial_profile(self, img: ndarray, disp_axis: int, crossdisp_axis: int,
+                                      or_mask: ndarray, bkgrd_prof: Model):
+        """Fit a 1D Gaussian spatial profile to spectrum in `img`.
 
+        Fits an 1D Gaussian profile to spectrum in `img`. Takes the weighted mean
+        of  ``img`` along the cross-dispersion axis all ignoring masked pixels
+        (i.e, takes the mean of each row for a horizontal trace). A Background model
+        (optional) is fit simultaneously. Returns an `astropy.model.Gaussian1D` (or
+        compound model, if `bkgrd_prof` is supplied) fit to data.
         """
-            Fits an 1D Gaussian profile to spectrum in `img`. Takes the mean
-            of  ``img`` along the cross-dispersion axis (i.e, takes the mean of
-            each row for a horizontal trace). Any columns with non-finite values
-            are omitted from the fit. Background model (optional) is fit
-            simultaneously. Returns an `astropy.model.Gaussian1D` (or compound
-            model, if `bkgrd_prof` is supplied) fit to data.
-        """
-
-        # co-add signal in each image row
         nrows = img.shape[crossdisp_axis]
-        ncols = img.shape[disp_axis]
         xd_pixels = np.arange(nrows)
 
-        # for now, mask row with any non-finite value.
-        row_mask = np.logical_or.reduce(or_mask, axis=disp_axis)
-        coadd = np.ma.masked_array(np.sum(img, axis=disp_axis) / ncols,
-                                   mask=row_mask)
+        # co-add signal in each image row, ignore masked pixels
+        coadd = np.ma.masked_array(img, mask=or_mask).mean(disp_axis)
 
         # use the sum of brightest row as an inital guess for Gaussian amplitude,
         # the the location of the brightest row as an initial guess for the mean
@@ -481,9 +476,10 @@ class HorneExtract(SpecreduceOperation):
             # add a trivial constant model so attribute names are the same
             ext_prof = gauss_prof + models.Const1D(0, fixed={'amplitude': True})
 
-        fitter = fitting.LevMarLSQFitter()
-        fit_ext_kernel = fitter(ext_prof, xd_pixels[~row_mask], coadd[~row_mask])
-
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            fitter = fitting.LMLSQFitter()
+            fit_ext_kernel = fitter(ext_prof, xd_pixels[~coadd.mask], coadd.compressed())
         return fit_ext_kernel
 
     def _fit_self_spatial_profile(self, img, disp_axis, crossdisp_axis, or_mask,
