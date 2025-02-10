@@ -88,10 +88,17 @@ then this will be used. Otherwise, the ``variance`` parameter must be set.::
   extract = specreduce.extract.HorneExtract(image-bg, trace, variance=var_array)
 
 An optional mask array for the image may be supplied to HorneExtract as well. 
-This follows the same convention and can either be attacted to ``image`` if it
-is and ``astropy.NDData`` object, or supplied as a keyword argrument. Note that
-any wavelengths columns containing any masked values will be omitted from the
-extraction.
+This follows the same convention and can either be attached to ``image`` if it
+is an ``astropy.NDData`` object, or supplied as a keyword argument.
+
+The extraction methods automatically detect non-finite pixels in the input
+image and combine them with the user-supplied mask to prevent them from biasing the
+extraction. In the boxcar extraction, the treatment of these pixels is controlled by
+the ``mask_treatment`` option. When set to ``exclude`` (the default), non-finite
+pixels within the extraction window are excluded from the extraction, and the extracted
+flux is scaled according to the effective number of unmasked pixels. When using other
+options (``filter`` or ``omit``), the non-finite values may be propagated or treated
+differently as documented in the API.
 
 The previous examples in this section show how to initialize the BoxcarExtract
 or HorneExtract objects with their required parameters. To extract the 1D
@@ -111,8 +118,8 @@ or, for example to override the original ``trace_object``::
 Spatial profile options
 -----------------------
 The Horne algorithm provides two options for fitting the spatial profile to the
-cross_dispersion direction of the source: a Gaussian fit (default),
-or an empirical 'interpolated_profile' option.
+cross dispersion direction of the source: a Gaussian fit (default),
+or an empirical ``interpolated_profile`` option.
 
 If the default Gaussian option is used, an optional background model may be
 supplied as well (default is a 2D Polynomial) to account
