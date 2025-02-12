@@ -605,70 +605,35 @@ class HorneExtract(SpecreduceOperation):
         disp_axis = disp_axis if disp_axis is not None else self.disp_axis
         crossdisp_axis = crossdisp_axis if crossdisp_axis is not None else self.crossdisp_axis
         bkgrd_prof = bkgrd_prof if bkgrd_prof is not None else self.bkgrd_prof
-        spatial_profile = (spatial_profile if spatial_profile is not None else
-                           self.spatial_profile)
+        profile = (spatial_profile if spatial_profile is not None else self.spatial_profile)
         variance = variance if variance is not None else self.variance
         mask = mask if mask is not None else self.mask
         unit = unit if unit is not None else self.unit
 
-        # figure out what 'spatial_profile' was provided
-        # put this parsing into another method at some point, its a lot..
-        interp_degree_interpolated_profile = None
-        n_bins_interpolated_profile = None
-        spatial_profile_choices = ('gaussian', 'interpolated_profile')
+        profile_choices = ('gaussian', 'interpolated_profile')
 
-        if isinstance(spatial_profile, str):
-            spatial_profile = spatial_profile.lower()
-            if spatial_profile not in spatial_profile_choices:
-                raise ValueError("spatial_profile must be one of"
-                                 f"{', '.join(spatial_profile_choices)}")
-            if spatial_profile == 'interpolated_profile':  # use defaults
-                bkgrd_prof = None
-                n_bins_interpolated_profile = 10
-                interp_degree_interpolated_profile = 1
-        elif isinstance(spatial_profile, dict):
-            # first, figure out what type of profile is indicated
-            # right now, the only type that should use a dictionary is 'interpolated_profile'
-            # but this may be extended in the future hence the 'name' key. also,
-            # the gaussian option could be supplied as a single-key dict
-
-            # will raise key error if not present, and also fail on .lower if not
-            # a string - think this is informative enough
-            spatial_profile_type = spatial_profile['name'].lower()
-
-            if spatial_profile_type not in spatial_profile_choices:
-                raise ValueError("spatial_profile must be one of"
-                                 f"{', '.join(spatial_profile_choices)}")
-            if spatial_profile_type == 'gaussian':
-                spatial_profile = 'gaussian'
-            else:
-                if 'n_bins_interpolated_profile' in spatial_profile.keys():
-                    n_bins_interpolated_profile = \
-                        spatial_profile['n_bins_interpolated_profile']
-                else:  # use default
-                    n_bins_interpolated_profile = 10
-                if 'interp_degree_interpolated_profile' in spatial_profile.keys():
-                    interp_degree_interpolated_profile = \
-                        spatial_profile['interp_degree_interpolated_profile']
-                else:  # use default
-                    interp_degree_interpolated_profile = 1
-            spatial_profile = spatial_profile_type
-            bkgrd_prof = None
-        else:
+        if not isinstance(profile, (str, dict)):
             raise ValueError('``spatial_profile`` must either be string or dictionary.')
+        if isinstance(profile, str):
+            profile = dict(name=profile)
 
-        # parse image and replace optional arguments with updated values
+        profile_type = profile['name'].lower()
+        if profile_type not in profile_choices:
+            raise ValueError("spatial_profile must be one of" f"{', '.join(profile_choices)}")
+
+        n_bins_interpolated_profile = profile.get('n_bins_interpolated_profile', 10)
+        interp_degree_interpolated_profile = profile.get('interp_degree_interpolated_profile', 1)
+        if profile_type == 'interpolated_profile':
+            bkgrd_prof = None
+
         self.image = self._parse_image(image, variance, mask, unit, disp_axis)
-        variance = self.image.uncertainty.array
-        mask = self.image.mask
+        variance = self.image.uncertainty.represent_as(VarianceUncertainty).array
+        mask = self.image.mask.astype(bool) | (~np.isfinite(self.image.data))
         unit = self.image.unit
+        img = self.image.data
 
-        img = np.ma.masked_array(self.image.data, mask=mask)
-
-        # create separate mask including any previously uncaught non-finite
-        # values for purposes of calculating fit
-        or_mask = np.logical_or(img.mask,
-                                ~np.isfinite(self.image.data))
+        nrows = img.shape[crossdisp_axis]  # spatial dimension
+        ncols = img.shape[disp_axis]       # dispersion dimension
 
         # If the trace is not flat, shift the rows in each column
         # so the image is aligned along the trace:
@@ -679,27 +644,16 @@ class HorneExtract(SpecreduceOperation):
                 disp_axis=disp_axis,
                 crossdisp_axis=crossdisp_axis)
 
-        if self.spatial_profile == 'gaussian':
-
-            # fit profile to average (mean) profile along crossdisp axis
+        if profile_type == 'gaussian':
             fit_ext_kernel = self._fit_gaussian_spatial_profile(img,
                                                                 disp_axis,
                                                                 crossdisp_axis,
-                                                                or_mask,
+                                                                mask,
                                                                 bkgrd_prof)
-
-            # this is just creating an array of the trace to shift the mean
-            # when iterating over each wavelength. this needs to be fixed in the
-            # future to actually account for the trace shape in a non-flat trace
-            # (or possibly omitted all togehter as it might be redundant if
-            # _align_along_trace is correcting this already)
             if isinstance(trace_object, FlatTrace):
-                mean_init_guess = trace_object.trace
+                mean_row = trace_object.trace
             else:
-                mean_init_guess = np.broadcast_to(
-                    img.shape[crossdisp_axis] // 2, img.shape[disp_axis]
-                )
-
+                mean_row = np.broadcast_to(nrows//2, ncols)
         else:  # interpolated_profile
             # for now, bkgrd_prof must be None because a compound model can't
             # be created with a interpolator + model. i think there is a way
@@ -710,7 +664,7 @@ class HorneExtract(SpecreduceOperation):
                                  ' be fit and subtracted from `img` beforehand.')
             # make sure n_bins doesnt exceed the number of (for now) finite
             # columns. update this when masking is fixed.
-            n_finite_cols = np.logical_or.reduce(or_mask, axis=crossdisp_axis)
+            n_finite_cols = np.logical_or.reduce(mask, axis=crossdisp_axis)
             n_finite_cols = np.count_nonzero(n_finite_cols.astype(int) == 0)
 
             # determine interpolation degree from input and make tuple if int
@@ -737,73 +691,40 @@ class HorneExtract(SpecreduceOperation):
 
             interp_spatial_prof = self._fit_self_spatial_profile(img, disp_axis,
                                                                  crossdisp_axis,
-                                                                 or_mask,
+                                                                 mask,
                                                                  n_bins_interpolated_profile,
                                                                  kx, ky)
 
             # add private attribute to save fit profile. should this be public?
             self._interp_spatial_prof = interp_spatial_prof
 
-        col_mask = np.logical_or.reduce(or_mask, axis=crossdisp_axis)
-        nonf_col = [np.nan] * img.shape[crossdisp_axis]
-
-        # array of 'x' values for each wavelength for extraction
-        nrows = img.shape[crossdisp_axis]
         xd_pixels = np.arange(nrows)
 
-        kernel_vals = []
-        norms = []
-        for col_pix in range(img.shape[disp_axis]):
+        kernel_vals = np.zeros(img.shape)
+        norms = np.full(ncols, np.nan)
+        valid = ~mask
 
-            # for now, skip columns with any non-finite values
-            # NOTE: fit and other kernel operations should support masking again
-            # once a fix is in for renormalizing columns with non-finite values
-            if col_mask[col_pix]:
-                kernel_vals.append(nonf_col)
-                norms.append(np.nan)
+        if profile_type == 'gaussian':
+            norms[:] = fit_ext_kernel.amplitude_0 * fit_ext_kernel.stddev_0 * np.sqrt(2*np.pi)
+
+        for col_pix in range(ncols):
+            if not np.any(valid[col_pix]):
                 continue
-
-            if self.spatial_profile == 'gaussian':
-
-                # set compound model's mean to column's matching trace value
-                # again, this is probably not necessary
-                if bkgrd_prof is not None:  # attr names will be diff. if not compound
-                    fit_ext_kernel.mean_0 = mean_init_guess[col_pix]
-                else:
-                    fit_ext_kernel.mean = mean_init_guess[col_pix]
-
-                # evaluate fit model (with shifted mean, based on trace)
+            if profile_type == 'gaussian':
+                fit_ext_kernel.mean_0 = mean_row[col_pix]
                 fitted_col = fit_ext_kernel(xd_pixels)
-
-                # save result and normalization
-                # this doesn't need to be in this loop, address later
-                kernel_vals.append(fitted_col)
-
-                norms.append(fit_ext_kernel.amplitude_0
-                             * fit_ext_kernel.stddev_0 * np.sqrt(2*np.pi))
-
-            else:  # interpolated_profile
+                kernel_vals[:, col_pix] = fitted_col
+            else:
                 fitted_col = interp_spatial_prof(col_pix, xd_pixels)
-                kernel_vals.append(fitted_col)
-                norms.append(trapezoid(fitted_col, dx=1)[0])
+                kernel_vals[:, col_pix] = fitted_col
+                norms[col_pix] = trapezoid(fitted_col, dx=1)[0]
 
-        # transform fit-specific information
-        kernel_vals = np.vstack(kernel_vals).T
-        norms = np.array(norms)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            num = np.sum(np.where(valid, img * kernel_vals / variance, 0.0), axis=crossdisp_axis)
+            den = np.sum(np.where(valid, kernel_vals**2 / variance, 0.0), axis=crossdisp_axis)
+            extraction = (num / den) * norms
 
-        # calculate kernel normalization
-        g_x = np.sum(kernel_vals**2 / variance, axis=crossdisp_axis)
-
-        # sum by column weights
-        weighted_img = np.divide(img * kernel_vals, variance)
-        result = np.sum(weighted_img, axis=crossdisp_axis) / g_x
-
-        # multiply kernel normalization into the extracted signal
-        extraction = result * norms
-
-        # convert the extraction to a Spectrum1D object
-        return Spectrum1D(extraction * unit,
-                          spectral_axis=self.image.spectral_axis)
+        return Spectrum1D(extraction * unit, spectral_axis=self.image.spectral_axis)
 
 
 def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):
