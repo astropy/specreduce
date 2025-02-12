@@ -482,53 +482,58 @@ class HorneExtract(SpecreduceOperation):
             fit_ext_kernel = fitter(ext_prof, xd_pixels[~coadd.mask], coadd.compressed())
         return fit_ext_kernel
 
-    def _fit_self_spatial_profile(self, img, disp_axis, crossdisp_axis, or_mask,
-                                  n_bins_interpolated_profile, kx, ky):
+    def _fit_spatial_profile(self, img: ndarray, disp_axis: int, crossdisp_axis: int,
+                             mask: ndarray, n_bins: int,
+                             kx: int, ky: int) -> RectBivariateSpline:
 
         """
-            Fit a spatial profile to spectrum by sampling the median profile in
-            bins (number of which set be `n_bins_interpolated_profile` along the
-            dispersion direction, and interpolating between
-            samples. Columns (assuming horizontal trace) with any non-finite
-            values will be omitted from the fit. Returns an interpolator object
-            (RectBivariateSpline) that can be evaluated at any x,y.
+        Fit a spatial profile by sampling the median profile along the dispersion direction.
+
+        This method extracts the spatial profile from an input spectrum by binning
+        the data along the dispersion axis. It calculates the median profile for each bin,
+        normalizes it, and then interpolates between these profiles to create a smooth
+        2D representation of the spatial profile. The resulting interpolator object can be
+        used to evaluate the spatial profile at any coordinate within the bounds of the data.
+
+        Parameters
+        ----------
+        img
+            The 2D array of spectral data to process.
+        disp_axis
+            The image axis corresponding to the dispersion direction.
+        crossdisp_axis
+            The image axis corresponding to the cross-dispersion direction.
+        mask
+            A boolean mask array with the same shape as the image. Values of ``True``
+            in the mask indicate invalid data points to be ignored during computation.
+        n_bins
+            The number of bins to use along the dispersion axis for sampling
+            the median spatial profile.
+        kx
+            The degree of the spline along the dispersion axis.
+        ky
+            The degree of the spline along the cross-dispersion axis.
+
+        Returns
+        -------
+        RectBivariateSpline
+            Interpolator object that provides a smoothed 2D spatial profile.
         """
 
-        # boundaries of bins for sampling profile.
-        sample_locs = np.linspace(0, img.shape[disp_axis]-1,
-                                  n_bins_interpolated_profile+1, dtype=int)
-        # centers of these bins, roughly
+        img = np.where(~mask, img, np.nan)
+        nrows = img.shape[crossdisp_axis]
+        ncols = img.shape[disp_axis]
+        samples = np.zeros((n_bins, nrows))
+
+        sample_locs = np.linspace(0, ncols - 1, n_bins + 1, dtype=int)
         bin_centers = [(sample_locs[i]+sample_locs[i+1]) // 2 for i in
                        range(len(sample_locs) - 1)]
 
-        # for now, since fitting isn't enabled for arrays with any nans
-        # mask out the columns with any non-finite values to make sure
-        # these don't contribute to the fit profile
-        col_mask = np.logical_or.reduce(or_mask, axis=crossdisp_axis)
+        for i in range(n_bins):
+            bin_median = np.nanmedian(img[:, sample_locs[i]:sample_locs[i+1]], axis=disp_axis)
+            samples[i, :] = bin_median / bin_median.sum()
 
-        # make a full mask for the image based on which cols have nans
-        img_col_mask = np.tile(col_mask, (img.shape[0], 1))
-
-        # need to make a new masked array since this mask is different
-        # omit all columns with nans from contributing to the fit
-        new_masked_arr = np.ma.array(img.data.copy(), mask=img_col_mask)
-
-        # sample at these locations, normalize to area so this just reflects the
-        # shape of the spectrum any shifts in center location should be corrected
-        # by _align_along_trace (this should be addressed later with a better way
-        # to flatten the trace, because trace can be wiggly even if 'flat'...)
-        samples = []
-        for i in range(n_bins_interpolated_profile):
-            slicee = new_masked_arr[:, sample_locs[i]:sample_locs[i+1]]
-            bin_median = np.ma.median(slicee, axis=disp_axis)
-            bin_median_sum = np.ma.sum(bin_median)
-            samples.append(bin_median / bin_median_sum)
-
-        interp_2d = RectBivariateSpline(x=bin_centers,
-                                        y=np.arange(img.shape[crossdisp_axis]),
-                                        z=samples, kx=kx, ky=ky)
-
-        return interp_2d
+        return RectBivariateSpline(x=bin_centers, y=np.arange(nrows), z=samples, kx=kx, ky=ky)
 
     def __call__(self, image=None, trace_object=None,
                  disp_axis=None, crossdisp_axis=None,
@@ -689,11 +694,11 @@ class HorneExtract(SpecreduceOperation):
                                  'must be less than the number of fully-finite '
                                  f'wavelength columns ({n_finite_cols}).')
 
-            interp_spatial_prof = self._fit_self_spatial_profile(img, disp_axis,
-                                                                 crossdisp_axis,
-                                                                 mask,
-                                                                 n_bins_interpolated_profile,
-                                                                 kx, ky)
+            interp_spatial_prof = self._fit_spatial_profile(img, disp_axis,
+                                                            crossdisp_axis,
+                                                            mask,
+                                                            n_bins_interpolated_profile,
+                                                            kx, ky)
 
             # add private attribute to save fit profile. should this be public?
             self._interp_spatial_prof = interp_spatial_prof
@@ -707,17 +712,17 @@ class HorneExtract(SpecreduceOperation):
         if profile_type == 'gaussian':
             norms[:] = fit_ext_kernel.amplitude_0 * fit_ext_kernel.stddev_0 * np.sqrt(2*np.pi)
 
-        for col_pix in range(ncols):
-            if not np.any(valid[col_pix]):
+        for icol in range(ncols):
+            if not np.any(valid[:, icol]):
                 continue
             if profile_type == 'gaussian':
-                fit_ext_kernel.mean_0 = mean_row[col_pix]
+                fit_ext_kernel.mean_0 = mean_row[icol]
                 fitted_col = fit_ext_kernel(xd_pixels)
-                kernel_vals[:, col_pix] = fitted_col
+                kernel_vals[:, icol] = fitted_col
             else:
-                fitted_col = interp_spatial_prof(col_pix, xd_pixels)
-                kernel_vals[:, col_pix] = fitted_col
-                norms[col_pix] = trapezoid(fitted_col, dx=1)[0]
+                fitted_col = interp_spatial_prof(icol, xd_pixels)
+                kernel_vals[:, icol] = fitted_col
+                norms[icol] = trapezoid(fitted_col, dx=1)[0]
 
         with np.errstate(divide='ignore', invalid='ignore'):
             num = np.sum(np.where(valid, img * kernel_vals / variance, 0.0), axis=crossdisp_axis)
