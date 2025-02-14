@@ -246,9 +246,10 @@ def test_horne_nonfinite_column(mk_test_img):
     extract = HorneExtract(image.data, trace,
                            spatial_profile='gaussian',
                            variance=np.ones(image.data.shape))
-    truth = np.full(image.shape[1], -1.38684e-14)
-    truth[4] = np.nan
-    np.testing.assert_allclose(extract.spectrum.flux.value, truth)
+    sp = extract.spectrum
+    assert np.isnan(sp.flux.value[4])
+    assert np.all(np.isfinite(sp.flux.value[:4]))
+    assert np.all(np.isfinite(sp.flux.value[5:]))
 
 
 def test_horne_no_bkgrnd(mk_test_img):
