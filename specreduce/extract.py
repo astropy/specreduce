@@ -519,7 +519,6 @@ class HorneExtract(SpecreduceOperation):
         RectBivariateSpline
             Interpolator object that provides a smoothed 2D spatial profile.
         """
-
         img = np.where(~mask, img, np.nan)
         nrows = img.shape[crossdisp_axis]
         ncols = img.shape[disp_axis]
@@ -542,8 +541,7 @@ class HorneExtract(SpecreduceOperation):
                  interp_degree_interpolated_profile=None,
                  variance=None, mask=None, unit=None):
         """
-        Run the Horne calculation on a region of an image and extract a
-        1D spectrum.
+        Run the Horne calculation on a region of an image and extract a 1D spectrum.
 
         Parameters
         ----------
@@ -637,8 +635,8 @@ class HorneExtract(SpecreduceOperation):
         unit = self.image.unit
         img = self.image.data
 
-        nrows = img.shape[crossdisp_axis]  # spatial dimension
-        ncols = img.shape[disp_axis]       # dispersion dimension
+        ncross = img.shape[crossdisp_axis]
+        ndisp = img.shape[disp_axis]
 
         # If the trace is not flat, shift the rows in each column
         # so the image is aligned along the trace:
@@ -656,9 +654,9 @@ class HorneExtract(SpecreduceOperation):
                                                                 mask,
                                                                 bkgrd_prof)
             if isinstance(trace_object, FlatTrace):
-                mean_row = trace_object.trace
+                mean_cross_pix = trace_object.trace
             else:
-                mean_row = np.broadcast_to(nrows//2, ncols)
+                mean_cross_pix = np.broadcast_to(ncross//2, ndisp)
         else:  # interpolated_profile
             # for now, bkgrd_prof must be None because a compound model can't
             # be created with a interpolator + model. i think there is a way
@@ -667,10 +665,6 @@ class HorneExtract(SpecreduceOperation):
                 raise ValueError('When `spatial_profile`is `interpolated_profile`,'
                                  '`bkgrd_prof` must be None. Background should'
                                  ' be fit and subtracted from `img` beforehand.')
-            # make sure n_bins doesnt exceed the number of (for now) finite
-            # columns. update this when masking is fixed.
-            n_finite_cols = np.logical_or.reduce(mask, axis=crossdisp_axis)
-            n_finite_cols = np.count_nonzero(n_finite_cols.astype(int) == 0)
 
             # determine interpolation degree from input and make tuple if int
             # this can also be moved to another method to parse the input
@@ -678,21 +672,13 @@ class HorneExtract(SpecreduceOperation):
             if isinstance(interp_degree_interpolated_profile, int):
                 kx = ky = interp_degree_interpolated_profile
             else:  # if input is tuple of ints
-
                 if not isinstance(interp_degree_interpolated_profile, tuple):
                     raise ValueError("``interp_degree_interpolated_profile`` must be ",
                                      "an integer or tuple of integers.")
                 if not all(isinstance(x, int) for x in interp_degree_interpolated_profile):
                     raise ValueError("``interp_degree_interpolated_profile`` must be ",
                                      "an integer or tuple of integers.")
-
                 kx, ky = interp_degree_interpolated_profile
-
-            if n_bins_interpolated_profile >= n_finite_cols:
-
-                raise ValueError(f'`n_bins_interpolated_profile` ({n_bins_interpolated_profile}) '
-                                 'must be less than the number of fully-finite '
-                                 f'wavelength columns ({n_finite_cols}).')
 
             interp_spatial_prof = self._fit_spatial_profile(img, disp_axis,
                                                             crossdisp_axis,
@@ -703,26 +689,25 @@ class HorneExtract(SpecreduceOperation):
             # add private attribute to save fit profile. should this be public?
             self._interp_spatial_prof = interp_spatial_prof
 
-        xd_pixels = np.arange(nrows)
-
+        xd_pixels = np.arange(ncross)
         kernel_vals = np.zeros(img.shape)
-        norms = np.full(ncols, np.nan)
+        norms = np.full(ndisp, np.nan)
         valid = ~mask
 
         if profile_type == 'gaussian':
             norms[:] = fit_ext_kernel.amplitude_0 * fit_ext_kernel.stddev_0 * np.sqrt(2*np.pi)
 
-        for icol in range(ncols):
-            if not np.any(valid[:, icol]):
+        for idisp in range(ndisp):
+            if not np.any(valid[:, idisp]):
                 continue
             if profile_type == 'gaussian':
-                fit_ext_kernel.mean_0 = mean_row[icol]
+                fit_ext_kernel.mean_0 = mean_cross_pix[idisp]
                 fitted_col = fit_ext_kernel(xd_pixels)
-                kernel_vals[:, icol] = fitted_col
+                kernel_vals[:, idisp] = fitted_col
             else:
-                fitted_col = interp_spatial_prof(icol, xd_pixels)
-                kernel_vals[:, icol] = fitted_col
-                norms[icol] = trapezoid(fitted_col, dx=1)[0]
+                fitted_col = interp_spatial_prof(idisp, xd_pixels)
+                kernel_vals[:, idisp] = fitted_col
+                norms[idisp] = trapezoid(fitted_col, dx=1)[0]
 
         with np.errstate(divide='ignore', invalid='ignore'):
             num = np.sum(np.where(valid, img * kernel_vals / variance, 0.0), axis=crossdisp_axis)
