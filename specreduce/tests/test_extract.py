@@ -241,7 +241,7 @@ def test_horne_bad_profile(mk_test_img):
 
 def test_horne_nonfinite_column(mk_test_img):
     image = mk_test_img
-    image.data[:,4] = np.nan
+    image.data[:, 4] = np.nan
     trace = FlatTrace(image, 3.0)
     extract = HorneExtract(image.data, trace,
                            spatial_profile='gaussian',
