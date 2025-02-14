@@ -229,6 +229,28 @@ def test_horne_non_flat_trace():
     assert_quantity_allclose(extract_non_flat.flux, extract_flat.flux)
 
 
+def test_horne_bad_profile(mk_test_img):
+    image = mk_test_img
+    trace = FlatTrace(image, 3.0)
+    extract = HorneExtract(image.data, trace,
+                           spatial_profile='bad_profile_name',
+                           variance=np.ones(image.data.shape))
+    with pytest.raises(ValueError, match='spatial_profile must be one of'):
+        extract.spectrum
+
+
+def test_horne_nonfinite_column(mk_test_img):
+    image = mk_test_img
+    image.data[:,4] = np.nan
+    trace = FlatTrace(image, 3.0)
+    extract = HorneExtract(image.data, trace,
+                           spatial_profile='gaussian',
+                           variance=np.ones(image.data.shape))
+    truth = np.full(image.shape[1], -1.38684e-14)
+    truth[4] = np.nan
+    np.testing.assert_allclose(extract.spectrum.flux.value, truth)
+
+
 def test_horne_no_bkgrnd(mk_test_img):
     # Test HorneExtract when using bkgrd_prof=None
 
