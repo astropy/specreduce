@@ -303,33 +303,38 @@ class AtmosphericExtinction(Spectrum1D):
 
     Parameters
     ----------
-    model : Name of atmospheric extinction model provided by ``specreduce_data``. Valid
+    model : str
+        Name of atmospheric extinction model provided by ``specreduce_data``. Valid
         options are:
 
-        kpno - Kitt Peak National Observatory (default)
-        ctio - Cerro Tololo International Observatory
-        apo - Apache Point Observatory
-        lapalma - Roque de los Muchachos Observatory, La Palma, Canary Islands
-        mko - Mauna Kea Observatories
-        mtham - Lick Observatory, Mt. Hamilton station
-        paranal - European Southern Observatory, Cerro Paranal station
+        * kpno - Kitt Peak National Observatory (default)
+        * ctio - Cerro Tololo International Observatory
+        * apo - Apache Point Observatory
+        * lapalma - Roque de los Muchachos Observatory, La Palma, Canary Islands
+        * mko - Mauna Kea Observatories
+        * mtham - Lick Observatory, Mt. Hamilton station
+        * paranal - European Southern Observatory, Cerro Paranal station
 
-    extinction : Optionally provided extinction data for this spectrum. Used along with
+    extinction : float, `~astropy.units.Quantity`, or `None`, optional
+        Provides extinction data for this spectrum. Used along with
         spectral_axis to build custom atmospheric extinction model. If no units are provided,
         assumed to be given in magnitudes.
 
-    spectral_axis : Optional Dispersion information with the same shape as the last (or only)
+    spectral_axis : `~astropy.coordinates.SpectralCoord`, `~astropy.units.Quantity`, or `None`, optional
+        Dispersion information with the same shape as the last (or only)
         dimension of flux, or one greater than the last dimension of flux
         if specifying bin edges. Used along with flux to build custom atmospheric
         extinction model.
 
-    Properties
+    Attributes
     ----------
-    extinction_mag : Extinction expressed in dimensionless magnitudes
+    extinction_mag : `~astropy.units.Quantity`
+        Extinction expressed in dimensionless magnitudes
 
-    transmission : Extinction expressed as fractional transmission
+    transmission : `~astropy.units.Quantity`
+        Extinction expressed as fractional transmission
 
-    """
+    """  # noqa: E501
     def __init__(
         self,
         model: str = "kpno",

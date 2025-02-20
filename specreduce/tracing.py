@@ -26,7 +26,7 @@ class Trace:
     image : `~astropy.nddata.NDData`-like or array-like, required
         Image to be traced
 
-    Properties
+    Attributes
     ----------
     shape : tuple
         Shape of the array describing the trace

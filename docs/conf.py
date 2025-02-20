@@ -28,6 +28,8 @@
 import sys
 import datetime
 
+import sphinx
+
 from specreduce import __version__
 
 try:
@@ -35,6 +37,14 @@ try:
 except ImportError:
     print('ERROR: the documentation requires the sphinx-astropy package to be installed')
     sys.exit(1)
+
+# xref: https://github.com/sphinx-doc/sphinx/issues/13232#issuecomment-2608708175
+if sys.version_info[:2] >= (3, 13) and sphinx.version_info[:2] < (8, 2):
+    import pathlib
+
+    from sphinx.util.typing import _INVALID_BUILTIN_CLASSES
+
+    _INVALID_BUILTIN_CLASSES[pathlib.Path] = "pathlib.Path"
 
 # -- General configuration ----------------------------------------------------
 
