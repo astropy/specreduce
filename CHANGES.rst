@@ -18,9 +18,16 @@ Other changes
 
 New Features
 ^^^^^^^^^^^^
+
 - Added the ``mask_treatment`` parameter to Background, Trace, and Boxcar Extract
-  operations to handle non-finite data and boolean masks. Choice of ``filter``,
-  ``omit``, or ``zero-fill``. [#216]
+  operations to handle non-finite data and boolean masks. Available options are
+  ``filter``, ``omit``, or ``zero-fill``, with ``exclude`` additionally available
+  for BoxcarExtract. [#216]
+
+- Modified BoxcarExtract to ignore non-finite pixels when ``mask_treatment`` is set
+  to ``exclude``; otherwise, non-finite values are propagated. Boxcar extraction is
+  now carried out as a weighed sum over the window. When no non-finite values are
+  present, the extracted spectra remain unchanged from the previous behaviour.
 
 API Changes
 ^^^^^^^^^^^
