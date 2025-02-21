@@ -1,5 +1,5 @@
 # Licensed under a 3-clause BSD style license - see ../../licenses/LICENSE.rst
-
+import warnings
 from typing import Sequence
 
 import numpy as np
@@ -290,7 +290,9 @@ def make_2d_arc_image(
     linelist = load_pypeit_calibration_lines(linelists, wave_air=wave_air)
 
     if linelist is not None:
-        line_disp_positions = wcs.spectral.world_to_pixel(linelist['wavelength'])
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="No observer defined on WCS.*")
+            line_disp_positions = wcs.spectral.world_to_pixel(linelist['wavelength'])
 
         line_sigma = gaussian_fwhm_to_sigma * line_fwhm
         for line_pos, ampl in zip(line_disp_positions, linelist['amplitude']):
