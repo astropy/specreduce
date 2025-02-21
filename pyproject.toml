@@ -76,21 +76,19 @@ filterwarnings = [
     "ignore:numpy\\.ufunc size changed:RuntimeWarning",
     "ignore:numpy\\.ndarray size changed:RuntimeWarning",
     "ignore:Can\\'t import specreduce_data package",
+    "ignore:.*unclosed <ssl.SSLSocket",
     # Python 3.12 warning from dateutil imported by matplotlib
     "ignore:.*utcfromtimestamp:DeprecationWarning",
-    "ignore:.*unclosed <ssl.SSLSocket",
+    # DeprecationWarning from gwcs 0.18.3 in oldestdeps
+    "ignore:.*pkg_resources.*:DeprecationWarning",
 ]
 
 [tool.coverage]
 
     [tool.coverage.run]
         omit = [
-            "specreduce/_astropy_init*",
-            "specreduce/conftest.py",
             "specreduce/tests/*",
             "specreduce/version*",
-            "*/specreduce/_astropy_init*",
-            "*/specreduce/conftest.py",
             "*/specreduce/tests/*",
             "*/specreduce/version*",
         ]
