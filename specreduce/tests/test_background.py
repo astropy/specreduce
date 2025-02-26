@@ -159,8 +159,7 @@ class TestMasksBackground():
 
     """
     Various test functions to test how masked and non-finite data is handled
-    in `Background. There are three currently implemented options for masking
-    in Background: filter, omit, and zero-fill.
+    in `Background.
     """
 
     def mk_img(self, nrows=4, ncols=5, nan_slices=None):
@@ -178,13 +177,12 @@ class TestMasksBackground():
 
         return img * u.DN
 
-    @pytest.mark.parametrize("mask", ["filter", "omit", "zero-fill"])
+    @pytest.mark.parametrize("mask", ["apply", "propagate", "zero-fill"])
     def test_fully_masked_column(self, mask):
         """
         Test background with some fully-masked columns (not fully masked image).
         In this case, the background value for that fully-masked column should
-        be 0.0, with no error or warning raised. This is the case for
-        mask_treatment=filter, omit, or zero-fill.
+        be 0.0, with no error or warning raised.
         """
 
         img = self.mk_img(nrows=10, ncols=10)
@@ -193,7 +191,7 @@ class TestMasksBackground():
         bkg = Background(img, traces=FlatTrace(img, 6), mask_treatment=mask)
         assert np.all(bkg.bkg_image().data[:, 0:1] == 0.0)
 
-    @pytest.mark.parametrize("mask", ["filter", "omit"])
+    @pytest.mark.parametrize("mask", ["apply", "propagate"])
     def test_fully_masked_image(self, mask):
         """
         Test that the appropriate error is raised by `Background` when image
@@ -207,13 +205,11 @@ class TestMasksBackground():
 
         with pytest.raises(ValueError, match='Image is fully masked.'):
             # fully masked image (should be equivalent)
-            img = NDData(np.ones((4, 5)), mask=np.ones((4, 5)))
+            img = NDData(np.ones((4, 5)), mask=np.ones((4, 5), dtype=bool))
             Background(img, traces=FlatTrace(self.mk_img(), 2), mask_treatment=mask)
 
         # Now test that an image that isn't fully masked, but is fully masked
         # within the window determined by `width`, produces the correct result.
-        # only applicable for mask_treatment=filter, because this is the only
-        # option that allows a slice of masked values that don't span all rows.
         msg = 'Image is fully masked within background window determined by `width`.'
         with pytest.raises(ValueError, match=msg):
             img = self.mk_img(nrows=12, ncols=12, nan_slices=[np.s_[3:10, :]])
@@ -221,9 +217,9 @@ class TestMasksBackground():
 
     @pytest.mark.filterwarnings("ignore:background window extends beyond image boundaries")
     @pytest.mark.parametrize("method,expected",
-                             [("filter", np.array([1., 2., 3., 4., 5., 6., 7.,
+                             [("apply", np.array([1., 2., 3., 4., 5., 6., 7.,
                                                   8., 9., 10., 11., 12.])),
-                              ("omit", np.array([0., 2., 3., 0., 5., 6.,
+                              ("propagate", np.array([0., 2., 3., 0., 5., 6.,
                                                  7., 0., 9., 10., 11., 12.])),
                               ("zero-fill", np.array([0.58333333, 2., 3.,
                                                       2.33333333, 5., 6., 7.,
@@ -235,10 +231,9 @@ class TestMasksBackground():
         `Background.bkg_spectrum` when there is masked data. It also tests
         background subtracting the image, and returning the spectrum of the
         background subtracted image. This test is parameterized over all
-        currently implemented mask handling methods (filter, omit, and
-        zero-fill) to test that all three work as intended. The window size is
-        set to use the entire image array, so warning about background window
-        is ignored."""
+        currently implemented mask handling methods to test that they
+        work as intended. The window size is set to use the entire image array,
+        so warning about background window is ignored."""
 
         img_size = 12  # square 12 x 12 image
 
@@ -280,9 +275,9 @@ class TestMasksBackground():
 
     def test_sub_bkg_image(self):
         """
-        Test that masked and nonfinite data is handled correctly when subtracting
+        Test that masked and non-finite data is handled correctly when subtracting
         background from image, for all currently implemented masking
-        options ('filter', 'omit', and 'zero-fill').
+        options.
         """
 
         # make image, set some value to nan, which will be masked in the function
@@ -290,18 +285,18 @@ class TestMasksBackground():
                             nan_slices=[np.s_[5:10, 0], np.s_[7:12, 3],
                                         np.s_[2, 7]])
 
-        # Calculate a background value using mask_treatment = 'filter'.
-        # For 'filter', the flag applies to how masked values are handled during
+        # Calculate a background value using mask_treatment = 'apply'.
+        # For 'apply', the flag applies to how masked values are handled during
         # calculation of background for each column, but nonfinite data will
         # remain in input data array
-        background_filter = Background(image, mask_treatment='filter',
+        background_apply = Background(image, mask_treatment='apply',
                                        traces=FlatTrace(image, 6),
                                        width=2)
-        subtracted_img_filter = background_filter.sub_image()
+        subtracted_img_apply = background_apply.sub_image()
 
-        assert np.all(np.isfinite(subtracted_img_filter.data) == np.isfinite(image.data))
+        assert np.all(np.isfinite(subtracted_img_apply.data) == np.isfinite(image.data))
 
-        # Calculate a background value using mask_treatment = 'omit'. The input
+        # Calculate a background value using mask_treatment = 'propagate'. The input
         # 2d mask is reduced to a 1d mask to mask out full columns in the
         # presence of any nans - this means that (as tested above in
         # `test_mask_treatment_bkg_img_spectrum`) those columns will have 0.0
@@ -310,12 +305,12 @@ class TestMasksBackground():
         # so there are still valid background subtracted data values in this
         # case, but the corresponding mask for that entire column will be masked.
 
-        background_omit = Background(image, mask_treatment='omit',
+        background_propagate = Background(image, mask_treatment='propagate',
                                      traces=FlatTrace(image, 6),
                                      width=2)
-        subtracted_img_omit = background_omit.sub_image()
+        subtracted_img_propagate = background_propagate.sub_image()
 
-        assert np.all(np.isfinite(subtracted_img_omit.data) == np.isfinite(image.data))
+        assert np.all(np.isfinite(subtracted_img_propagate.data) == np.isfinite(image.data))
 
         # Calculate a background value using mask_treatment = 'zero-fill'. Data
         # values at masked locations are set to 0 in the image array, and the
