@@ -89,20 +89,12 @@ def test_boxcar_nonfinite_handling(mk_test_img):
     image.data[14, 4] = np.inf
 
     trace = FlatTrace(image, 15.0)
-    boxcar = BoxcarExtract(image, trace, width=6, mask_treatment='filter')
+    boxcar = BoxcarExtract(image, trace, width=6, mask_treatment='apply')
     spectrum = boxcar()
     target = np.full_like(spectrum.flux.value, 90.)
     target[2] = np.nan
     target[4] = np.inf
     np.testing.assert_equal(spectrum.flux.value, target)
-
-    trace = FlatTrace(image, 15.0)
-    boxcar = BoxcarExtract(image, trace, width=6, mask_treatment='exclude')
-    spectrum = boxcar()
-    target = np.full_like(spectrum.flux.value, 90.)
-    target[[2, 4]] = 91.2
-    np.testing.assert_allclose(spectrum.flux.value, target)
-
 
 def test_boxcar_outside_image_condition(mk_test_img):
     #
@@ -111,7 +103,7 @@ def test_boxcar_outside_image_condition(mk_test_img):
     image = mk_test_img
 
     trace = FlatTrace(image, 3.0)
-    boxcar = BoxcarExtract(image, trace, mask_treatment='filter')
+    boxcar = BoxcarExtract(image, trace, mask_treatment='apply')
 
     spectrum = boxcar(width=10.)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 32.0))
