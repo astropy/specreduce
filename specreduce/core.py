@@ -13,7 +13,7 @@ from specutils import Spectrum1D
 __all__ = ["SpecreduceOperation"]
 
 MaskingOption = Literal[
-    "apply", "ignore", "zero-fill", "nan-fill", "apply_mask_only", "apply_nan_only"
+    "apply", "ignore", "propagate", "zero-fill", "nan-fill", "apply_mask_only", "apply_nan_only"
 ]
 
 ImageLike = np.ndarray | NDData | u.Quantity
@@ -40,6 +40,7 @@ class _ImageParser:
     implemented_mask_treatment_methods = (
         "apply",
         "ignore",
+        "propagate",
         "zero-fill",
         "nan-fill",
         "apply_mask_only",
@@ -64,13 +65,15 @@ class _ImageParser:
         mask_treatment
             Specifies how to handle masked or non-finite values in the input image.
             The accepted values are:
-              - ``apply``: The image is left unmodified and any existing mask is combined
+              - ``apply``: The image remains unchanged, and any existing mask is combined
                 with a mask derived from non-finite values.
+              - ``ignore``: The image remains unchanged, and any existing mask is dropped.
+              - ``propagate``: The image remains unchanged, and any masked or non-finite pixel
+                causes the mask to extend across the entire cross-dispersion axis.
               - ``zero-fill``: Pixels that are either masked or non-finite are replaced with 0.0,
                 and the mask is dropped.
               - ``nan-fill``:  Pixels that are either masked or non-finite are replaced with nan,
                 and the mask is dropped.
-              - ``ignore``: The image is left unmodified and any existing mask is dropped.
               - ``apply_mask_only``: The  image and mask are left unmodified.
               - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a
                 new mask is created based on non-finite values.
@@ -90,10 +93,9 @@ class _ImageParser:
         return self._get_data_from_image(image, disp_axis=disp_axis, mask_treatment=mask_treatment)
 
     @staticmethod
-    def _get_data_from_image(image: ImageLike,
-                             disp_axis: int = 1,
-                             mask_treatment: MaskingOption = "apply"
-                             ) -> Spectrum1D:
+    def _get_data_from_image(
+        image: ImageLike, disp_axis: int = 1, mask_treatment: MaskingOption = "apply"
+    ) -> Spectrum1D:
         """
         Extract data array from various input types for `image`.
 
@@ -119,6 +121,7 @@ class _ImageParser:
             img = image.data
 
         mask = getattr(image, "mask", None)
+        crossdisp_axis = (disp_axis + 1) % 2
 
         # next, handle masked and non-finite data in image.
         # A mask will be created from any non-finite image data, and combined
@@ -128,7 +131,7 @@ class _ImageParser:
         # is chosen to handle masked data. The returned image will always have
         # `image.mask` even if there are no non-finite or masked values.
         img, mask = _ImageParser._mask_and_nonfinite_data_handling(
-            image=img, mask=mask, mask_treatment=mask_treatment
+            image=img, mask=mask, mask_treatment=mask_treatment, crossdisp_axis=crossdisp_axis
         )
 
         # mask (handled above) and uncertainty are set as None when they aren't
@@ -152,7 +155,8 @@ class _ImageParser:
     def _mask_and_nonfinite_data_handling(
         image: ImageLike,
         mask: ImageLike | None = None,
-        mask_treatment: str = "apply"
+        mask_treatment: str = "apply",
+        crossdisp_axis: int = 1,
     ) -> tuple[np.ndarray, np.ndarray]:
         """
         Handle the treatment of masked and non-finite data.
@@ -181,11 +185,18 @@ class _ImageParser:
                 f"{_ImageParser.implemented_mask_treatment_methods}"
             )
 
+        if mask is not None and (mask.dtype not in (bool, int)):
+            raise ValueError("`mask` must be a boolean or integer array.")
+
         match mask_treatment:
             case "apply":
                 mask = mask | (~np.isfinite(image)) if mask is not None else ~np.isfinite(image)
             case "ignore":
                 mask = np.zeros(image.shape, dtype=bool)
+            case "propagate":
+                if mask is None:
+                    mask = ~np.isfinite(image)
+                mask[:] = mask.any(axis=crossdisp_axis, keepdims=True)
             case "zero-fill" | "nan-fill":
                 mask = mask | (~np.isfinite(image)) if mask is not None else ~np.isfinite(image)
                 image = deepcopy(image)
