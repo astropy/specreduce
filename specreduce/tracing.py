@@ -257,18 +257,15 @@ class FitTrace(Trace, _ImageParser):
         ``centroid``: Takes the centroid of the window within in bin.
         ``max``: Saves the position with the maximum flux in each bin.
         [default: ``max``]
-    mask_treatment : string, optional
-        The method for handling masked or non-finite data. Choice of ``filter`` or
-        ``omit``. If `filter` is chosen, masked/non-finite data will be filtered
-        during the fit to each bin/column (along disp. axis) to find the peak.
-        If ``omit`` is chosen, columns along disp_axis with any masked/non-finite
-        data values will be fully masked (i.e, 2D mask is collapsed to 1D and applied).
-        For both options, the input mask (optional on input NDData object) will
-        be combined with a mask generated from any non-finite values in the image
-        data. Also note that because binning is an option in FitTrace, that masked
-        data will contribute zero to the sum when binning adjacent columns.
-        [default: ``filter``]
-
+    mask_treatment
+        Specifies how to handle masked or non-finite values in the input image.
+        The fit cannot handle non-finite values, so only the ``apply``, ``propagate``,
+        ``apply_nan_only`` options are supported. The ``apply`` option combines
+        the existing mask with the mask derived from non-finite values, ``propagate``
+         expands the mask along the cross-dispersion axis (that is, a masked pixel
+         results in the whole cross-dispersion slice being masked), and
+        ``apply_nan_only`` drops the existing mask and replaces it with a mask
+        derived from non-finite values.
     """
     bins: int | None = None
     guess: float | None = None
@@ -277,8 +274,8 @@ class FitTrace(Trace, _ImageParser):
     peak_method: Literal['gaussian', 'centroid', 'max'] = 'max'
     _crossdisp_axis: int = 0
     _disp_axis: int = 1
-    mask_treatment: Literal['filter', 'omit'] = 'filter'
-    _valid_mask_treatment_methods = ('filter', 'omit')
+    mask_treatment: Literal['apply', 'propagate', 'apply_nan_only'] = 'apply'
+    _valid_mask_treatment_methods = ('apply', 'propagate', 'apply_nan_only')
     # for testing purposes only, save bin peaks if requested
     _save_bin_peaks_testing: bool = False
 
@@ -399,7 +396,7 @@ class FitTrace(Trace, _ImageParser):
 
             # if this bin is fully masked, set bin peak to NaN so it can be
             # filtered in the final fit to all bin peaks for the trace
-            if z_i.mask.all():
+            if z_i.mask.all() or (~np.isfinite(z_i)).all():
                 warn_bins.append(i)
                 y_bins[i] = np.nan
                 continue

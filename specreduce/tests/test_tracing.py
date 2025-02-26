@@ -245,7 +245,7 @@ class TestMasksTracing():
         assert array_trace.mask_treatment is None
 
         # check that if array is fully finite and not masked, that the returned
-        # trace is a notrmal array, not a masked array
+        # trace is a normal array, not a masked array
         trace = ArrayTrace(img, np.ones(100))
         assert isinstance(trace.trace, np.ndarray)
         assert not isinstance(trace.trace, np.ma.MaskedArray)
@@ -257,7 +257,7 @@ class TestMasksTracing():
 
     def test_fit_trace_fully_masked_image(self):
         """
-        Test that the correct warning is raised when a fully maksed image is
+        Test that the correct warning is raised when a fully masked image is
         encountered. Also test that when a non-fully masked image is provided,
         but `window` is set and the image is fully masked within that window,
         that the correct error is raised.
@@ -290,15 +290,13 @@ class TestMasksTracing():
         Test that the correct warning message is raised when fully masked columns
         (in a not-fully-masked image) are encountered in FitTrace. These columns
         will be set to NaN and filtered from the final all-bin fit (as tested in
-        test_fit_trace_fully_masked_cols), but a warning message is raised. This
-        should happen for mask_treatment='filter' and 'omit' (for 'zero-fill',
-        all NaN columns become all-zero columns).
+        test_fit_trace_fully_masked_cols), but a warning message is raised.
         """
         img = mk_img()
 
         # test that warning (dependent on choice of `peak_method`) is raised when a
         # few bins are masked, and that theyre listed individually
-        mask = np.zeros(img.shape)
+        mask = np.zeros(img.shape, dtype=bool)
         mask[:, 100] = 1
         mask[:, 20] = 1
         mask[:, 30] = 1
@@ -316,7 +314,7 @@ class TestMasksTracing():
             FitTrace(nddat, peak_method='gaussian')
 
         # and when many bins are masked, that the message is consolidated
-        mask = np.zeros(img.shape)
+        mask = np.zeros(img.shape, dtype=bool)
         mask[:, 0:21] = 1
         nddat = NDData(data=img, mask=mask, unit=u.DN)
         with pytest.warns(UserWarning, match='All pixels in bins '
@@ -325,16 +323,14 @@ class TestMasksTracing():
             FitTrace(nddat)
 
     @pytest.mark.filterwarnings("ignore:All pixels in bins")
-    @pytest.mark.parametrize("mask_treatment", ['filter', 'omit'])
+    @pytest.mark.parametrize("mask_treatment", ['apply', 'propagate', 'apply_nan_only'])
     def test_fit_trace_fully_masked_cols(self, mask_treatment):
         """
         Create a test image with some fully-nan/masked columns, and test that
         when the final fit to all bin peaks is done for the trace, that these
         fully-masked columns are set to NaN and filtered during the final all-bin
-        fit. This should happen for mask_treatment = 'filter' and 'omit'
-        (for 'zero-fill', all NaN columns become all-zero columns). Ignore the
-        warning that is produced when this case is encountered (that is tested
-        in `test_fit_trace_fully_masked_cols_warn_msg`.)
+        fit. Ignore the warning that is produced when this case is encountered (that
+        is tested in `test_fit_trace_fully_masked_cols_warn_msg`.)
         """
         img = mk_img(nrows=10, ncols=11)
 
@@ -379,16 +375,16 @@ class TestMasksTracing():
                                             4.27108332, 6.66827608, 4.27108332,
                                             np.nan, 4.27108332, 4.27108332,
                                             4.27108332, 1.19673467, 4.27108332])])
-    def test_mask_treatment_filter(self, peak_method, expected):
+    def test_mask_treatment_apply(self, peak_method, expected):
         """
-        Test for mask_treatment=filter for FitTrace.
-        With this masking option, masked and nonfinite data should be filtered
+        Test for mask_treatment=apply for FitTrace.
+        With this masking option, masked and non-finite data should be filtered
         when determining bin/column peak. Fully masked bins should be omitted
         from the final all-bin-peak fit for the Trace. Parametrized over different
         `peak_method` options.
         """
 
-        # Make an image with some nonfinite values.
+        # Make an image with some non-finite values.
         image1 = mk_img(nan_slices=[np.s_[4:8, 1:2], np.s_[2:7, 4:5],
                                     np.s_[:, 6:7], np.s_[3:9, 10:11]],
                         nrows=10, ncols=12, add_noise=False)
@@ -418,25 +414,19 @@ class TestMasksTracing():
 
     @pytest.mark.filterwarnings("ignore:All pixels in bins")
     @pytest.mark.parametrize("peak_method", ["max", "gaussian", "centroid"])
-    def test_mask_treatment_zero_fill(self, peak_method):
+    def test_mask_treatment_unsupported(self, peak_method):
         """
-        Test to ensure mask_treatment=`zero_fill` for FitTrace raises a `ValueError`.
-        Parametrized over different `peak_method` options.
+        Test to ensure the unsupported mask treatment methods for FitTrace
+        raise a `ValueError`. Parametrized over different `peak_method` options.
         """
 
-        # Make an image with some nonfinite values.
-        image1 = mk_img(nan_slices=[np.s_[4:8, 1:2], np.s_[2:7, 4:5],
-                                    np.s_[:, 6:7], np.s_[3:9, 10:11]],
+        image = mk_img(nan_slices=[np.s_[4:8, 1:2], np.s_[2:7, 4:5],
+                                   np.s_[:, 6:7], np.s_[3:9, 10:11]],
                         nrows=10, ncols=12, add_noise=False)
 
-        # Also make an image that doesn't have nonf data values, but has masked
-        # values at the same locations, to make sure they give the same results.
-        dat = mk_img(nrows=10, ncols=12, add_noise=False)
-        image2 = NDData(dat, mask=~np.isfinite(image1))
-
-        for imgg in [image1, image2]:
+        for method in 'ignore', 'zero-fill', 'nan-fill', 'apply_mask_only':
             with pytest.raises(ValueError):
-                FitTrace(imgg, peak_method=peak_method, mask_treatment='zero-fill')
+                FitTrace(image, peak_method=peak_method, mask_treatment=method)
 
     @pytest.mark.filterwarnings("ignore:All pixels in bins")
     @pytest.mark.parametrize("peak_method,expected",
@@ -448,20 +438,20 @@ class TestMasksTracing():
                                             4.27108332, np.nan, 4.27108332,
                                             np.nan, 4.27108332, 4.27108332,
                                             4.27108332, np.nan, 4.27108332])])
-    def test_mask_treatment_omit(self, peak_method, expected):
+    def test_mask_treatment_propagate(self, peak_method, expected):
         """
-        Test for mask_treatment=`omit` for FitTrace. Columns (assuming
+        Test for mask_treatment=`propagate` for FitTrace. Columns (assuming
         disp_axis==1) with any masked data values will be fully masked and
         therefore not contribute to the bin peaks. Parametrized over different
         `peak_method` options.
         """
 
-        # Make an image with some nonfinite values.
+        # Make an image with some non-finite values.
         image1 = mk_img(nan_slices=[np.s_[4:8, 1:2], np.s_[2:7, 4:5],
                                     np.s_[:, 6:7], np.s_[3:9, 10:11]],
                         nrows=10, ncols=12, add_noise=False)
 
-        # Also make an image that doesn't have nonfinite data values, but has masked
+        # Also make an image that doesn't have non-finite data values, but has masked
         # values at the same locations, to make sure those cases are equivalent
         mask = ~np.isfinite(image1)
         dat = mk_img(nrows=10, ncols=12, add_noise=False)
@@ -472,7 +462,7 @@ class TestMasksTracing():
             # run FitTrace, with the testing-only flag _save_bin_peaks_testing set
             # to True to return the bin peak values before fitting the trace
             trace = FitTrace(imgg, peak_method=peak_method,
-                             mask_treatment='omit',
+                             mask_treatment='propagate',
                              _save_bin_peaks_testing=True)
             x_bins, y_bins = trace._bin_peaks_testing
             np.testing.assert_allclose(y_bins, expected)
