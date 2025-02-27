@@ -365,7 +365,8 @@ class Background(_ImageParser):
         elif bkg_statistic == 'average':
             statistic_function = np.nanmean
         else:
-            raise ValueError(f"Background statistics not supported for {bkg_statistic}")
+            raise ValueError(f"Background statistic {bkg_statistic} is not supported. "
+                             "Please choose from: average, median, or sum.")
 
         try:
             return bkg_image.collapse(statistic_function, axis=self.crossdisp_axis)

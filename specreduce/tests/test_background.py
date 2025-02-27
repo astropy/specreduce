@@ -87,7 +87,8 @@ def test_background(mk_test_img_raw, mk_test_spec_no_spectral_axis,
     bkg_spec_median = bg1.bkg_spectrum(bkg_statistic='median')
     assert_allclose(bkg_spec_median.mean().value, 14.5, rtol=0.5)
 
-    with pytest.raises(ValueError, match="Background statistics not supported for max"):
+    with pytest.raises(ValueError, match="Background statistic max is not supported. "
+                                         "Please choose from: average, median, or sum."):
         bg1.bkg_spectrum(bkg_statistic='max')
 
 
