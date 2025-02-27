@@ -96,6 +96,7 @@ def test_boxcar_nonfinite_handling(mk_test_img):
     target[4] = np.inf
     np.testing.assert_equal(spectrum.flux.value, target)
 
+
 def test_boxcar_outside_image_condition(mk_test_img):
     #
     # Trace is such that extraction aperture lays partially outside the image

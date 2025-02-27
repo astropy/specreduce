@@ -9,8 +9,9 @@ from specreduce.background import Background
 from specreduce.tracing import FlatTrace, ArrayTrace
 
 
-def test_background(mk_test_img_raw, mk_test_spec_no_spectral_axis,
-                    mk_test_spec_with_spectral_axis):
+def test_background(
+    mk_test_img_raw, mk_test_spec_no_spectral_axis, mk_test_spec_with_spectral_axis
+):
     img = mk_test_img_raw
     image = mk_test_spec_no_spectral_axis
     image_um = mk_test_spec_with_spectral_axis
@@ -72,7 +73,7 @@ def test_background(mk_test_img_raw, mk_test_spec_no_spectral_axis,
     # the final 1D spectra.
     img[0, 0] = np.nan  # out of window
     img[trace_pos, 0] = np.nan  # in window
-    stats = ['average', 'median']
+    stats = ["average", "median"]
 
     for st in stats:
         bg = Background(img, trace - bkg_sep, width=bkg_width, statistic=st)
@@ -114,8 +115,10 @@ def test_warnings_errors(mk_test_spec_no_spectral_axis):
 
     trace = ArrayTrace(image, trace=np.arange(10) + 20)  # from 20 to 29
     with pytest.warns(match="background window extends beyond image boundaries"):
-        with pytest.raises(ValueError,
-                           match="background window does not remain in bounds across entire dispersion axis"):  # noqa
+        with pytest.raises(
+            ValueError,
+            match="background window does not remain in bounds across entire dispersion axis",
+        ):  # noqa
             # 20 + 10 - 3 = 27 (lower edge of window on-image at right side of trace)
             # 29 + 10 - 3 = 36 (lower edge of window off-image at right side of trace)
             Background.one_sided(image, trace, 10, width=3)
@@ -136,27 +139,28 @@ def test_trace_inputs(mk_test_img_raw):
     # When `Background` object is created with no Trace object passed in it should
     # create a FlatTrace in the middle of the image (according to disp. axis)
     background = Background(image, width=5)
-    assert np.all(background.traces[0].trace.data == image.shape[1] / 2.)
+    assert np.all(background.traces[0].trace.data == image.shape[1] / 2.0)
 
     # FlatTrace(s) should be created if number or list of numbers is passed in for `traces`
-    background = Background(image, 10., width=5)
+    background = Background(image, 10.0, width=5)
     assert isinstance(background.traces[0], FlatTrace)
-    assert background.traces[0].trace_pos == 10.
+    assert background.traces[0].trace_pos == 10.0
 
-    traces = [10., 15]
+    traces = [10.0, 15]
     background = Background(image, traces, width=5)
     for i, trace_pos in enumerate(traces):
         assert background.traces[i].trace_pos == trace_pos
 
     # make sure error is raised if input for `traces` is invalid
-    match_str = 'objects, a number or list of numbers to define FlatTraces, ' +\
-                'or None to use a FlatTrace in the middle of the image.'
+    match_str = (
+        "objects, a number or list of numbers to define FlatTraces, "
+        + "or None to use a FlatTrace in the middle of the image."
+    )
     with pytest.raises(ValueError, match=match_str):
-        Background(image, 'non_valid_trace_pos')
+        Background(image, "non_valid_trace_pos")
 
 
-class TestMasksBackground():
-
+class TestMasksBackground:
     """
     Various test functions to test how masked and non-finite data is handled
     in `Background.
@@ -169,7 +173,7 @@ class TestMasksBackground():
         u.DN.
         """
 
-        img = np.tile((np.arange(1., ncols + 1)), (nrows, 1))
+        img = np.tile((np.arange(1.0, ncols + 1)), (nrows, 1))
 
         if nan_slices:  # add nans in data
             for s in nan_slices:
@@ -198,33 +202,53 @@ class TestMasksBackground():
         is fully masked/NaN.
         """
 
-        with pytest.raises(ValueError, match='Image is fully masked.'):
+        with pytest.raises(ValueError, match="Image is fully masked."):
             # fully NaN image
             img = self.mk_img() * np.nan
             Background(img, traces=FlatTrace(self.mk_img(), 2), mask_treatment=mask)
 
-        with pytest.raises(ValueError, match='Image is fully masked.'):
+        with pytest.raises(ValueError, match="Image is fully masked."):
             # fully masked image (should be equivalent)
             img = NDData(np.ones((4, 5)), mask=np.ones((4, 5), dtype=bool))
             Background(img, traces=FlatTrace(self.mk_img(), 2), mask_treatment=mask)
 
         # Now test that an image that isn't fully masked, but is fully masked
         # within the window determined by `width`, produces the correct result.
-        msg = 'Image is fully masked within background window determined by `width`.'
+        msg = "Image is fully masked within background window determined by `width`."
         with pytest.raises(ValueError, match=msg):
             img = self.mk_img(nrows=12, ncols=12, nan_slices=[np.s_[3:10, :]])
             Background(img, traces=FlatTrace(img, 6), width=7)
 
     @pytest.mark.filterwarnings("ignore:background window extends beyond image boundaries")
-    @pytest.mark.parametrize("method,expected",
-                             [("apply", np.array([1., 2., 3., 4., 5., 6., 7.,
-                                                  8., 9., 10., 11., 12.])),
-                              ("propagate", np.array([0., 2., 3., 0., 5., 6.,
-                                                 7., 0., 9., 10., 11., 12.])),
-                              ("zero-fill", np.array([0.58333333, 2., 3.,
-                                                      2.33333333, 5., 6., 7.,
-                                                      7.33333333, 9., 10., 11.,
-                                                      12.]))])
+    @pytest.mark.parametrize(
+        "method,expected",
+        [
+            ("apply", np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0])),
+            (
+                "propagate",
+                np.array([0.0, 2.0, 3.0, 0.0, 5.0, 6.0, 7.0, 0.0, 9.0, 10.0, 11.0, 12.0]),
+            ),
+            (
+                "zero-fill",
+                np.array(
+                    [
+                        0.58333333,
+                        2.0,
+                        3.0,
+                        2.33333333,
+                        5.0,
+                        6.0,
+                        7.0,
+                        7.33333333,
+                        9.0,
+                        10.0,
+                        11.0,
+                        12.0,
+                    ]
+                ),
+            ),
+        ],
+    )
     def test_mask_treatment_bkg_img_spectrum(self, method, expected):
         """
         This test function tests `Background.bkg_image` and
@@ -238,9 +262,9 @@ class TestMasksBackground():
         img_size = 12  # square 12 x 12 image
 
         # make image, set some value to nan, which will be masked in the function
-        image1 = self.mk_img(nrows=img_size, ncols=img_size,
-                             nan_slices=[np.s_[5:10, 0], np.s_[7:12, 3],
-                                         np.s_[2, 7]])
+        image1 = self.mk_img(
+            nrows=img_size, ncols=img_size, nan_slices=[np.s_[5:10, 0], np.s_[7:12, 3], np.s_[2, 7]]
+        )
 
         # also make an image that doesn't have nonf data values, but has
         # masked values at the same locations, to make sure they give the same
@@ -257,15 +281,13 @@ class TestMasksBackground():
             # create 'Background' object with `mask_treatment` set
             # 'width' should be > size of image to use all pix (but warning will
             # be raised, which we ignore.)
-            background = Background(image, mask_treatment=method,
-                                    traces=trace, width=img_size + 1)
+            background = Background(image, mask_treatment=method, traces=trace, width=img_size + 1)
 
             # test background image matches 'expected'
             bk_img = background.bkg_image()
             # change this and following assertions to assert_quantity_allclose once
             # issue #213 is fixed
-            np.testing.assert_allclose(bk_img.flux.value,
-                                       np.tile(expected, (img_size, 1)))
+            np.testing.assert_allclose(bk_img.flux.value, np.tile(expected, (img_size, 1)))
 
             # test background spectrum matches 'expected' times the number of rows
             # in cross disp axis, since this is a sum and all values in a col are
@@ -281,17 +303,17 @@ class TestMasksBackground():
         """
 
         # make image, set some value to nan, which will be masked in the function
-        image = self.mk_img(nrows=12, ncols=12,
-                            nan_slices=[np.s_[5:10, 0], np.s_[7:12, 3],
-                                        np.s_[2, 7]])
+        image = self.mk_img(
+            nrows=12, ncols=12, nan_slices=[np.s_[5:10, 0], np.s_[7:12, 3], np.s_[2, 7]]
+        )
 
         # Calculate a background value using mask_treatment = 'apply'.
         # For 'apply', the flag applies to how masked values are handled during
         # calculation of background for each column, but nonfinite data will
         # remain in input data array
-        background_apply = Background(image, mask_treatment='apply',
-                                       traces=FlatTrace(image, 6),
-                                       width=2)
+        background_apply = Background(
+            image, mask_treatment="apply", traces=FlatTrace(image, 6), width=2
+        )
         subtracted_img_apply = background_apply.sub_image()
 
         assert np.all(np.isfinite(subtracted_img_apply.data) == np.isfinite(image.data))
@@ -305,9 +327,9 @@ class TestMasksBackground():
         # so there are still valid background subtracted data values in this
         # case, but the corresponding mask for that entire column will be masked.
 
-        background_propagate = Background(image, mask_treatment='propagate',
-                                     traces=FlatTrace(image, 6),
-                                     width=2)
+        background_propagate = Background(
+            image, mask_treatment="propagate", traces=FlatTrace(image, 6), width=2
+        )
         subtracted_img_propagate = background_propagate.sub_image()
 
         assert np.all(np.isfinite(subtracted_img_propagate.data) == np.isfinite(image.data))
@@ -319,9 +341,9 @@ class TestMasksBackground():
         # image should be fully finite and the mask should be zero everywhere
         # (all unmasked)
 
-        background_zero_fill = Background(image, mask_treatment='zero-fill',
-                                          traces=FlatTrace(image, 6),
-                                          width=2)
+        background_zero_fill = Background(
+            image, mask_treatment="zero-fill", traces=FlatTrace(image, 6), width=2
+        )
         subtracted_img_zero_fill = background_zero_fill.sub_image()
 
         assert np.all(np.isfinite(subtracted_img_zero_fill.data))

@@ -422,7 +422,7 @@ class TestMasksTracing():
 
         image = mk_img(nan_slices=[np.s_[4:8, 1:2], np.s_[2:7, 4:5],
                                    np.s_[:, 6:7], np.s_[3:9, 10:11]],
-                        nrows=10, ncols=12, add_noise=False)
+                       nrows=10, ncols=12, add_noise=False)
 
         for method in 'ignore', 'zero-fill', 'nan-fill', 'apply_mask_only':
             with pytest.raises(ValueError):
