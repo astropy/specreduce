@@ -330,7 +330,7 @@ class Background(_ImageParser):
                                   (image.shape[0], 1)) * image.unit,
                           spectral_axis=image.spectral_axis)
 
-    def bkg_spectrum(self, image=None, bkg_statistic=None):
+    def bkg_spectrum(self, image=None, bkg_statistic="sum"):
         """
         Expose the 1D spectrum of the background.
 
@@ -341,13 +341,13 @@ class Background(_ImageParser):
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1. If None, will extract the background
             from ``image`` used to initialize the class. [default: None]
-        bkg_statistic : str, optional
-            Statistical method used to collapse the background image. [default: ``sum``]
+        bkg_statistic : {'average', 'median', 'sum'}, optional
+            Statistical method used to collapse the background image. [default: ``'sum'``]
             Supported values are:
 
-            - ``median`` : Uses the median (`numpy.nanmedian`).
-            - ``average`` : Uses the mean (`numpy.nanmean`).
-            - ``sum`` : Uses the sum (`numpy.nansum`).
+            - ``'average'`` : Uses the mean (`numpy.nanmean`).
+            - ``'median'`` : Uses the median (`numpy.nanmedian`).
+            - ``'sum'`` : Uses the sum (`numpy.nansum`).
 
         Returns
         -------
@@ -358,13 +358,14 @@ class Background(_ImageParser):
         """
         bkg_image = self.bkg_image(image)
 
-        statistic_function = np.nansum
-
-        if bkg_statistic:
-            if bkg_statistic == 'median':
-                statistic_function = np.nanmedian
-            elif bkg_statistic == 'average':
-                statistic_function = np.nanmean
+        if bkg_statistic == 'sum':
+            statistic_function = np.nansum
+        elif bkg_statistic == 'median':
+            statistic_function = np.nanmedian
+        elif bkg_statistic == 'average':
+            statistic_function = np.nanmean
+        else:
+            raise ValueError(f"Background statistics not supported for {bkg_statistic}")
 
         try:
             return bkg_image.collapse(statistic_function, axis=self.crossdisp_axis)
