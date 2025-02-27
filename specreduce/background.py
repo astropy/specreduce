@@ -345,9 +345,9 @@ class Background(_ImageParser):
             Statistical method used to collapse the background image. [default: ``sum``]
             Supported values are:
 
-            - `'median'` : Uses the median (`numpy.nanmedian`).
-            - `'average'` : Uses the mean (`numpy.nanmean`).
-            - `'sum'` : Uses the sum (`numpy.nansum`).
+            - ``median`` : Uses the median (`numpy.nanmedian`).
+            - ``average`` : Uses the mean (`numpy.nanmean`).
+            - ``sum`` : Uses the sum (`numpy.nansum`).
 
         Returns
         -------
