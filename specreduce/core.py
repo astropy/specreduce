@@ -196,6 +196,8 @@ class _ImageParser:
             case "propagate":
                 if mask is None:
                     mask = ~np.isfinite(image)
+                else:
+                    mask = mask | (~np.isfinite(image))
                 mask[:] = mask.any(axis=crossdisp_axis, keepdims=True)
             case "zero-fill" | "nan-fill":
                 mask = mask | (~np.isfinite(image)) if mask is not None else ~np.isfinite(image)
