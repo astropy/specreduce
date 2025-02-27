@@ -1,6 +1,7 @@
 from astropy.nddata import NDData
 import astropy.units as u
 import numpy as np
+from numpy.testing import assert_allclose
 import pytest
 from specutils import Spectrum1D
 
@@ -79,6 +80,12 @@ def test_background(mk_test_img_raw, mk_test_spec_no_spectral_axis,
         assert np.isnan(bg._bkg_array).sum() == 0
         assert np.isnan(bg.bkg_spectrum().flux).sum() == 0
         assert np.isnan(bg.sub_spectrum().flux).sum() == 0
+
+    bkg_spec_avg = bg1.bkg_spectrum(bkg_statistic='Average')
+    assert_allclose(bkg_spec_avg.mean().value, 14.5, rtol=0.5)
+
+    bkg_spec_median = bg1.bkg_spectrum(bkg_statistic='Median')
+    assert_allclose(bkg_spec_median.mean().value, 14.5, rtol=0.5)
 
 
 def test_warnings_errors(mk_test_spec_no_spectral_axis):

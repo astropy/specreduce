@@ -330,7 +330,7 @@ class Background(_ImageParser):
                                   (image.shape[0], 1)) * image.unit,
                           spectral_axis=image.spectral_axis)
 
-    def bkg_spectrum(self, image=None):
+    def bkg_spectrum(self, image=None, bkg_statistic=None):
         """
         Expose the 1D spectrum of the background.
 
@@ -351,12 +351,21 @@ class Background(_ImageParser):
         """
         bkg_image = self.bkg_image(image)
 
+        statistic_function = np.nansum
+
+        if bkg_statistic:
+            bkg_statistic = bkg_statistic.lower()
+            if bkg_statistic == 'median':
+                statistic_function = np.nanmedian
+            elif bkg_statistic == 'average':
+                statistic_function = np.nanmean
+
         try:
-            return bkg_image.collapse(np.nansum, axis=self.crossdisp_axis)
+            return bkg_image.collapse(statistic_function, axis=self.crossdisp_axis)
         except u.UnitTypeError:
             # can't collapse with a spectral axis in pixels because
             # SpectralCoord only allows frequency/wavelength equivalent units...
-            ext1d = np.nansum(bkg_image.flux, axis=self.crossdisp_axis)
+            ext1d = statistic_function(bkg_image.flux, axis=self.crossdisp_axis)
             return Spectrum1D(ext1d, bkg_image.spectral_axis)
 
     def sub_image(self, image=None):
