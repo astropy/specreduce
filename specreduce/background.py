@@ -341,6 +341,12 @@ class Background(_ImageParser):
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1. If None, will extract the background
             from ``image`` used to initialize the class. [default: None]
+        bkg_statistic : str, optional
+            Statistical method used to collapse the background image.
+            Supported values are:
+            - `'median'` : Uses the median (`np.nanmedian`).
+            - `'average'` : Uses the mean (`np.nanmean`).
+            - Any other value (including `None`): Defaults to summation (`np.nansum`).
 
         Returns
         -------
