@@ -342,11 +342,12 @@ class Background(_ImageParser):
             direction is axis 1. If None, will extract the background
             from ``image`` used to initialize the class. [default: None]
         bkg_statistic : str, optional
-            Statistical method used to collapse the background image.
+            Statistical method used to collapse the background image. [default: ``sum``]
             Supported values are:
-            - `'median'` : Uses the median (`np.nanmedian`).
-            - `'average'` : Uses the mean (`np.nanmean`).
-            - Any other value (including `None`): Defaults to summation (`np.nansum`).
+
+            - `'median'` : Uses the median (`numpy.nanmedian`).
+            - `'average'` : Uses the mean (`numpy.nanmean`).
+            - `'sum'` : Uses the sum (`numpy.nansum`).
 
         Returns
         -------
@@ -360,7 +361,6 @@ class Background(_ImageParser):
         statistic_function = np.nansum
 
         if bkg_statistic:
-            bkg_statistic = bkg_statistic.lower()
             if bkg_statistic == 'median':
                 statistic_function = np.nanmedian
             elif bkg_statistic == 'average':
