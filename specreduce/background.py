@@ -330,7 +330,7 @@ class Background(_ImageParser):
                                   (image.shape[0], 1)) * image.unit,
                           spectral_axis=image.spectral_axis)
 
-    def bkg_spectrum(self, image=None):
+    def bkg_spectrum(self, image=None, bkg_statistic="sum"):
         """
         Expose the 1D spectrum of the background.
 
@@ -341,6 +341,13 @@ class Background(_ImageParser):
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1. If None, will extract the background
             from ``image`` used to initialize the class. [default: None]
+        bkg_statistic : {'average', 'median', 'sum'}, optional
+            Statistical method used to collapse the background image. [default: ``'sum'``]
+            Supported values are:
+
+            - ``'average'`` : Uses the mean (`numpy.nanmean`).
+            - ``'median'`` : Uses the median (`numpy.nanmedian`).
+            - ``'sum'`` : Uses the sum (`numpy.nansum`).
 
         Returns
         -------
@@ -351,12 +358,22 @@ class Background(_ImageParser):
         """
         bkg_image = self.bkg_image(image)
 
+        if bkg_statistic == 'sum':
+            statistic_function = np.nansum
+        elif bkg_statistic == 'median':
+            statistic_function = np.nanmedian
+        elif bkg_statistic == 'average':
+            statistic_function = np.nanmean
+        else:
+            raise ValueError(f"Background statistic {bkg_statistic} is not supported. "
+                             "Please choose from: average, median, or sum.")
+
         try:
-            return bkg_image.collapse(np.nansum, axis=self.crossdisp_axis)
+            return bkg_image.collapse(statistic_function, axis=self.crossdisp_axis)
         except u.UnitTypeError:
             # can't collapse with a spectral axis in pixels because
             # SpectralCoord only allows frequency/wavelength equivalent units...
-            ext1d = np.nansum(bkg_image.flux, axis=self.crossdisp_axis)
+            ext1d = statistic_function(bkg_image.flux, axis=self.crossdisp_axis)
             return Spectrum1D(ext1d, bkg_image.spectral_axis)
 
     def sub_image(self, image=None):
