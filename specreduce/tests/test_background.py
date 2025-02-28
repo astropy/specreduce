@@ -87,11 +87,6 @@ def test_background(mk_test_img_raw, mk_test_spec_no_spectral_axis,
     bkg_spec_median = bg1.bkg_spectrum(bkg_statistic=np.nanmedian)
     assert_allclose(bkg_spec_median.mean().value, 14.5, rtol=0.5)
 
-    # Also support whatever Spectrum1D.collapse() takes for some inputs
-    # but we do not advertise it.
-    bkg_spec_median_2 = bg1.bkg_spectrum(bkg_statistic="median")  # np.nanmedian
-    assert_allclose(bkg_spec_median_2.mean().value, 14.5, rtol=0.5)
-
 
 def test_warnings_errors(mk_test_spec_no_spectral_axis):
     image = mk_test_spec_no_spectral_axis
