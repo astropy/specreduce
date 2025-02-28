@@ -146,4 +146,4 @@ def test_fully_masked():
     image = mk_image()
     image.mask[:] = 1
     with pytest.raises(ValueError, match="Image is fully masked."):
-        parsed_image = _ImageParser()._parse_image(image, disp_axis=1, mask_treatment="apply")
+        _ImageParser()._parse_image(image, disp_axis=1, mask_treatment="apply")

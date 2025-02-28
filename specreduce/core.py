@@ -181,12 +181,12 @@ class _ImageParser:
         """
         if mask_treatment not in _ImageParser.implemented_mask_treatment_methods:
             raise ValueError(
-                "`mask_treatment` must be one of "
+                "'mask_treatment' must be one of "
                 f"{_ImageParser.implemented_mask_treatment_methods}"
             )
 
         if mask is not None and (mask.dtype not in (bool, int)):
-            raise ValueError("`mask` must be a boolean or integer array.")
+            raise ValueError("'mask' must be a boolean or integer array.")
 
         match mask_treatment:
             case "apply":
@@ -210,7 +210,7 @@ class _ImageParser:
             case "apply_nan_only":
                 mask = ~np.isfinite(image)
             case "apply_mask_only":
-                mask = mask if mask is not None else np.zeros(image.shape, dtype=bool)
+                mask = mask.copy() if mask is not None else np.zeros(image.shape, dtype=bool)
 
         if mask.all():
             raise ValueError("Image is fully masked. Check for invalid values.")
