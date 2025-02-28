@@ -317,7 +317,7 @@ class Background(_ImageParser):
             spectral_axis=image.spectral_axis, **kwargs
         )
 
-    def bkg_spectrum(self, image=None, bkg_statistic="sum"):
+    def bkg_spectrum(self, image=None, bkg_statistic=np.nansum):
         """
         Expose the 1D spectrum of the background.
 
@@ -328,39 +328,28 @@ class Background(_ImageParser):
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1. If None, will extract the background
             from ``image`` used to initialize the class. [default: None]
-        bkg_statistic : {'average', 'median', 'sum'}, optional
-            Statistical method used to collapse the background image. [default: ``'sum'``]
-            Supported values are:
-
-            - ``'average'`` : Uses the mean (`numpy.nanmean`).
-            - ``'median'`` : Uses the median (`numpy.nanmedian`).
-            - ``'sum'`` : Uses the sum (`numpy.nansum`).
+        bkg_statistic : func, optional
+            Statistical method used to collapse the background image.
+            For historical reason, the default is `numpy.nansum` but
+            `numpy.nanmedian` or `numpy.nanmean` are better suited for this option.
+            If you provide your own function, it must take an `~astropy.units.Quantity`
+            array as input and accept an ``axis`` argument.
 
         Returns
         -------
         spec : `~specutils.Spectrum1D`
             The background 1-D spectrum, with flux expressed in the same
-            units as the input image (or u.DN if none were provided) and
+            units as the input image (or DN if none were provided) and
             the spectral axis expressed in pixel units.
         """
         bkg_image = self.bkg_image(image)
 
-        if bkg_statistic == 'sum':
-            statistic_function = np.nansum
-        elif bkg_statistic == 'median':
-            statistic_function = np.nanmedian
-        elif bkg_statistic == 'average':
-            statistic_function = np.nanmean
-        else:
-            raise ValueError(f"Background statistic {bkg_statistic} is not supported. "
-                             "Please choose from: average, median, or sum.")
-
         try:
-            return bkg_image.collapse(statistic_function, axis=self.crossdisp_axis)
+            return bkg_image.collapse(bkg_statistic, axis=self.crossdisp_axis)
         except u.UnitTypeError:
             # can't collapse with a spectral axis in pixels because
             # SpectralCoord only allows frequency/wavelength equivalent units...
-            ext1d = statistic_function(bkg_image.flux, axis=self.crossdisp_axis)
+            ext1d = bkg_statistic(bkg_image.flux, axis=self.crossdisp_axis)
             return Spectrum(ext1d, bkg_image.spectral_axis)
 
     def sub_image(self, image=None):
