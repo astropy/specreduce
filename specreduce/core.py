@@ -65,17 +65,18 @@ class _ImageParser:
         mask_treatment
             Specifies how to handle masked or non-finite values in the input image.
             The accepted values are:
-              - ``apply``: The image remains unchanged, and any existing mask is combined
+
+            - ``apply``: The image remains unchanged, and any existing mask is combined\
                 with a mask derived from non-finite values.
-              - ``ignore``: The image remains unchanged, and any existing mask is dropped.
-              - ``propagate``: The image remains unchanged, and any masked or non-finite pixel
+            - ``ignore``: The image remains unchanged, and any existing mask is dropped.
+            - ``propagate``: The image remains unchanged, and any masked or non-finite pixel\
                 causes the mask to extend across the entire cross-dispersion axis.
-              - ``zero-fill``: Pixels that are either masked or non-finite are replaced with 0.0,
+            - ``zero-fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
                 and the mask is dropped.
-              - ``nan-fill``:  Pixels that are either masked or non-finite are replaced with nan,
+            - ``nan-fill``:  Pixels that are either masked or non-finite are replaced with nan,\
                 and the mask is dropped.
-              - ``apply_mask_only``: The  image and mask are left unmodified.
-              - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a
+            - ``apply_mask_only``: The  image and mask are left unmodified.
+            - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
                 new mask is created based on non-finite values.
 
         Returns

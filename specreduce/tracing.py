@@ -267,8 +267,8 @@ class FitTrace(Trace, _ImageParser):
         The fit cannot handle non-finite values, so only the ``apply``, ``propagate``,
         ``apply_nan_only`` options are supported. The ``apply`` option combines
         the existing mask with the mask derived from non-finite values, ``propagate``
-         expands the mask along the cross-dispersion axis (that is, a masked pixel
-         results in the whole cross-dispersion slice being masked), and
+        expands the mask along the cross-dispersion axis (that is, a masked pixel
+        results in the whole cross-dispersion slice being masked), and
         ``apply_nan_only`` drops the existing mask and replaces it with a mask
         derived from non-finite values.
     """

@@ -47,16 +47,21 @@ class Background(_ImageParser):
     mask_treatment
         Specifies how to handle masked or non-finite values in the input image.
         The accepted values are:
-          - ``apply``: The image is left unmodified and any existing mask is combined
+
+        - ``apply``: The image remains unchanged, and any existing mask is combined\
             with a mask derived from non-finite values.
-          - ``ignore``: The image remains unchanged, and any existing mask is dropped.
-          - ``propagate``: The image remains unchanged, and any masked or non-finite pixel
-                causes the mask to extend across the entire cross-dispersion axis.
-          - ``zero-fill``: Pixels that are either masked or non-finite are replaced with 0.0
+        - ``ignore``: The image remains unchanged, and any existing mask is dropped.
+        - ``propagate``: The image remains unchanged, and any masked or non-finite pixel\
+            causes the mask to extend across the entire cross-dispersion axis.
+        - ``zero-fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
             and the mask is dropped.
-          - ``nan-fill``:  Pixels that are either masked or non-finite are replaced with nan
+        - ``nan-fill``:  Pixels that are either masked or non-finite are replaced with nan,\
             and the mask is dropped.
-    """
+        - ``apply_mask_only``: The  image and mask are left unmodified.
+        - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
+            new mask is created based on non-finite values.
+
+"""
 
     # required so numpy won't call __rsub__ on individual elements
     # https://stackoverflow.com/a/58409215
@@ -69,7 +74,15 @@ class Background(_ImageParser):
     disp_axis: int = 1
     crossdisp_axis: int = 0
     mask_treatment: MaskingOption = "apply"
-    _valid_mask_treatment_methods = ("apply", "ignore", "propagate", "zero-fill", "nan-fill")
+    _valid_mask_treatment_methods = (
+        "apply",
+        "ignore",
+        "propagate",
+        "zero-fill",
+        "nan-fill",
+        "apply_mask_only",
+        "apply_nan_only",
+    )
 
     # TO-DO: update bkg_array with Spectrum1D alternative (is bkg_image enough?)
     bkg_array = deprecated_attribute("bkg_array", "1.3")
