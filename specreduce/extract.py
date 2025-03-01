@@ -249,7 +249,11 @@ class BoxcarExtract(SpecreduceOperation):
         if self.mask_treatment == "apply":
             image_cleaned = np.where(~self.image.mask, self.image.data * window_weights, 0.0)
             weights = np.where(~self.image.mask, window_weights, 0.0)
-            spectrum = image_cleaned.sum(axis=cdisp_axis) / weights.sum(axis=cdisp_axis) * window_weights.sum(axis=cdisp_axis)
+            spectrum = (
+                image_cleaned.sum(axis=cdisp_axis)
+                / weights.sum(axis=cdisp_axis)
+                * window_weights.sum(axis=cdisp_axis)
+            )
         else:
             image_windowed = np.where(window_weights, self.image.data * window_weights, 0.0)
             spectrum = np.sum(image_windowed, axis=cdisp_axis)
