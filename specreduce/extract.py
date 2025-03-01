@@ -153,17 +153,18 @@ class BoxcarExtract(SpecreduceOperation):
     mask_treatment
         Specifies how to handle masked or non-finite values in the input image.
         The accepted values are:
-          - ``apply``: The image is left unmodified and any existing mask is combined
+
+        - ``apply``: The image remains unchanged, and any existing mask is combined\
             with a mask derived from non-finite values.
-          - ``ignore``: The image is left unmodified and any existing mask is dropped.
-          - ``propagate``: The image remains unchanged, and any masked or non-finite pixel
-                causes the mask to extend across the entire cross-dispersion axis.
-          - ``zero-fill``: Pixels that are either masked or non-finite are replaced with 0.0,
+        - ``ignore``: The image remains unchanged, and any existing mask is dropped.
+        - ``propagate``: The image remains unchanged, and any masked or non-finite pixel\
+            causes the mask to extend across the entire cross-dispersion axis.
+        - ``zero-fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
             and the mask is dropped.
-          - ``nan-fill``:  Pixels that are either masked or non-finite are replaced with nan,
+        - ``nan-fill``:  Pixels that are either masked or non-finite are replaced with nan,\
             and the mask is dropped.
-          - ``apply_mask_only``: The  image and mask are left unmodified.
-          - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a
+        - ``apply_mask_only``: The  image and mask are left unmodified.
+        - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
             new mask is created based on non-finite values.
 
     Returns
@@ -179,7 +180,15 @@ class BoxcarExtract(SpecreduceOperation):
     crossdisp_axis: int = 0
     # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
     mask_treatment: MaskingOption = "apply"
-    _valid_mask_treatment_methods = ("apply", "ignore", "propagate", "zero-fill", "nan-fill")
+    _valid_mask_treatment_methods = (
+        "apply",
+        "ignore",
+        "propagate",
+        "zero-fill",
+        "nan-fill",
+        "apply_mask_only",
+        "apply_nan_only",
+    )
 
     @property
     def spectrum(self):
@@ -231,16 +240,16 @@ class BoxcarExtract(SpecreduceOperation):
         # Spectrum extraction
         # ===================
         # Assign no weight to non-finite pixels outside the window. Non-finite pixels inside
-        # the window will be propagated to the sum if mask treatment is either ``filter`` or
-        # ``omit`` or excluded if the chosen mask treatment option is ``exclude``. In the
+        # the window will be propagated to the sum if mask treatment is either ``ignore`` or
+        # ``propagate`` or excluded if the chosen mask treatment option is ``apply``. In the
         # latter case, the flux is calculated as the average of the non-masked pixels inside
         # the window multiplied by the window width.
         window_weights = _ap_weight_image(trace, width, disp_axis, cdisp_axis, self.image.shape)
 
-        if self.mask_treatment == "exclude":
+        if self.mask_treatment == "apply":
             image_cleaned = np.where(~self.image.mask, self.image.data * window_weights, 0.0)
             weights = np.where(~self.image.mask, window_weights, 0.0)
-            spectrum = image_cleaned.sum(axis=cdisp_axis) / weights.sum(axis=cdisp_axis) * width
+            spectrum = image_cleaned.sum(axis=cdisp_axis) / weights.sum(axis=cdisp_axis) * window_weights.sum(axis=cdisp_axis)
         else:
             image_windowed = np.where(window_weights, self.image.data * window_weights, 0.0)
             spectrum = np.sum(image_windowed, axis=cdisp_axis)
