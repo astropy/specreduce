@@ -53,6 +53,7 @@ Calibration
     wavelength_calibration.rst
     extinction.rst
     specphot_standards.rst
+    mask_treatment/mask_treatment.rst
 
 
 *****
