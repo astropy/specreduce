@@ -10,7 +10,6 @@ IM = make_2d_trace_image()
 
 
 def mk_img(nrows=200, ncols=160, nan_slices=None, add_noise=True):
-
     """
     Makes a gaussian image for testing, with optional added gaussian
     nosie and optional data values set to NaN.
@@ -19,8 +18,7 @@ def mk_img(nrows=200, ncols=160, nan_slices=None, add_noise=True):
     # NOTE: Will move this to a fixture at some point.
 
     sigma_pix = 4
-    col_model = models.Gaussian1D(amplitude=1, mean=nrows/2,
-                                  stddev=sigma_pix)
+    col_model = models.Gaussian1D(amplitude=1, mean=nrows / 2, stddev=sigma_pix)
     noise = 0
     if add_noise:
         np.random.seed(7)
@@ -47,7 +45,7 @@ def test_basic_trace():
     assert t.shape[0] == IM.shape[1]
 
     t.shift(100)
-    assert t[0] == 600.
+    assert t[0] == 600.0
 
     t.shift(-1000)
     assert np.ma.is_masked(t[0])
@@ -55,48 +53,48 @@ def test_basic_trace():
 
 # test flat traces
 def test_flat_trace():
-    t = FlatTrace(IM, 550.)
+    t = FlatTrace(IM, 550.0)
 
     assert t.trace_pos == 550
-    assert t[0] == 550.
+    assert t[0] == 550.0
     assert t[0] == t[-1]
 
-    t.set_position(400.)
-    assert t[0] == 400.
+    t.set_position(400.0)
+    assert t[0] == 400.0
 
 
 def test_negative_flat_trace_err():
     # make sure correct error is raised when trying to create FlatTrace with
     # negative trace_pos
-    with pytest.raises(ValueError, match='must be positive.'):
+    with pytest.raises(ValueError, match="must be positive."):
         FlatTrace(IM, trace_pos=-1)
-    with pytest.raises(ValueError, match='must be positive.'):
+    with pytest.raises(ValueError, match="must be positive."):
         FlatTrace(IM, trace_pos=0)
 
 
 # test array traces
 def test_array_trace():
-    arr = np.ones_like(IM[0]) * 550.
+    arr = np.ones_like(IM[0]) * 550.0
     t = ArrayTrace(IM, arr)
 
-    assert t[0] == 550.
+    assert t[0] == 550.0
     assert t[0] == t[-1]
 
     t.shift(100)
-    assert t[0] == 650.
+    assert t[0] == 650.0
 
     t.shift(-1000)
     assert np.ma.is_masked(t[0])
 
-    arr_long = np.ones(5000) * 550.
+    arr_long = np.ones(5000) * 550.0
     t_long = ArrayTrace(IM, arr_long)
 
     assert t_long.shape[0] == IM.shape[1]
 
-    arr_short = np.ones(50) * 550.
+    arr_short = np.ones(50) * 550.0
     t_short = ArrayTrace(IM, arr_short)
 
-    assert t_short[0] == 550.
+    assert t_short[0] == 550.0
     assert np.ma.is_masked(t_short[-1])
     assert t_short.shape[0] == IM.shape[1]
 
@@ -117,7 +115,7 @@ def test_fit_trace():
     sigma_pix = 4
     sigma_noise = 1
 
-    col_model = models.Gaussian1D(amplitude=1, mean=nrows/2, stddev=sigma_pix)
+    col_model = models.Gaussian1D(amplitude=1, mean=nrows / 2, stddev=sigma_pix)
     noise = np.random.normal(scale=sigma_noise, size=(nrows, ncols))
 
     index_arr = np.tile(np.arange(nrows), (ncols, 1))
@@ -127,61 +125,58 @@ def test_fit_trace():
     t = FitTrace(img, bins=20)
 
     # test shifting
-    shift_up = int(-img.shape[0]/4)
+    shift_up = int(-img.shape[0] / 4)
     t_shift_up = t.trace + shift_up
 
     shift_out = img.shape[0]
 
     t.shift(shift_up)
-    assert np.sum(t.trace == t_shift_up) == t.trace.size, 'valid shift failed'
+    assert np.sum(t.trace == t_shift_up) == t.trace.size, "valid shift failed"
 
     t.shift(shift_out)
-    assert t.trace.mask.all(), 'invalid values not masked'
+    assert t.trace.mask.all(), "invalid values not masked"
 
     # test peak_method and trace_model options
-    tg = FitTrace(img, bins=20,
-                  peak_method='gaussian', trace_model=models.Legendre1D(3))
-    tc = FitTrace(img, bins=20,
-                  peak_method='centroid', trace_model=models.Chebyshev1D(2))
-    tm = FitTrace(img, bins=20,
-                  peak_method='max', trace_model=models.Spline1D(degree=3))
+    tg = FitTrace(img, bins=20, peak_method="gaussian", trace_model=models.Legendre1D(3))
+    tc = FitTrace(img, bins=20, peak_method="centroid", trace_model=models.Chebyshev1D(2))
+    tm = FitTrace(img, bins=20, peak_method="max", trace_model=models.Spline1D(degree=3))
     # traces should all be close to 100
     # (values may need to be updated on changes to seed, noise, etc.)
-    assert np.max(abs(tg.trace-100)) < sigma_pix
-    assert np.max(abs(tc.trace-100)) < 3 * sigma_pix
-    assert np.max(abs(tm.trace-100)) < 6 * sigma_pix
+    assert np.max(abs(tg.trace - 100)) < sigma_pix
+    assert np.max(abs(tc.trace - 100)) < 3 * sigma_pix
+    assert np.max(abs(tm.trace - 100)) < 6 * sigma_pix
     with pytest.raises(ValueError):
-        t = FitTrace(img, peak_method='invalid')
+        t = FitTrace(img, peak_method="invalid")
 
     window = 10
-    guess = int(nrows/2)
+    guess = int(nrows / 2)
     img_win_nans = img.copy()
-    img_win_nans[guess - window:guess + window] = np.nan
+    img_win_nans[guess - window : guess + window] = np.nan
 
     # ensure float bin values trigger a warning but no issues otherwise
-    with pytest.warns(UserWarning, match='TRACE: Converting bins to int'):
-        FitTrace(img, bins=20., trace_model=models.Polynomial1D(2))
+    with pytest.warns(UserWarning, match="TRACE: Converting bins to int"):
+        FitTrace(img, bins=20.0, trace_model=models.Polynomial1D(2))
 
     # ensure non-equipped models are rejected
-    with pytest.raises(ValueError, match=r'trace_model must be one of'):
+    with pytest.raises(ValueError, match=r"trace_model must be one of"):
         FitTrace(img, trace_model=models.Hermite1D(3))
 
     # ensure a bin number below 4 is rejected
-    with pytest.raises(ValueError, match='bins must be >= 4'):
+    with pytest.raises(ValueError, match="bins must be >= 4"):
         FitTrace(img, bins=3)
 
     # ensure a bin number below degree of trace model is rejected
-    with pytest.raises(ValueError, match='bins must be > '):
+    with pytest.raises(ValueError, match="bins must be > "):
         FitTrace(img, bins=4, trace_model=models.Chebyshev1D(5))
 
     # ensure number of bins greater than number of dispersion pixels is rejected
-    with pytest.raises(ValueError, match=r'bins must be <'):
+    with pytest.raises(ValueError, match=r"bins must be <"):
         FitTrace(img, bins=ncols + 1)
 
 
 @pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
 @pytest.mark.filterwarnings("ignore:Model is linear in parameters")
-class TestMasksTracing():
+class TestMasksTracing:
     """
     There are three currently implemented options for masking in FitTrace: filter,
     omit, and zero_fill. Trace, FlatTrace, and ArrayTrace do not have
@@ -252,7 +247,7 @@ class TestMasksTracing():
 
         # ensure correct warning is raised when entire trace is masked.
         trace_arr = np.ma.MaskedArray([1, 2, np.nan, 4, 5], mask=[1, 1, 0, 1, 1])
-        with pytest.warns(UserWarning, match=r'Entire trace array is masked.'):
+        with pytest.warns(UserWarning, match=r"Entire trace array is masked."):
             array_trace = ArrayTrace(img, trace_arr)
 
     def test_fit_trace_fully_masked_image(self):
@@ -273,16 +268,16 @@ class TestMasksTracing():
         img_all_nans = np.tile(np.nan, (nrows, ncols))
 
         # error on trace of all-nan image
-        with pytest.raises(ValueError, match=r'Image is fully masked. Check for invalid values.'):
+        with pytest.raises(ValueError, match=r"Image is fully masked. Check for invalid values."):
             FitTrace(img_all_nans)
 
         window = 10
-        guess = int(nrows/2)
+        guess = int(nrows / 2)
         img_win_nans = img.copy()
-        img_win_nans[guess - window:guess + window] = np.nan
+        img_win_nans[guess - window : guess + window] = np.nan
 
         # error on trace of otherwise valid image with all-nan window around guess
-        with pytest.raises(ValueError, match='pixels in window region are masked'):
+        with pytest.raises(ValueError, match="pixels in window region are masked"):
             FitTrace(img_win_nans, guess=guess, window=window)
 
     def test_fit_trace_fully_masked_columns_warn_msg(self):
@@ -302,28 +297,31 @@ class TestMasksTracing():
         mask[:, 30] = 1
         nddat = NDData(data=img, mask=mask, unit=u.DN)
 
-        match_str = 'All pixels in bins 20, 30, 100 are fully masked. Setting bin peaks to NaN.'
+        match_str = "All pixels in bins 20, 30, 100 are fully masked. Setting bin peaks to NaN."
 
         with pytest.warns(UserWarning, match=match_str):
-            FitTrace(nddat, peak_method='max')
+            FitTrace(nddat, peak_method="max")
 
         with pytest.warns(UserWarning, match=match_str):
-            FitTrace(nddat, peak_method='centroid')
+            FitTrace(nddat, peak_method="centroid")
 
         with pytest.warns(UserWarning, match=match_str):
-            FitTrace(nddat, peak_method='gaussian')
+            FitTrace(nddat, peak_method="gaussian")
 
         # and when many bins are masked, that the message is consolidated
         mask = np.zeros(img.shape, dtype=bool)
         mask[:, 0:21] = 1
         nddat = NDData(data=img, mask=mask, unit=u.DN)
-        with pytest.warns(UserWarning, match='All pixels in bins '
-                          '0, 1, 2, 3, 4, 5, 6, 7, 8, 9, ..., 20 are '
-                          'fully masked. Setting bin peaks to NaN.'):
+        with pytest.warns(
+            UserWarning,
+            match="All pixels in bins "
+            "0, 1, 2, 3, 4, 5, 6, 7, 8, 9, ..., 20 are "
+            "fully masked. Setting bin peaks to NaN.",
+        ):
             FitTrace(nddat)
 
     @pytest.mark.filterwarnings("ignore:All pixels in bins")
-    @pytest.mark.parametrize("mask_treatment", ['apply', 'propagate', 'apply_nan_only'])
+    @pytest.mark.parametrize("mask_treatment", ["apply", "propagate", "apply_nan_only"])
     def test_fit_trace_fully_masked_cols(self, mask_treatment):
         """
         Create a test image with some fully-nan/masked columns, and test that
@@ -343,38 +341,81 @@ class TestMasksTracing():
         # is masked in the same locations, to make sure that is equivilant.
 
         # test peak_method = 'max'
-        truth = [1.6346154, 2.2371795, 2.8397436, 3.4423077, 4.0448718,
-                 4.6474359, 5.25, 5.8525641, 6.4551282, 7.0576923,
-                 7.6602564]
-        max_trace = FitTrace(img, peak_method='max',
-                             mask_treatment=mask_treatment)
+        truth = [
+            1.6346154,
+            2.2371795,
+            2.8397436,
+            3.4423077,
+            4.0448718,
+            4.6474359,
+            5.25,
+            5.8525641,
+            6.4551282,
+            7.0576923,
+            7.6602564,
+        ]
+        max_trace = FitTrace(img, peak_method="max", mask_treatment=mask_treatment)
         np.testing.assert_allclose(truth, max_trace.trace, atol=0.1)
 
         # peak_method = 'gaussian'
-        truth = [1.947455, 2.383634, 2.8198131, 3.2559921, 3.6921712,
-                 4.1283502, 4.5645293, 5.0007083, 5.4368874, 5.8730665,
-                 6.3092455]
-        max_trace = FitTrace(img, peak_method='gaussian',
-                             mask_treatment=mask_treatment)
+        truth = [
+            1.947455,
+            2.383634,
+            2.8198131,
+            3.2559921,
+            3.6921712,
+            4.1283502,
+            4.5645293,
+            5.0007083,
+            5.4368874,
+            5.8730665,
+            6.3092455,
+        ]
+        max_trace = FitTrace(img, peak_method="gaussian", mask_treatment=mask_treatment)
         np.testing.assert_allclose(truth, max_trace.trace, atol=0.1)
 
         # peak_method = 'centroid'
-        truth = [2.5318835, 2.782069, 3.0322546, 3.2824402, 3.5326257,
-                 3.7828113, 4.0329969, 4.2831824, 4.533368, 4.7835536,
-                 5.0337391]
-        max_trace = FitTrace(img, peak_method='centroid', mask_treatment=mask_treatment)
+        truth = [
+            2.5318835,
+            2.782069,
+            3.0322546,
+            3.2824402,
+            3.5326257,
+            3.7828113,
+            4.0329969,
+            4.2831824,
+            4.533368,
+            4.7835536,
+            5.0337391,
+        ]
+        max_trace = FitTrace(img, peak_method="centroid", mask_treatment=mask_treatment)
         np.testing.assert_allclose(truth, max_trace.trace, atol=0.1)
 
     @pytest.mark.filterwarnings("ignore:All pixels in bins")
-    @pytest.mark.parametrize("peak_method,expected",
-                             [("max", [5., 3., 5., 5., 7., 5.,
-                                       np.nan, 5., 5., 5., 2., 5.]),
-                              ("gaussian", [5., 5., 5., 5., 5.,
-                                            5., np.nan, 5., 5., 5., 1.576, 5.]),
-                              ("centroid", [4.27108332, 2.24060342, 4.27108332,
-                                            4.27108332, 6.66827608, 4.27108332,
-                                            np.nan, 4.27108332, 4.27108332,
-                                            4.27108332, 1.19673467, 4.27108332])])
+    @pytest.mark.parametrize(
+        "peak_method,expected",
+        [
+            ("max", [5.0, 3.0, 5.0, 5.0, 7.0, 5.0, np.nan, 5.0, 5.0, 5.0, 2.0, 5.0]),
+            ("gaussian", [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, np.nan, 5.0, 5.0, 5.0, 1.576, 5.0]),
+            (
+                "centroid",
+                [
+                    4.27108332,
+                    2.24060342,
+                    4.27108332,
+                    4.27108332,
+                    6.66827608,
+                    4.27108332,
+                    np.nan,
+                    4.27108332,
+                    4.27108332,
+                    4.27108332,
+                    1.19673467,
+                    4.27108332,
+                ],
+            ),
+        ],
+    )
     def test_mask_treatment_apply(self, peak_method, expected):
         """
         Test for mask_treatment=apply for FitTrace.
@@ -385,9 +426,12 @@ class TestMasksTracing():
         """
 
         # Make an image with some non-finite values.
-        image1 = mk_img(nan_slices=[np.s_[4:8, 1:2], np.s_[2:7, 4:5],
-                                    np.s_[:, 6:7], np.s_[3:9, 10:11]],
-                        nrows=10, ncols=12, add_noise=False)
+        image1 = mk_img(
+            nan_slices=[np.s_[4:8, 1:2], np.s_[2:7, 4:5], np.s_[:, 6:7], np.s_[3:9, 10:11]],
+            nrows=10,
+            ncols=12,
+            add_noise=False,
+        )
 
         # Also make an image that doesn't have nonf data values, but has masked
         # values at the same locations, to make sure they give the same results.
@@ -398,8 +442,7 @@ class TestMasksTracing():
         for imgg in [image1, image2]:
             # run FitTrace, with the testing-only flag _save_bin_peaks_testing set
             # to True to return the bin peak values before fitting the trace
-            trace = FitTrace(imgg, peak_method=peak_method,
-                             _save_bin_peaks_testing=True)
+            trace = FitTrace(imgg, peak_method=peak_method, _save_bin_peaks_testing=True)
             x_bins, y_bins = trace._bin_peaks_testing
             np.testing.assert_allclose(y_bins, expected, atol=0.1)
 
@@ -420,24 +463,42 @@ class TestMasksTracing():
         raise a `ValueError`. Parametrized over different `peak_method` options.
         """
 
-        image = mk_img(nan_slices=[np.s_[4:8, 1:2], np.s_[2:7, 4:5],
-                                   np.s_[:, 6:7], np.s_[3:9, 10:11]],
-                       nrows=10, ncols=12, add_noise=False)
+        image = mk_img(
+            nan_slices=[np.s_[4:8, 1:2], np.s_[2:7, 4:5], np.s_[:, 6:7], np.s_[3:9, 10:11]],
+            nrows=10,
+            ncols=12,
+            add_noise=False,
+        )
 
-        for method in 'ignore', 'zero_fill', 'nan_fill', 'apply_mask_only':
+        for method in "ignore", "zero_fill", "nan_fill", "apply_mask_only":
             with pytest.raises(ValueError):
                 FitTrace(image, peak_method=peak_method, mask_treatment=method)
 
     @pytest.mark.filterwarnings("ignore:All pixels in bins")
-    @pytest.mark.parametrize("peak_method,expected",
-                             [("max", [5., np.nan, 5., 5., np.nan, 5.,
-                                       np.nan, 5., 5., 5., np.nan,  5.]),
-                              ("gaussian", [5., np.nan, 5., 5., np.nan, 5.,
-                                            np.nan, 5., 5., 5., np.nan, 5.]),
-                              ("centroid", [4.27108332, np.nan, 4.27108332,
-                                            4.27108332, np.nan, 4.27108332,
-                                            np.nan, 4.27108332, 4.27108332,
-                                            4.27108332, np.nan, 4.27108332])])
+    @pytest.mark.parametrize(
+        "peak_method,expected",
+        [
+            ("max", [5.0, np.nan, 5.0, 5.0, np.nan, 5.0, np.nan, 5.0, 5.0, 5.0, np.nan, 5.0]),
+            ("gaussian", [5.0, np.nan, 5.0, 5.0, np.nan, 5.0, np.nan, 5.0, 5.0, 5.0, np.nan, 5.0]),
+            (
+                "centroid",
+                [
+                    4.27108332,
+                    np.nan,
+                    4.27108332,
+                    4.27108332,
+                    np.nan,
+                    4.27108332,
+                    np.nan,
+                    4.27108332,
+                    4.27108332,
+                    4.27108332,
+                    np.nan,
+                    4.27108332,
+                ],
+            ),
+        ],
+    )
     def test_mask_treatment_propagate(self, peak_method, expected):
         """
         Test for mask_treatment=`propagate` for FitTrace. Columns (assuming
@@ -447,9 +508,12 @@ class TestMasksTracing():
         """
 
         # Make an image with some non-finite values.
-        image1 = mk_img(nan_slices=[np.s_[4:8, 1:2], np.s_[2:7, 4:5],
-                                    np.s_[:, 6:7], np.s_[3:9, 10:11]],
-                        nrows=10, ncols=12, add_noise=False)
+        image1 = mk_img(
+            nan_slices=[np.s_[4:8, 1:2], np.s_[2:7, 4:5], np.s_[:, 6:7], np.s_[3:9, 10:11]],
+            nrows=10,
+            ncols=12,
+            add_noise=False,
+        )
 
         # Also make an image that doesn't have non-finite data values, but has masked
         # values at the same locations, to make sure those cases are equivalent
@@ -461,9 +525,12 @@ class TestMasksTracing():
 
             # run FitTrace, with the testing-only flag _save_bin_peaks_testing set
             # to True to return the bin peak values before fitting the trace
-            trace = FitTrace(imgg, peak_method=peak_method,
-                             mask_treatment='propagate',
-                             _save_bin_peaks_testing=True)
+            trace = FitTrace(
+                imgg,
+                peak_method=peak_method,
+                mask_treatment="propagate",
+                _save_bin_peaks_testing=True,
+            )
             x_bins, y_bins = trace._bin_peaks_testing
             np.testing.assert_allclose(y_bins, expected)
 

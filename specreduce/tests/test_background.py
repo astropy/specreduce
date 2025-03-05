@@ -82,15 +82,18 @@ def test_background(
         assert np.isnan(bg.bkg_spectrum().flux).sum() == 0
         assert np.isnan(bg.sub_spectrum().flux).sum() == 0
 
-    bkg_spec_avg = bg1.bkg_spectrum(bkg_statistic='average')
+    bkg_spec_avg = bg1.bkg_spectrum(bkg_statistic="average")
     assert_allclose(bkg_spec_avg.mean().value, 14.5, rtol=0.5)
 
-    bkg_spec_median = bg1.bkg_spectrum(bkg_statistic='median')
+    bkg_spec_median = bg1.bkg_spectrum(bkg_statistic="median")
     assert_allclose(bkg_spec_median.mean().value, 14.5, rtol=0.5)
 
-    with pytest.raises(ValueError, match="Background statistic max is not supported. "
-                                         "Please choose from: average, median, or sum."):
-        bg1.bkg_spectrum(bkg_statistic='max')
+    with pytest.raises(
+        ValueError,
+        match="Background statistic max is not supported. "
+        "Please choose from: average, median, or sum.",
+    ):
+        bg1.bkg_spectrum(bkg_statistic="max")
 
 
 def test_warnings_errors(mk_test_spec_no_spectral_axis):
