@@ -184,7 +184,7 @@ def test_fit_trace():
 class TestMasksTracing():
     """
     There are three currently implemented options for masking in FitTrace: filter,
-    omit, and zero-fill. Trace, FlatTrace, and ArrayTrace do not have
+    omit, and zero_fill. Trace, FlatTrace, and ArrayTrace do not have
     `mask_treatment` options as input because masked/nonfinite values in the data
     are not relevant for those trace types as they are not affected by masked
     input data. The tests in this class test masking options for FitTrace, as
@@ -424,7 +424,7 @@ class TestMasksTracing():
                                    np.s_[:, 6:7], np.s_[3:9, 10:11]],
                        nrows=10, ncols=12, add_noise=False)
 
-        for method in 'ignore', 'zero-fill', 'nan-fill', 'apply_mask_only':
+        for method in 'ignore', 'zero_fill', 'nan_fill', 'apply_mask_only':
             with pytest.raises(ValueError):
                 FitTrace(image, peak_method=peak_method, mask_treatment=method)
 

@@ -159,9 +159,9 @@ class BoxcarExtract(SpecreduceOperation):
         - ``ignore``: The image remains unchanged, and any existing mask is dropped.
         - ``propagate``: The image remains unchanged, and any masked or non-finite pixel\
             causes the mask to extend across the entire cross-dispersion axis.
-        - ``zero-fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
+        - ``zero_fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
             and the mask is dropped.
-        - ``nan-fill``:  Pixels that are either masked or non-finite are replaced with nan,\
+        - ``nan_fill``:  Pixels that are either masked or non-finite are replaced with nan,\
             and the mask is dropped.
         - ``apply_mask_only``: The  image and mask are left unmodified.
         - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
@@ -184,8 +184,8 @@ class BoxcarExtract(SpecreduceOperation):
         "apply",
         "ignore",
         "propagate",
-        "zero-fill",
-        "nan-fill",
+        "zero_fill",
+        "nan_fill",
         "apply_mask_only",
         "apply_nan_only",
     )

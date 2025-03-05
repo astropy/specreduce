@@ -13,7 +13,7 @@ from specutils import Spectrum1D
 __all__ = ["SpecreduceOperation"]
 
 MaskingOption = Literal[
-    "apply", "ignore", "propagate", "zero-fill", "nan-fill", "apply_mask_only", "apply_nan_only"
+    "apply", "ignore", "propagate", "zero_fill", "nan_fill", "apply_mask_only", "apply_nan_only"
 ]
 
 ImageLike = np.ndarray | NDData | u.Quantity
@@ -41,8 +41,8 @@ class _ImageParser:
         "apply",
         "ignore",
         "propagate",
-        "zero-fill",
-        "nan-fill",
+        "zero_fill",
+        "nan_fill",
         "apply_mask_only",
         "apply_nan_only",
     )
@@ -71,9 +71,9 @@ class _ImageParser:
             - ``ignore``: The image remains unchanged, and any existing mask is dropped.
             - ``propagate``: The image remains unchanged, and any masked or non-finite pixel\
                 causes the mask to extend across the entire cross-dispersion axis.
-            - ``zero-fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
+            - ``zero_fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
                 and the mask is dropped.
-            - ``nan-fill``:  Pixels that are either masked or non-finite are replaced with nan,\
+            - ``nan_fill``:  Pixels that are either masked or non-finite are replaced with nan,\
                 and the mask is dropped.
             - ``apply_mask_only``: The  image and mask are left unmodified.
             - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
@@ -166,7 +166,7 @@ class _ImageParser:
         part of the input NDData.
 
         There are five options currently implemented for the treatment
-        of masked and non-finite data - apply, ignore, zero-fill, nan-fill,
+        of masked and non-finite data - apply, ignore, zero_fill, nan_fill,
         apply_mask_only, and apply_nan_only. Depending on the routine,
         all or a subset of these three options are valid.
 
@@ -200,10 +200,10 @@ class _ImageParser:
                 else:
                     mask = mask | (~np.isfinite(image))
                 mask[:] = mask.any(axis=crossdisp_axis, keepdims=True)
-            case "zero-fill" | "nan-fill":
+            case "zero_fill" | "nan_fill":
                 mask = mask | (~np.isfinite(image)) if mask is not None else ~np.isfinite(image)
                 image = deepcopy(image)
-                if mask_treatment == "zero-fill":
+                if mask_treatment == "zero_fill":
                     image[mask] = 0.0
                 else:
                     image[mask] = np.nan

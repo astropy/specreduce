@@ -21,7 +21,7 @@ New Features
 
 - Added the ``mask_treatment`` parameter to Background, Trace, and Boxcar Extract
   operations to handle non-finite data and boolean masks. Available options are
-  ``apply``, ``ignore``, ``propagate``, ``zero-fill``, ``nan-fill``, ``apply_mask_only``,
+  ``apply``, ``ignore``, ``propagate``, ``zero_fill``, ``nan_fill``, ``apply_mask_only``,
   or ``apply_nan_only``. [#216, #254]
 
 - Modified ``background.Background.bgk_spectrum`` to allow the user to select the statistic

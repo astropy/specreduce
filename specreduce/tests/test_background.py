@@ -181,7 +181,7 @@ class TestMasksBackground:
 
         return img * u.DN
 
-    @pytest.mark.parametrize("mask", ["apply", "propagate", "zero-fill"])
+    @pytest.mark.parametrize("mask", ["apply", "propagate", "zero_fill"])
     def test_fully_masked_column(self, mask):
         """
         Test background with some fully-masked columns (not fully masked image).
@@ -229,7 +229,7 @@ class TestMasksBackground:
                 np.array([0.0, 2.0, 3.0, 0.0, 5.0, 6.0, 7.0, 0.0, 9.0, 10.0, 11.0, 12.0]),
             ),
             (
-                "zero-fill",
+                "zero_fill",
                 np.array(
                     [
                         0.58333333,
@@ -334,7 +334,7 @@ class TestMasksBackground:
 
         assert np.all(np.isfinite(subtracted_img_propagate.data) == np.isfinite(image.data))
 
-        # Calculate a background value using mask_treatment = 'zero-fill'. Data
+        # Calculate a background value using mask_treatment = 'zero_fill'. Data
         # values at masked locations are set to 0 in the image array, and the
         # background value calculated for that column will be subtracted
         # resulting in a negative value. The resulting background subtracted
@@ -342,7 +342,7 @@ class TestMasksBackground:
         # (all unmasked)
 
         background_zero_fill = Background(
-            image, mask_treatment="zero-fill", traces=FlatTrace(image, 6), width=2
+            image, mask_treatment="zero_fill", traces=FlatTrace(image, 6), width=2
         )
         subtracted_img_zero_fill = background_zero_fill.sub_image()
 

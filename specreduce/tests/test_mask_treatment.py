@@ -77,7 +77,7 @@ def test_propagate():
 
 def test_zero_fill():
     image = mk_image()
-    parsed_image = _ImageParser()._parse_image(image, disp_axis=1, mask_treatment="zero-fill")
+    parsed_image = _ImageParser()._parse_image(image, disp_axis=1, mask_treatment="zero_fill")
     image_true = np.ones(image.data.shape)
     image_true[[0, 1, 1], [1, 0, 3]] = 0
     np.testing.assert_array_equal(parsed_image.data, image_true)
@@ -85,7 +85,7 @@ def test_zero_fill():
     np.testing.assert_array_equal(parsed_image.mask, mask_true)
 
     image.mask = None
-    parsed_image = _ImageParser()._parse_image(image, disp_axis=1, mask_treatment="zero-fill")
+    parsed_image = _ImageParser()._parse_image(image, disp_axis=1, mask_treatment="zero_fill")
     image_true = np.ones(image.data.shape)
     image_true[1, 3] = 0
     np.testing.assert_array_equal(parsed_image.data, image_true)
@@ -95,7 +95,7 @@ def test_zero_fill():
 
 def test_nan_fill():
     image = mk_image()
-    parsed_image = _ImageParser()._parse_image(image, disp_axis=1, mask_treatment="nan-fill")
+    parsed_image = _ImageParser()._parse_image(image, disp_axis=1, mask_treatment="nan_fill")
     image_true = np.ones(image.data.shape)
     image_true[[0, 1, 1], [1, 0, 3]] = np.nan
     np.testing.assert_array_equal(parsed_image.data, image_true)
@@ -103,7 +103,7 @@ def test_nan_fill():
     np.testing.assert_array_equal(parsed_image.mask, mask_true)
 
     image.mask = None
-    parsed_image = _ImageParser()._parse_image(image, disp_axis=1, mask_treatment="nan-fill")
+    parsed_image = _ImageParser()._parse_image(image, disp_axis=1, mask_treatment="nan_fill")
     image_true = np.ones(image.data.shape)
     image_true[1, 3] = np.nan
     np.testing.assert_array_equal(parsed_image.data, image_true)

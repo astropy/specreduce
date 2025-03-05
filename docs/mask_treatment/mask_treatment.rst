@@ -31,14 +31,14 @@ Available Options
 
 .. image:: fig_masking_propagate.svg
 
-- ``zero-fill``
+- ``zero_fill``
   All pixels that are masked or non-finite are replaced with ``0.0`` and the the mask
   is cleared from the image.
 
 .. image:: fig_masking_zero_fill.svg
 
-- ``nan-fill``
-  Similar to zero-fill, but instead of replacing invalid pixels with ``0.0``, they are replaced
+- ``nan_fill``
+  Similar to zero_fill, but instead of replacing invalid pixels with ``0.0``, they are replaced
   with ``nan``. The mask is then removed from the image.
 
 .. image:: fig_masking_nan_fill.svg
