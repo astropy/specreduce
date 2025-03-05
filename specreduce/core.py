@@ -242,7 +242,7 @@ class SpecreduceOperation(_ImageParser):
         ``Operation(arg2, keyword=value)(arg1)`` (if the ``__call__`` of
         ``Operation`` has only one argument)
         """
-        argspec = inspect.getargs(SpecreduceOperation.__call__.__code__)
+        argspec = inspect.getargs(cls.__call__.__code__)
         if argspec.varargs:
             raise NotImplementedError(
                 "There is not a way to determine the "
