@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from astropy import units as u
 from astropy.modeling import models
-from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty
+from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty, StdDevUncertainty
 from astropy.tests.helper import assert_quantity_allclose
 from specutils import Spectrum1D
 
@@ -137,6 +137,12 @@ def test_horne_image_validation(mk_test_img):
     with pytest.raises(ValueError, match=r".*NDData object lacks uncertainty"):
         ext = extract(image=image)
 
+    # a warning should be raised if uncertainty is StdDevUncertainty
+    with pytest.warns(UserWarning, match="image NDData object's uncertainty"):
+        err = StdDevUncertainty(np.ones_like(image))
+        image.uncertainty = err
+        ext = extract(image=image)
+
     # an NDData-type image's uncertainty must be of type VarianceUncertainty
     # or type StdDevUncertainty
     with pytest.raises(ValueError, match=r".*unexpected uncertainty type.*"):
@@ -247,7 +253,10 @@ def test_horne_bad_profile(mk_test_img):
         extract.spectrum
 
     extract = HorneExtract(
-        image.data, trace, spatial_profile=models.Polynomial1D(2), variance=np.ones(image.data.shape)
+        image.data,
+        trace,
+        spatial_profile=models.Polynomial1D(2),
+        variance=np.ones(image.data.shape),
     )
     with pytest.raises(ValueError, match="spatial_profile must be a"):
         extract.spectrum
