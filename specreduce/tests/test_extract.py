@@ -246,6 +246,12 @@ def test_horne_bad_profile(mk_test_img):
     with pytest.raises(ValueError, match="spatial_profile must be one of"):
         extract.spectrum
 
+    extract = HorneExtract(
+        image.data, trace, spatial_profile=models.Polynomial1D(2), variance=np.ones(image.data.shape)
+    )
+    with pytest.raises(ValueError, match="spatial_profile must be a"):
+        extract.spectrum
+
 
 def test_horne_nonfinite_column(mk_test_img):
     image = mk_test_img
@@ -264,11 +270,8 @@ def test_horne_no_bkgrnd(mk_test_img):
     # Test HorneExtract when using bkgrd_prof=None
 
     image = mk_test_img
-
     trace = FlatTrace(image, 3.0)
     extract = HorneExtract(image.data, trace, bkgrd_prof=None, variance=np.ones(image.data.shape))
-
-    # This is just testing that it runs with no errors and returns something
     assert len(extract.spectrum.flux) == 10
 
 
@@ -301,6 +304,15 @@ def test_horne_interpolated_profile(mk_test_img):
     )
 
     assert_quantity_allclose(horne_extract_gauss.spectrum.flux, horne_extract_self.spectrum.flux)
+
+    with pytest.raises(ValueError, match="When"):
+        sp = HorneExtract(
+            image.data,
+            trace,
+            spatial_profile={"name": "interpolated_profile", "n_bins_interpolated_profile": 3},
+            bkgrd_prof=models.Polynomial1D(2),
+            variance=np.ones(image.data.shape),
+        ).spectrum
 
 
 def test_horne_interpolated_profile_norm(mk_test_img):

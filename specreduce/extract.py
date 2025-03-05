@@ -654,7 +654,7 @@ class HorneExtract(SpecreduceOperation):
         profile_choices = ("gaussian", "interpolated_profile")
 
         if not isinstance(profile, (str, dict)):
-            raise ValueError("``spatial_profile`` must either be string or dictionary.")
+            raise ValueError("spatial_profile must be a string or dictionary.")
         if isinstance(profile, str):
             profile = dict(name=profile)
 
@@ -664,8 +664,6 @@ class HorneExtract(SpecreduceOperation):
 
         n_bins_interpolated_profile = profile.get("n_bins_interpolated_profile", 10)
         interp_degree_interpolated_profile = profile.get("interp_degree_interpolated_profile", 1)
-        if profile_type == "interpolated_profile":
-            bkgrd_prof = None
 
         self.image = self._parse_image(image, variance, mask, unit, disp_axis)
         variance = self.image.uncertainty.represent_as(VarianceUncertainty).array
