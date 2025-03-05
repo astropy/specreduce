@@ -3,13 +3,20 @@
 from copy import deepcopy
 import inspect
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 from astropy import units as u
-from astropy.nddata import VarianceUncertainty
+from astropy.nddata import VarianceUncertainty, NDData
 from specutils import Spectrum1D
 
-__all__ = ['SpecreduceOperation']
+__all__ = ["SpecreduceOperation"]
+
+MaskingOption = Literal[
+    "apply", "ignore", "propagate", "zero_fill", "nan_fill", "apply_mask_only", "apply_nan_only"
+]
+
+ImageLike = np.ndarray | NDData | u.Quantity
 
 
 class _ImageParser:
@@ -30,11 +37,19 @@ class _ImageParser:
 
     # The '_valid_mask_treatment_methods' in the Background, Trace, and Extract
     # classes is a subset of implemented methods.
-    implemented_mask_treatment_methods = 'filter', 'zero-fill', 'omit'
+    implemented_mask_treatment_methods = (
+        "apply",
+        "ignore",
+        "propagate",
+        "zero_fill",
+        "nan_fill",
+        "apply_mask_only",
+        "apply_nan_only",
+    )
 
-    def _parse_image(self, image,
-                     disp_axis: int = 1,
-                     mask_treatment: str = 'filter') -> Spectrum1D:
+    def _parse_image(
+        self, image: ImageLike, disp_axis: int = 1, mask_treatment: MaskingOption = "apply"
+    ) -> Spectrum1D:
         """
         Convert all accepted image types to a consistently formatted Spectrum1D object.
 
@@ -46,19 +61,23 @@ class _ImageParser:
         disp_axis
             The index of the image's dispersion axis. Should not be
             changed until operations can handle variable image
-            orientations. [default: 1]
+            orientations.
         mask_treatment
-            The method for handling masked or non-finite data. Choice of ``filter``,
-            ``omit``, or ``zero-fill``. If ``filter`` is chosen, masked and non-finite
-            data will not contribute to the background statistic that is calculated
-            in each column along `disp_axis`. If `omit` is chosen, columns along
-            disp_axis with any masked/non-finite data values will be fully masked
-            (i.e, 2D mask is collapsed to 1D and applied). If ``zero-fill`` is chosen,
-            masked/non-finite data will be replaced with 0.0 in the input image,
-            and the mask will then be dropped. For all three options, the input mask
-            (optional on input NDData object) will be combined with a mask generated
-            from any non-finite values in the image data.
-            [default: ``filter``]
+            Specifies how to handle masked or non-finite values in the input image.
+            The accepted values are:
+
+            - ``apply``: The image remains unchanged, and any existing mask is combined\
+                with a mask derived from non-finite values.
+            - ``ignore``: The image remains unchanged, and any existing mask is dropped.
+            - ``propagate``: The image remains unchanged, and any masked or non-finite pixel\
+                causes the mask to extend across the entire cross-dispersion axis.
+            - ``zero_fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
+                and the mask is dropped.
+            - ``nan_fill``:  Pixels that are either masked or non-finite are replaced with nan,\
+                and the mask is dropped.
+            - ``apply_mask_only``: The  image and mask are left unmodified.
+            - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
+                new mask is created based on non-finite values.
 
         Returns
         -------
@@ -72,36 +91,29 @@ class _ImageParser:
             # useful for Background's instance methods
             return self.image
 
-        return self._get_data_from_image(image, disp_axis=disp_axis,
-                                         mask_treatment=mask_treatment)
+        return self._get_data_from_image(image, disp_axis=disp_axis, mask_treatment=mask_treatment)
 
     @staticmethod
-    def _get_data_from_image(image,
-                             disp_axis: int = 1,
-                             mask_treatment: str = 'filter') -> Spectrum1D:
+    def _get_data_from_image(
+        image: ImageLike, disp_axis: int = 1, mask_treatment: MaskingOption = "apply"
+    ) -> Spectrum1D:
         """
         Extract data array from various input types for `image`.
 
         Parameters
         ----------
-        image : array-like or Quantity
+        image
             Input image from which data is extracted. This can be a 2D numpy
             array, Quantity, or an NDData object.
-        disp_axis : int, optional
+        disp_axis
             The dispersion axis of the image.
-        mask_treatment : str, optional
-            Treatment method for the mask:
-            - 'filter' (default): Return the unmodified input image and combined mask.
-            - 'zero-fill': Set masked values in the image to zero.
-            - 'omit': Mask all pixels along the cross dispersion axis if any value is masked.
+        mask_treatment
+            Specifies how to handle masked or non-finite values in the input image.
 
         Returns
         -------
         Spectrum1D
         """
-        # This works only with 2D images.
-        crossdisp_axis = (disp_axis + 1) % 2
-
         if isinstance(image, u.quantity.Quantity):
             img = image.value
         elif isinstance(image, np.ndarray):
@@ -109,115 +121,100 @@ class _ImageParser:
         else:  # NDData, including CCDData and Spectrum1D
             img = image.data
 
-        mask = getattr(image, 'mask', None)
+        mask = getattr(image, "mask", None)
+        crossdisp_axis = (disp_axis + 1) % 2
 
-        # next, handle masked and nonfinite data in image.
-        # A mask will be created from any nonfinite image data, and combined
+        # next, handle masked and non-finite data in image.
+        # A mask will be created from any non-finite image data, and combined
         # with any additional 'mask' passed in. If image is being parsed within
         # a specreduce operation that has 'mask_treatment' options, this will be
         # handled as well. Note that input data may be modified if a fill value
         # is chosen to handle masked data. The returned image will always have
-        # `image.mask` even if there are no nonfinte or masked values.
-        img, mask = _ImageParser._mask_and_nonfinite_data_handling(image=img,
-                                                                   mask=mask,
-                                                                   mask_treatment=mask_treatment,
-                                                                   crossdisp_axis=crossdisp_axis)
+        # `image.mask` even if there are no non-finite or masked values.
+        img, mask = _ImageParser._mask_and_nonfinite_data_handling(
+            image=img, mask=mask, mask_treatment=mask_treatment, crossdisp_axis=crossdisp_axis
+        )
 
         # mask (handled above) and uncertainty are set as None when they aren't
         # specified upon creating a Spectrum1D object, so we must check whether
         # these attributes are absent *and* whether they are present but set as None
-        if hasattr(image, 'uncertainty'):
+        if hasattr(image, "uncertainty"):
             uncertainty = image.uncertainty
         else:
             uncertainty = VarianceUncertainty(np.ones(img.shape))
 
-        unit = getattr(image, 'unit', u.Unit('DN'))
+        unit = getattr(image, "unit", u.Unit("DN"))
 
-        spectral_axis = getattr(image, 'spectral_axis',
-                                np.arange(img.shape[disp_axis]) * u.pix)
+        spectral_axis = getattr(image, "spectral_axis", np.arange(img.shape[disp_axis]) * u.pix)
 
-        img = Spectrum1D(img * unit, spectral_axis=spectral_axis,
-                         uncertainty=uncertainty, mask=mask)
+        img = Spectrum1D(
+            img * unit, spectral_axis=spectral_axis, uncertainty=uncertainty, mask=mask
+        )
         return img
 
     @staticmethod
-    def _mask_and_nonfinite_data_handling(image, mask,
-                                          mask_treatment: str = 'filter',
-                                          crossdisp_axis: int = 0) -> tuple[np.ndarray, np.ndarray]:
+    def _mask_and_nonfinite_data_handling(
+        image: ImageLike,
+        mask: ImageLike | None = None,
+        mask_treatment: str = "apply",
+        crossdisp_axis: int = 1,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
-        Handle the treatment of masked and nonfinite data.
+        Handle the treatment of masked and non-finite data.
 
         All operations in Specreduce can take in a mask for the data as
-        part of the input NDData. Additionally, any non-finite values in the
-        data that aren't in the user-supplied mask will be combined bitwise
-        with the input mask.
+        part of the input NDData.
 
-        There are three options currently implemented for the treatment
-        of masked and nonfinite data - filter, omit, and zero-fill.
-        Depending on the step, all or a subset of these three options are valid.
+        There are five options currently implemented for the treatment
+        of masked and non-finite data - apply, ignore, zero_fill, nan_fill,
+        apply_mask_only, and apply_nan_only. Depending on the routine,
+        all or a subset of these three options are valid.
 
         Parameters
         ----------
         image : array-like
-            The input image data array that may contain nonfinite values.
+            The input image data array that may contain non-finite values.
         mask : array-like of bool or None
-            An optional Boolean mask array. Nonfinite values in the image will be added
+            An optional Boolean mask array. Non-finite values in the image will be added
             to this mask.
-        mask_treatment : str
-            Specifies how to handle masked data:
-            - 'filter' (default): Returns the unmodified input image and combined mask.
-            - 'zero-fill': Sets masked values in the image to zero.
-            - 'omit': Masks entire columns or rows if any value is masked.
-        crossdisp_axis : int
-            Axis along which to collapse the 2D mask into a 1D mask for treatment 'omit'.
+        mask_treatment
+            Specifies how to handle masked or non-finite values in the input image.
         """
         if mask_treatment not in _ImageParser.implemented_mask_treatment_methods:
-            raise ValueError("`mask_treatment` must be one of "
-                             f"{_ImageParser.implemented_mask_treatment_methods}")
+            raise ValueError(
+                "'mask_treatment' must be one of "
+                f"{_ImageParser.implemented_mask_treatment_methods}"
+            )
 
-        # make sure there is always a 'mask', even when all data is unmasked and finite.
-        if mask is not None:
-            # always mask any previously uncaught nonfinite values in image array
-            # combining these with the (optional) user-provided mask on `image.mask`
-            mask = np.logical_or(mask, ~np.isfinite(image))
-        else:
-            mask = ~np.isfinite(image)
+        if mask is not None and (mask.dtype not in (bool, int)):
+            raise ValueError("'mask' must be a boolean or integer array.")
 
-        # if mask option is the default 'filter' option,
-        # nothing needs to be done. input mask (combined with nonfinite data)
-        # remains with data as-is.
+        match mask_treatment:
+            case "apply":
+                mask = mask | (~np.isfinite(image)) if mask is not None else ~np.isfinite(image)
+            case "ignore":
+                mask = np.zeros(image.shape, dtype=bool)
+            case "propagate":
+                if mask is None:
+                    mask = ~np.isfinite(image)
+                else:
+                    mask = mask | (~np.isfinite(image))
+                mask[:] = mask.any(axis=crossdisp_axis, keepdims=True)
+            case "zero_fill" | "nan_fill":
+                mask = mask | (~np.isfinite(image)) if mask is not None else ~np.isfinite(image)
+                image = deepcopy(image)
+                if mask_treatment == "zero_fill":
+                    image[mask] = 0.0
+                else:
+                    image[mask] = np.nan
+                mask[:] = False
+            case "apply_nan_only":
+                mask = ~np.isfinite(image)
+            case "apply_mask_only":
+                mask = mask.copy() if mask is not None else np.zeros(image.shape, dtype=bool)
 
-        if mask_treatment == 'zero-fill':
-            # make a copy of the input image since we will be modifying it
-            image = deepcopy(image)
-
-            # if mask_treatment is 'zero_fill', set masked values to zero in
-            # image data and drop image.mask. note that this is done after
-            # _combine_mask_with_nonfinite_from_data, so non-finite values in
-            # data (which are now in the mask) will also be set to zero.
-            # set masked values to zero
-            image[mask] = 0.
-
-            # masked array with no masked values, so accessing image.mask works
-            # but we don't need the actual mask anymore since data has been set to 0
-            mask = np.zeros(image.shape, dtype=bool)
-
-        elif mask_treatment == 'omit':
-            # collapse 2d mask (after accounting for addl non-finite values in
-            # data) to a 1d mask, along dispersion axis, to fully mask columns
-            # that have any masked values.
-
-            # create a 1d mask along crossdisp axis - if any column has a single nan,
-            # the entire column should be masked
-            reduced_mask = np.logical_or.reduce(mask, axis=crossdisp_axis)
-
-            # back to a 2D mask
-            shape = (image.shape[0], 1) if crossdisp_axis == 0 else (1, image.shape[1])
-            mask = np.tile(reduced_mask, shape)
-
-        # check for case where entire image is masked.
         if mask.all():
-            raise ValueError('Image is fully masked. Check for invalid values.')
+            raise ValueError("Image is fully masked. Check for invalid values.")
 
         return image, mask
 
@@ -233,9 +230,9 @@ class SpecreduceOperation(_ImageParser):
     the operation, which then *return* the data objects resulting from the
     operation.
     """
+
     def __call__(self):
-        raise NotImplementedError('__call__ on a SpecreduceOperation needs to '
-                                  'be overridden')
+        raise NotImplementedError("__call__ on a SpecreduceOperation needs to " "be overridden")
 
     @classmethod
     def as_function(cls, *args, **kwargs):
@@ -245,11 +242,13 @@ class SpecreduceOperation(_ImageParser):
         ``Operation(arg2, keyword=value)(arg1)`` (if the ``__call__`` of
         ``Operation`` has only one argument)
         """
-        argspec = inspect.getargs(SpecreduceOperation.__call__.__code__)
+        argspec = inspect.getargs(cls.__call__.__code__)
         if argspec.varargs:
-            raise NotImplementedError('There is not a way to determine the '
-                                      'number of inputs of a *args style '
-                                      'operation')
+            raise NotImplementedError(
+                "There is not a way to determine the "
+                "number of inputs of a *args style "
+                "operation"
+            )
         ninputs = len(argspec.args) - 1
 
         callargs = args[:ninputs]

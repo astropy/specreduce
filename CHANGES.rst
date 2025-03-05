@@ -21,11 +21,14 @@ New Features
 
 - Added the ``mask_treatment`` parameter to Background, Trace, and Boxcar Extract
   operations to handle non-finite data and boolean masks. Available options are
-  ``filter``, ``omit``, or ``zero-fill``, with ``exclude`` additionally available
-  for BoxcarExtract. [#216]
+  ``apply``, ``ignore``, ``propagate``, ``zero_fill``, ``nan_fill``, ``apply_mask_only``,
+  or ``apply_nan_only``. [#216, #254]
 
-- Modified BoxcarExtract to ignore non-finite pixels when ``mask_treatment`` is set
-  to ``exclude``; otherwise, non-finite values are propagated. Boxcar extraction is
+- Modified ``background.Background.bgk_spectrum`` to allow the user to select the statistic
+  used for background estimation between ``median`` or ``average``. [#253]
+
+- Modified ``extract.BoxcarExtract`` to ignore non-finite pixels when ``mask_treatment`` is set
+  to ``apply``; otherwise, non-finite values are propagated. Boxcar extraction is
   now carried out as a weighed sum over the window. When no non-finite values are
   present, the extracted spectra remain unchanged from the previous behaviour.
 

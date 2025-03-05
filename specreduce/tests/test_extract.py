@@ -2,22 +2,19 @@ import numpy as np
 import pytest
 from astropy import units as u
 from astropy.modeling import models
-from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty
+from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty, StdDevUncertainty
 from astropy.tests.helper import assert_quantity_allclose
 from specutils import Spectrum1D
 
 from specreduce.background import Background
-from specreduce.extract import (
-    BoxcarExtract, HorneExtract, OptimalExtract, _align_along_trace
-)
+from specreduce.extract import BoxcarExtract, HorneExtract, OptimalExtract, _align_along_trace
 from specreduce.tracing import FitTrace, FlatTrace, ArrayTrace
 
 
 def add_gaussian_source(image, amps=2, stddevs=2, means=None):
-
-    """ Modify `image.data` to add a horizontal spectrum across the image.
-        Each column can have a different amplitude, stddev or mean position
-        if these are arrays (otherwise, constant across image).
+    """Modify `image.data` to add a horizontal spectrum across the image.
+    Each column can have a different amplitude, stddev or mean position
+    if these are arrays (otherwise, constant across image).
     """
 
     nrows, ncols = image.shape
@@ -33,24 +30,20 @@ def add_gaussian_source(image, amps=2, stddevs=2, means=None):
         stddevs = np.ones(ncols) * stddevs
 
     for i, col in enumerate(range(ncols)):
-        mod = models.Gaussian1D(amplitude=amps[i], mean=means[i],
-                                stddev=stddevs[i])
+        mod = models.Gaussian1D(amplitude=amps[i], mean=means[i], stddev=stddevs[i])
         image.data[:, i] = mod(np.arange(nrows))
 
 
 def test_boxcar_extraction(mk_test_img):
-    #
-    # Try combinations of extraction center, and even/odd
-    # extraction aperture sizes.
-    #
 
+    # Try combinations of extraction center, and even/odd extraction aperture sizes.
     image = mk_test_img
 
     trace = FlatTrace(image, 15.0)
     boxcar = BoxcarExtract(image, trace)
 
     spectrum = boxcar.spectrum
-    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.0))
     assert spectrum.unit is not None and spectrum.unit == u.Jy
 
     trace.set_position(14.5)
@@ -64,11 +57,11 @@ def test_boxcar_extraction(mk_test_img):
     trace.set_position(15.0)
     boxcar.width = 6
     spectrum = boxcar()
-    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 90.))
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 90.0))
 
     trace.set_position(14.5)
     spectrum = boxcar(width=6)
-    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 87.))
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 87.0))
 
     trace.set_position(15.0)
     spectrum = boxcar(width=4.5)
@@ -89,43 +82,41 @@ def test_boxcar_nonfinite_handling(mk_test_img):
     image.data[14, 4] = np.inf
 
     trace = FlatTrace(image, 15.0)
-    boxcar = BoxcarExtract(image, trace, width=6, mask_treatment='filter')
-    spectrum = boxcar()
-    target = np.full_like(spectrum.flux.value, 90.)
+    spectrum = BoxcarExtract(image, trace, width=6, mask_treatment="ignore")()
+    target = np.full_like(spectrum.flux.value, 90.0)
     target[2] = np.nan
     target[4] = np.inf
     np.testing.assert_equal(spectrum.flux.value, target)
 
-    trace = FlatTrace(image, 15.0)
-    boxcar = BoxcarExtract(image, trace, width=6, mask_treatment='exclude')
-    spectrum = boxcar()
-    target = np.full_like(spectrum.flux.value, 90.)
+    spectrum = BoxcarExtract(image, trace, width=6, mask_treatment="apply")()
     target[[2, 4]] = 91.2
-    np.testing.assert_allclose(spectrum.flux.value, target)
+    np.testing.assert_allclose(spectrum.flux.value, target, rtol=1e-8)
 
 
 def test_boxcar_outside_image_condition(mk_test_img):
-    #
+
     # Trace is such that extraction aperture lays partially outside the image
-    #
     image = mk_test_img
 
     trace = FlatTrace(image, 3.0)
-    boxcar = BoxcarExtract(image, trace, mask_treatment='filter')
+    boxcar = BoxcarExtract(image, trace, mask_treatment="apply")
+    spectrum = boxcar(width=10.0)
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 32.0))
 
-    spectrum = boxcar(width=10.)
+    boxcar = BoxcarExtract(image, trace, mask_treatment="ignore")
+    spectrum = boxcar(width=10.0)
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 32.0))
 
 
 def test_boxcar_array_trace(mk_test_img):
     image = mk_test_img
 
-    trace_array = np.ones_like(image[1]) * 15.
+    trace_array = np.ones_like(image[1]) * 15.0
     trace = ArrayTrace(image, trace_array)
 
     boxcar = BoxcarExtract(image, trace)
     spectrum = boxcar()
-    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.))
+    assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.0))
 
 
 def test_horne_image_validation(mk_test_img):
@@ -139,29 +130,35 @@ def test_horne_image_validation(mk_test_img):
     extract = OptimalExtract(image.data, trace)  # equivalent to HorneExtract
 
     # an array-type image must come with a variance argument
-    with pytest.raises(ValueError, match=r'.*variance must be specified.*'):
+    with pytest.raises(ValueError, match=r".*variance must be specified.*"):
         ext = extract()
 
     # an NDData-type image can't have an empty uncertainty attribute
-    with pytest.raises(ValueError, match=r'.*NDData object lacks uncertainty'):
+    with pytest.raises(ValueError, match=r".*NDData object lacks uncertainty"):
+        ext = extract(image=image)
+
+    # a warning should be raised if uncertainty is StdDevUncertainty
+    with pytest.warns(UserWarning, match="image NDData object's uncertainty"):
+        err = StdDevUncertainty(np.ones_like(image))
+        image.uncertainty = err
         ext = extract(image=image)
 
     # an NDData-type image's uncertainty must be of type VarianceUncertainty
     # or type StdDevUncertainty
-    with pytest.raises(ValueError, match=r'.*unexpected uncertainty type.*'):
+    with pytest.raises(ValueError, match=r".*unexpected uncertainty type.*"):
         err = UnknownUncertainty(np.ones_like(image))
         image.uncertainty = err
         ext = extract(image=image)
 
     # an array-type image must have the same dimensions as its variance argument
-    with pytest.raises(ValueError, match=r'.*shapes must match.*'):
+    with pytest.raises(ValueError, match=r".*shapes must match.*"):
         # remember variance, mask, and unit args are only checked if image
         # object doesn't have those attributes (e.g., numpy and Quantity arrays)
         err = np.ones_like(image[0])
         ext = extract(image=image.data, variance=err)
 
     # an array-type image must have the same dimensions as its mask argument
-    with pytest.raises(ValueError, match=r'.*shapes must match.*'):
+    with pytest.raises(ValueError, match=r".*shapes must match.*"):
         err = np.ones_like(image)
         mask = np.zeros_like(image[0])
         ext = extract(image=image.data, variance=err, mask=mask)
@@ -170,9 +167,8 @@ def test_horne_image_validation(mk_test_img):
     # and produces an extraction with flux in DN and spectral axis in pixels
     err = np.ones_like(image)
     ext = extract(image=image.data, variance=err, mask=None, unit=None)
-    assert ext.unit == u.Unit('DN')
-    assert np.all(ext.spectral_axis
-                  == np.arange(image.shape[extract.disp_axis]) * u.pix)
+    assert ext.unit == u.Unit("DN")
+    assert np.all(ext.spectral_axis == np.arange(image.shape[extract.disp_axis]) * u.pix)
 
 
 # ignore Astropy warning for extractions that aren't best fit with a Gaussian:
@@ -199,11 +195,10 @@ def test_horne_variance_errors(mk_test_img):
     # single negative value raises error
     err = image.uncertainty.array
     err[0][0] = -1
-    with pytest.raises(ValueError, match='variance must be fully positive'):
+    with pytest.raises(ValueError, match="variance must be fully positive"):
         # remember variance, mask, and unit args are only checked if image
         # object doesn't have those attributes (e.g., numpy and Quantity arrays)
-        ext = extract(image=image.data, variance=err,
-                      mask=image.mask, unit=u.Jy)
+        ext = extract(image=image.data, variance=err, mask=image.mask, unit=u.Jy)
 
 
 @pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
@@ -236,14 +231,12 @@ def test_horne_non_flat_trace():
 
     # Extract the spectrum from the non-flat image+trace
     extract_non_flat = HorneExtract(
-        rolled, ArrayTrace(rolled, exact_trace),
-        variance=err, mask=mask, unit=u.Jy
+        rolled, ArrayTrace(rolled, exact_trace), variance=err, mask=mask, unit=u.Jy
     )()
 
     # Also extract the spectrum from the image after alignment with a flat trace
     extract_flat = HorneExtract(
-        unrolled, FlatTrace(unrolled, n_rows // 2),
-        variance=err, mask=mask, unit=u.Jy
+        unrolled, FlatTrace(unrolled, n_rows // 2), variance=err, mask=mask, unit=u.Jy
     )()
 
     # ensure both extractions are equivalent:
@@ -253,10 +246,19 @@ def test_horne_non_flat_trace():
 def test_horne_bad_profile(mk_test_img):
     image = mk_test_img
     trace = FlatTrace(image, 3.0)
-    extract = HorneExtract(image.data, trace,
-                           spatial_profile='bad_profile_name',
-                           variance=np.ones(image.data.shape))
-    with pytest.raises(ValueError, match='spatial_profile must be one of'):
+    extract = HorneExtract(
+        image.data, trace, spatial_profile="bad_profile_name", variance=np.ones(image.data.shape)
+    )
+    with pytest.raises(ValueError, match="spatial_profile must be one of"):
+        extract.spectrum
+
+    extract = HorneExtract(
+        image.data,
+        trace,
+        spatial_profile=models.Polynomial1D(2),
+        variance=np.ones(image.data.shape),
+    )
+    with pytest.raises(ValueError, match="spatial_profile must be a"):
         extract.spectrum
 
 
@@ -264,9 +266,9 @@ def test_horne_nonfinite_column(mk_test_img):
     image = mk_test_img
     image.data[:, 4] = np.nan
     trace = FlatTrace(image, 3.0)
-    extract = HorneExtract(image.data, trace,
-                           spatial_profile='gaussian',
-                           variance=np.ones(image.data.shape))
+    extract = HorneExtract(
+        image.data, trace, spatial_profile="gaussian", variance=np.ones(image.data.shape)
+    )
     sp = extract.spectrum
     assert np.isnan(sp.flux.value[4])
     assert np.all(np.isfinite(sp.flux.value[:4]))
@@ -277,12 +279,8 @@ def test_horne_no_bkgrnd(mk_test_img):
     # Test HorneExtract when using bkgrd_prof=None
 
     image = mk_test_img
-
     trace = FlatTrace(image, 3.0)
-    extract = HorneExtract(image.data, trace, bkgrd_prof=None,
-                           variance=np.ones(image.data.shape))
-
-    # This is just testing that it runs with no errors and returns something
+    extract = HorneExtract(image.data, trace, bkgrd_prof=None, variance=np.ones(image.data.shape))
     assert len(extract.spectrum.flux) == 10
 
 
@@ -297,20 +295,33 @@ def test_horne_interpolated_profile(mk_test_img):
     trace = FlatTrace(image, image.shape[0] // 2)
 
     # horne extraction using spatial_profile=='Gaussian'
-    horne_extract_gauss = HorneExtract(image.data, trace,
-                                       spatial_profile='gaussian',
-                                       bkgrd_prof=None,
-                                       variance=np.ones(image.data.shape))
+    horne_extract_gauss = HorneExtract(
+        image.data,
+        trace,
+        spatial_profile="gaussian",
+        bkgrd_prof=None,
+        variance=np.ones(image.data.shape),
+    )
 
     # horne extraction with spatial_profile=='interpolated_profile'
-    horne_extract_self = HorneExtract(image.data, trace,
-                                      spatial_profile={'name': 'interpolated_profile',
-                                                       'n_bins_interpolated_profile': 3},
-                                      bkgrd_prof=None,
-                                      variance=np.ones(image.data.shape))
+    horne_extract_self = HorneExtract(
+        image.data,
+        trace,
+        spatial_profile={"name": "interpolated_profile", "n_bins_interpolated_profile": 3},
+        bkgrd_prof=None,
+        variance=np.ones(image.data.shape),
+    )
 
-    assert_quantity_allclose(horne_extract_gauss.spectrum.flux,
-                             horne_extract_self.spectrum.flux)
+    assert_quantity_allclose(horne_extract_gauss.spectrum.flux, horne_extract_self.spectrum.flux)
+
+    with pytest.raises(ValueError, match="When"):
+        HorneExtract(
+            image.data,
+            trace,
+            spatial_profile={"name": "interpolated_profile", "n_bins_interpolated_profile": 3},
+            bkgrd_prof=models.Polynomial1D(2),
+            variance=np.ones(image.data.shape),
+        ).spectrum
 
 
 def test_horne_interpolated_profile_norm(mk_test_img):
@@ -330,24 +341,27 @@ def test_horne_interpolated_profile_norm(mk_test_img):
 
     # add gaussian source to image with increasing amplitude and that follows
     # along the trace. looks like a sawtooth pattern of increasing brightness
-    add_gaussian_source(image, amps=np.linspace(1, 5, image.shape[1]),
-                        means=trace_shape)
+    add_gaussian_source(image, amps=np.linspace(1, 5, image.shape[1]), means=trace_shape)
 
     # horne extraction with spatial_profile=='interpolated_profile'
     # also tests that non-default parameters in the input dictionary format work
-    ex = HorneExtract(image.data, trace,
-                      spatial_profile={'name': 'interpolated_profile',
-                                       'n_bins_interpolated_profile': 3,
-                                       'interp_degree_interpolated_profile': (1, 1)},
-                      bkgrd_prof=None,
-                      variance=np.ones(image.data.shape))
+    ex = HorneExtract(
+        image.data,
+        trace,
+        spatial_profile={
+            "name": "interpolated_profile",
+            "n_bins_interpolated_profile": 3,
+            "interp_degree_interpolated_profile": (1, 1),
+        },
+        bkgrd_prof=None,
+        variance=np.ones(image.data.shape),
+    )
 
     # need to run produce extract.spectrum to access _interp_spatial_prof
     ex.spectrum
 
     # evaulate interpolated profile on entire grid
-    interp_prof = ex._interp_spatial_prof(np.arange(ncols),
-                                          np.arange(nrows)).T
+    interp_prof = ex._interp_spatial_prof(np.arange(ncols), np.arange(nrows)).T
 
     # the shifting position and amplitude should be accounted for, so the fit
     # spatial profile should just represent the shape as a function of
@@ -358,7 +372,7 @@ def test_horne_interpolated_profile_norm(mk_test_img):
     assert_quantity_allclose(np.sum(interp_prof, axis=0), 1.0)
 
     # and that shifts in trace position are accounted for (to integer level)
-    assert (np.all(np.argmax(interp_prof, axis=0) == nrows // 2))
+    assert np.all(np.argmax(interp_prof, axis=0) == nrows // 2)
 
 
 def test_horne_interpolated_nbins_fails(mk_test_img):
@@ -368,16 +382,17 @@ def test_horne_interpolated_nbins_fails(mk_test_img):
     trace = FlatTrace(image, 5)
 
     with pytest.raises(ValueError):
-        ex = HorneExtract(image.data, trace,
-                          spatial_profile={'name': 'interpolated_profile',
-                                           'n_bins_interpolated_profile': 100})
+        ex = HorneExtract(
+            image.data,
+            trace,
+            spatial_profile={"name": "interpolated_profile", "n_bins_interpolated_profile": 100},
+        )
         ex.spectrum
 
 
-class TestMasksExtract():
+class TestMasksExtract:
 
     def mk_flat_gauss_img(self, nrows=200, ncols=160, nan_slices=None, add_noise=True):
-
         """
         Makes a flat gaussian image for testing, with optional added gaussian
         nosie and optional data values set to NaN. Variance is included, which
@@ -386,8 +401,7 @@ class TestMasksExtract():
         """
 
         sigma_pix = 4
-        col_model = models.Gaussian1D(amplitude=1, mean=nrows/2,
-                                      stddev=sigma_pix)
+        col_model = models.Gaussian1D(amplitude=1, mean=nrows / 2, stddev=sigma_pix)
         spec2dvar = np.ones((nrows, ncols))
         noise = 0
         if add_noise:
@@ -403,8 +417,11 @@ class TestMasksExtract():
                 img[s] = np.nan
 
         wave = np.arange(0, img.shape[1], 1)
-        objectspec = Spectrum1D(spectral_axis=wave*u.m, flux=img*u.Jy,
-                                uncertainty=VarianceUncertainty(spec2dvar*u.Jy*u.Jy))
+        objectspec = Spectrum1D(
+            spectral_axis=wave * u.m,
+            flux=img * u.Jy,
+            uncertainty=VarianceUncertainty(spec2dvar * u.Jy * u.Jy),
+        )
 
         return objectspec
 
@@ -418,19 +435,19 @@ class TestMasksExtract():
         img = self.mk_flat_gauss_img()
         trace = FitTrace(img)
 
-        with pytest.raises(ValueError, match='Image is fully masked.'):
+        with pytest.raises(ValueError, match="Image is fully masked."):
             # fully NaN image
             img = np.zeros((4, 5)) * np.nan
             Background(img, traces=trace, width=2)
 
-        with pytest.raises(ValueError, match='Image is fully masked.'):
+        with pytest.raises(ValueError, match="Image is fully masked."):
             # fully masked image (should be equivalent)
             img = NDData(np.ones((4, 5)), mask=np.ones((4, 5)))
             Background(img, traces=trace, width=2)
 
         # Now test that an image that isn't fully masked, but is fully masked
         # within the window determined by `width`, produces the correct result
-        msg = 'Image is fully masked within background window determined by `width`.'
+        msg = "Image is fully masked within background window determined by `width`."
         with pytest.raises(ValueError, match=msg):
             img = self.mk_img(nrows=12, ncols=12, nan_slices=[np.s_[3:10, :]])
             Background(img, traces=FlatTrace(img, 6), width=7)
