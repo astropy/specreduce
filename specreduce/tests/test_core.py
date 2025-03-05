@@ -2,10 +2,12 @@ import pytest
 
 from specreduce.core import SpecreduceOperation
 
+
 def test_sro_call():
     sro = SpecreduceOperation()
     with pytest.raises(NotImplementedError):
-        meh = sro()
+        sro()
+
 
 def test_sro_as_function():
 

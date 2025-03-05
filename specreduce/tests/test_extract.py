@@ -315,7 +315,7 @@ def test_horne_interpolated_profile(mk_test_img):
     assert_quantity_allclose(horne_extract_gauss.spectrum.flux, horne_extract_self.spectrum.flux)
 
     with pytest.raises(ValueError, match="When"):
-        sp = HorneExtract(
+        HorneExtract(
             image.data,
             trace,
             spatial_profile={"name": "interpolated_profile", "n_bins_interpolated_profile": 3},
