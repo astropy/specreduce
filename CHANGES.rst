@@ -13,7 +13,18 @@ Bug Fixes
 Other changes
 ^^^^^^^^^^^^^
 
-1.5.0 (2024-01-16)
+
+1.5.1 (2024-03-08)
+------------------
+
+Bug Fixes
+^^^^^^^^^
+
+- Changed Horne extraction to behave as before when using an interpolated spatial profile
+  and not explicitly setting `bkgrd_prof` to `None`. The changed default behavior in 1.5.0
+  caused problems in codes using specreduce.
+
+1.5.0 (2024-03-06)
 ------------------
 
 New Features
