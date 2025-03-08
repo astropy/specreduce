@@ -665,6 +665,9 @@ class HorneExtract(SpecreduceOperation):
         n_bins_interpolated_profile = profile.get("n_bins_interpolated_profile", 10)
         interp_degree_interpolated_profile = profile.get("interp_degree_interpolated_profile", 1)
 
+        if profile_type == 'interpolated_profile':
+            bkgrd_prof = None
+
         self.image = self._parse_image(image, variance, mask, unit, disp_axis)
         variance = self.image.uncertainty.represent_as(VarianceUncertainty).array
         mask = self.image.mask.astype(bool) | (~np.isfinite(self.image.data))
@@ -690,16 +693,6 @@ class HorneExtract(SpecreduceOperation):
             else:
                 mean_cross_pix = np.broadcast_to(ncross // 2, ndisp)
         else:  # interpolated_profile
-            # for now, bkgrd_prof must be None because a compound model can't
-            # be created with a interpolator + model. i think there is a way
-            # around this, but will follow up later
-            if bkgrd_prof is not None:
-                raise ValueError(
-                    "When `spatial_profile`is `interpolated_profile`,"
-                    "`bkgrd_prof` must be None. Background should"
-                    " be fit and subtracted from `img` beforehand."
-                )
-
             # determine interpolation degree from input and make tuple if int
             # this can also be moved to another method to parse the input
             # 'spatial_profile' arg, eventually
