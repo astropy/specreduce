@@ -299,9 +299,10 @@ class HorneExtract(SpecreduceOperation):
         The index of the image's cross-dispersion axis. [default: 0]
 
     bkgrd_prof : `~astropy.modeling.Model` or None, optional
-        A model for the image's background flux. If ``spatial_profile`` is set
-        to ``interpolated_profile``, then ``bkgrd_prof`` must be set to None.
-        [default: models.Polynomial1D(2)].
+        A model for the image's background flux when using the ``gaussian``
+        spatial profile. If ``spatial_profile`` is set to ``gaussian``, it defaults
+        to ``models.Polynomial1D(2)``. Note that the ``interpolated_profile`` option
+        does not support a background model, so ``bkgrd_prof`` must be left as ``None``.
 
     spatial_profile : str or dict, optional
         The shape of the object profile. The first option is 'gaussian' to fit
@@ -341,7 +342,7 @@ class HorneExtract(SpecreduceOperation):
 
     image: NDData
     trace_object: Trace
-    bkgrd_prof: Model = field(default=models.Polynomial1D(2))
+    bkgrd_prof: None | Model = None
     spatial_profile: str | dict = "gaussian"
     variance: np.ndarray = field(default=None)
     mask: np.ndarray = field(default=None)
@@ -599,7 +600,10 @@ class HorneExtract(SpecreduceOperation):
             The index of the image's cross-dispersion axis.
 
         bkgrd_prof : `~astropy.modeling.Model`, optional
-            A model for the image's background flux.
+            A model for the image's background flux when using the ``gaussian``
+            spatial profile. If ``spatial_profile`` is set to ``gaussian``, it defaults
+            to ``models.Polynomial1D(2)``. Note that the ``interpolated_profile`` option
+            does not support a background model, so ``bkgrd_prof`` must be left as ``None``.
 
         spatial_profile : str or dict, optional
             The shape of the object profile. The first option is 'gaussian' to fit
@@ -665,8 +669,8 @@ class HorneExtract(SpecreduceOperation):
         n_bins_interpolated_profile = profile.get("n_bins_interpolated_profile", 10)
         interp_degree_interpolated_profile = profile.get("interp_degree_interpolated_profile", 1)
 
-        if profile_type == 'interpolated_profile':
-            bkgrd_prof = None
+        if bkgrd_prof is None and profile_type == 'gaussian':
+            bkgrd_prof = models.Polynomial1D(2)
 
         self.image = self._parse_image(image, variance, mask, unit, disp_axis)
         variance = self.image.uncertainty.represent_as(VarianceUncertainty).array
