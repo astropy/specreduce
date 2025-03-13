@@ -151,7 +151,7 @@ def test_fit_trace():
     window = 10
     guess = int(nrows / 2)
     img_win_nans = img.copy()
-    img_win_nans[guess - window : guess + window] = np.nan
+    img_win_nans[guess - window: guess + window] = np.nan
 
     # ensure float bin values trigger a warning but no issues otherwise
     with pytest.warns(UserWarning, match="TRACE: Converting bins to int"):
@@ -172,6 +172,24 @@ def test_fit_trace():
     # ensure number of bins greater than number of dispersion pixels is rejected
     with pytest.raises(ValueError, match=r"bins must be <"):
         FitTrace(img, bins=ncols + 1)
+
+
+def test_fit_trace_gaussian_all_zero():
+    """
+    Test fit_trace when peak_method is 'gaussian', which uses DogBoxLSQFitter
+    for the fit for each bin peak and does not work well with all-zero columns.
+    In this case, an all zero bin should fall back to the all-bin fit for its'
+    peak.
+    """
+    img = mk_img()
+    # pad image with some all-zero columns and add back DN unit
+    img = np.pad(img.value, pad_width=((0, 0), (0, 5)), mode='constant',
+                 constant_values=0) * u.DN
+
+    t = FitTrace(img, bins=20, peak_method='gaussian')
+
+    # this is a pretty flat trace, so make sure the fit reflects that
+    assert np.all((t.trace >= 99) & (t.trace <= 101))
 
 
 @pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
@@ -274,7 +292,7 @@ class TestMasksTracing:
         window = 10
         guess = int(nrows / 2)
         img_win_nans = img.copy()
-        img_win_nans[guess - window : guess + window] = np.nan
+        img_win_nans[guess - window: guess + window] = np.nan
 
         # error on trace of otherwise valid image with all-nan window around guess
         with pytest.raises(ValueError, match="pixels in window region are masked"):
