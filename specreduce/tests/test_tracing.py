@@ -181,12 +181,11 @@ def test_fit_trace_gaussian_all_zero():
     In this case, an all zero bin should fall back to the all-bin fit for its'
     peak.
     """
-    img = mk_img()
-    # pad image with some all-zero columns and add back DN unit
-    img = np.pad(img.value, pad_width=((0, 0), (0, 5)), mode='constant',
-                 constant_values=0) * u.DN
+    img = mk_img(ncols=100)
+    # add some all-zero columns so there is an all-zero bin
+    img[:, 10:20] = 0
 
-    t = FitTrace(img, bins=20, peak_method='gaussian')
+    t = FitTrace(img, bins=10, peak_method='gaussian')
 
     # this is a pretty flat trace, so make sure the fit reflects that
     assert np.all((t.trace >= 99) & (t.trace <= 101))
