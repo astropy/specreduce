@@ -402,7 +402,7 @@ class FitTrace(Trace, _ImageParser):
 
             # binned columns, averaged along disp. axis.
             # or just a single, unbinned column if no bins
-            z_i = img[ilum2, x_bins[i] : x_bins[i + 1]].mean(axis=self._disp_axis)
+            z_i = img[ilum2, x_bins[i]: x_bins[i + 1]].mean(axis=self._disp_axis)
 
             # if this bin is fully masked, set bin peak to NaN so it can be
             # filtered in the final fit to all bin peaks for the trace
@@ -412,6 +412,13 @@ class FitTrace(Trace, _ImageParser):
                 continue
 
             if self.peak_method == "gaussian":
+
+                # if bin is fully 0, set bin peak to all-bin fit.
+                # DogBoxLSQFitter, which is always used for the bin center fits
+                # when peak_method is gaussian, does not like all zeros.
+                if np.all(z_i == 0.0):
+                    y_bins[i] = popt_tot.mean_0.value
+                    continue
 
                 peak_y_i = ilum2[z_i.argmax()]
 

@@ -67,17 +67,17 @@ def _get_boxcar_weights(center, hwidth, npix):
     # the upper bound doesn't have the +1 because array slicing is inclusive on the lower index and
     # exclusive on the upper-index
     # NOTE: round(-0.5) == 0, which is helpful here for the case where lower_edge == -0.5
-    weights[int_round_lower_edge + 1 : int_round_upper_edge] = 1
+    weights[int_round_lower_edge + 1: int_round_upper_edge] = 1
 
     # handle edge pixels (for cases where an edge pixel is fully-weighted, this will set it again,
     # but should still compute a weight of 1.  By using N:N+1, we avoid index errors if the edge
     # is outside the image bounds.  But we do need to avoid negative indices which would count
     # from the end of the array.
     if int_round_lower_edge >= 0:
-        weights[int_round_lower_edge : int_round_lower_edge + 1] = (
+        weights[int_round_lower_edge: int_round_lower_edge + 1] = (
             round(lower_edge) + 0.5 - lower_edge
         )
-    weights[int_round_upper_edge : int_round_upper_edge + 1] = upper_edge - (
+    weights[int_round_upper_edge: int_round_upper_edge + 1] = upper_edge - (
         round(upper_edge) - 0.5
     )
 
@@ -560,7 +560,7 @@ class HorneExtract(SpecreduceOperation):
         ]
 
         for i in range(n_bins):
-            bin_median = np.nanmedian(img[:, sample_locs[i] : sample_locs[i + 1]], axis=disp_axis)
+            bin_median = np.nanmedian(img[:, sample_locs[i]: sample_locs[i + 1]], axis=disp_axis)
             samples[i, :] = bin_median / bin_median.sum()
 
         return RectBivariateSpline(x=bin_centers, y=np.arange(nrows), z=samples, kx=kx, ky=ky)
