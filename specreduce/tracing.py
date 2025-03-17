@@ -402,7 +402,7 @@ class FitTrace(Trace, _ImageParser):
 
             # binned columns, averaged along disp. axis.
             # or just a single, unbinned column if no bins
-            z_i = img[ilum2, x_bins[i]: x_bins[i + 1]].mean(axis=self._disp_axis)
+            z_i = img[ilum2, x_bins[i] : x_bins[i + 1]].mean(axis=self._disp_axis)
 
             # if this bin is fully masked, set bin peak to NaN so it can be
             # filtered in the final fit to all bin peaks for the trace
