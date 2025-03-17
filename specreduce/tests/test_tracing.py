@@ -178,8 +178,8 @@ def test_fit_trace_gaussian_all_zero():
     """
     Test fit_trace when peak_method is 'gaussian', which uses DogBoxLSQFitter
     for the fit for each bin peak and does not work well with all-zero columns.
-    In this case, an all zero bin should fall back to the all-bin fit for its'
-    peak.
+    In this case, an all zero bin should fall back to NaN to for its'
+    peak to be filtered out in the final fit for the trace.
     """
     img = mk_img(ncols=100)
     # add some all-zero columns so there is an all-zero bin

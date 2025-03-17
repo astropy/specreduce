@@ -413,11 +413,11 @@ class FitTrace(Trace, _ImageParser):
 
             if self.peak_method == "gaussian":
 
-                # if bin is fully 0, set bin peak to all-bin fit.
-                # DogBoxLSQFitter, which is always used for the bin center fits
-                # when peak_method is gaussian, does not like all zeros.
+                # if bin is fully 0, set bin peak to nan so it doesn't bias the
+                # all-bin fit. DogBoxLSQFitter, which is always used for the bin
+                # center fits when peak_method is gaussian, does not like all zeros.
                 if np.all(z_i == 0.0):
-                    y_bins[i] = popt_tot.mean_0.value
+                    y_bins[i] = np.nan
                     continue
 
                 peak_y_i = ilum2[z_i.argmax()]

@@ -10,7 +10,7 @@ API Changes
 Bug Fixes
 ^^^^^^^^^
 - When all-zero bin encountered in fit_trace with peak_method=gaussian, the bin peak
-  falls back to the all-bin fit to work better with DogBoxLSQFitter. [#257]
+  will be set to NaN in this caseto work better with DogBoxLSQFitter. [#257]
 
 Other changes
 ^^^^^^^^^^^^^
