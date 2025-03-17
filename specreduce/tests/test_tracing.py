@@ -174,6 +174,23 @@ def test_fit_trace():
         FitTrace(img, bins=ncols + 1)
 
 
+def test_fit_trace_gaussian_all_zero():
+    """
+    Test fit_trace when peak_method is 'gaussian', which uses DogBoxLSQFitter
+    for the fit for each bin peak and does not work well with all-zero columns.
+    In this case, an all zero bin should fall back to NaN to for its'
+    peak to be filtered out in the final fit for the trace.
+    """
+    img = mk_img(ncols=100)
+    # add some all-zero columns so there is an all-zero bin
+    img[:, 10:20] = 0
+
+    t = FitTrace(img, bins=10, peak_method='gaussian')
+
+    # this is a pretty flat trace, so make sure the fit reflects that
+    assert np.all((t.trace >= 99) & (t.trace <= 101))
+
+
 @pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
 @pytest.mark.filterwarnings("ignore:Model is linear in parameters")
 class TestMasksTracing:
