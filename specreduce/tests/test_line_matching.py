@@ -1,19 +1,16 @@
-import pytest
-
 import numpy as np
-
+import pytest
 from astropy.wcs import WCS
 from astropy.modeling import models
 from astropy.nddata import StdDevUncertainty
-
-from specutils import Spectrum1D
 from specutils.fitting import fit_generic_continuum
 
-from specreduce.extract import BoxcarExtract
-from specreduce.utils.synth_data import make_2d_arc_image
-from specreduce.tracing import FlatTrace
 from specreduce.calibration_data import load_pypeit_calibration_lines
+from specreduce.compat import Spectrum
+from specreduce.extract import BoxcarExtract
 from specreduce.line_matching import match_lines_wcs, find_arc_lines
+from specreduce.tracing import FlatTrace
+from specreduce.utils.synth_data import make_2d_arc_image
 
 
 @pytest.fixture
@@ -70,7 +67,7 @@ def mk_test_data():
     arc_sp = BoxcarExtract(match_im, trace, width=5).spectrum
     arc_sp.uncertainty = StdDevUncertainty(np.sqrt(arc_sp.flux).value)
     continuum = fit_generic_continuum(arc_sp, median_window=51)
-    arc_sub = Spectrum1D(
+    arc_sub = Spectrum(
         spectral_axis=arc_sp.spectral_axis,
         flux=arc_sp.flux - continuum(arc_sp.spectral_axis)
     )

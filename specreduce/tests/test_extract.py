@@ -4,9 +4,9 @@ from astropy import units as u
 from astropy.modeling import models
 from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty, StdDevUncertainty
 from astropy.tests.helper import assert_quantity_allclose
-from specutils import Spectrum1D
 
 from specreduce.background import Background
+from specreduce.compat import Spectrum
 from specreduce.extract import BoxcarExtract, HorneExtract, OptimalExtract, _align_along_trace
 from specreduce.tracing import FitTrace, FlatTrace, ArrayTrace
 
@@ -394,7 +394,7 @@ class TestMasksExtract:
         """
         Makes a flat gaussian image for testing, with optional added gaussian
         nosie and optional data values set to NaN. Variance is included, which
-        is required by HorneExtract. Returns a Spectrum1D with flux, spectral
+        is required by HorneExtract. Returns a Spectrum with flux, spectral
         axis, and uncertainty.
         """
 
@@ -415,7 +415,7 @@ class TestMasksExtract:
                 img[s] = np.nan
 
         wave = np.arange(0, img.shape[1], 1)
-        objectspec = Spectrum1D(
+        objectspec = Spectrum(
             spectral_axis=wave * u.m,
             flux=img * u.Jy,
             uncertainty=VarianceUncertainty(spec2dvar * u.Jy * u.Jy),

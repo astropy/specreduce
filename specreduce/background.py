@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 import numpy as np
 from astropy import units as u
 from astropy.utils.decorators import deprecated_attribute
-from specutils import Spectrum1D
 
+from specreduce.compat import SPECUTILS_LT_2, Spectrum
 from specreduce.core import _ImageParser, MaskingOption, ImageLike
 from specreduce.extract import _ap_weight_image
 from specreduce.tracing import Trace, FlatTrace
@@ -84,7 +84,7 @@ class Background(_ImageParser):
         "apply_nan_only",
     )
 
-    # TO-DO: update bkg_array with Spectrum1D alternative (is bkg_image enough?)
+    # TO-DO: update bkg_array with Spectrum alternative (is bkg_image enough?)
     bkg_array = deprecated_attribute("bkg_array", "1.3")
 
     def __post_init__(self):
@@ -303,12 +303,18 @@ class Background(_ImageParser):
 
         Returns
         -------
-        `~specutils.Spectrum1D` object with same shape as ``image``.
+        spec : `~specutils.Spectrum1D`
+            Spectrum object with same shape as ``image``.
         """
         image = self._parse_image(image)
-        return Spectrum1D(
-            np.tile(self._bkg_array, (image.shape[0], 1)) * image.unit,
-            spectral_axis=image.spectral_axis,
+        arr = np.tile(self._bkg_array, (image.shape[0], 1))
+        if SPECUTILS_LT_2:
+            kwargs = {}
+        else:
+            kwargs = {"spectral_axis_index": arr.ndim - 1}
+        return Spectrum(
+            arr * image.unit,
+            spectral_axis=image.spectral_axis, **kwargs
         )
 
     def bkg_spectrum(self, image=None, bkg_statistic="sum"):
@@ -355,7 +361,7 @@ class Background(_ImageParser):
             # can't collapse with a spectral axis in pixels because
             # SpectralCoord only allows frequency/wavelength equivalent units...
             ext1d = statistic_function(bkg_image.flux, axis=self.crossdisp_axis)
-            return Spectrum1D(ext1d, bkg_image.spectral_axis)
+            return Spectrum(ext1d, bkg_image.spectral_axis)
 
     def sub_image(self, image=None):
         """
@@ -369,15 +375,17 @@ class Background(_ImageParser):
 
         Returns
         -------
-        `~specutils.Spectrum1D` object with same shape as ``image``.
+        spec : `~specutils.Spectrum1D`
+            Spectrum object with same shape as ``image``.
         """
         image = self._parse_image(image)
 
-        # a compare_wcs argument is needed for Spectrum1D.subtract() in order to
+        # a compare_wcs argument is needed for Spectrum.subtract() in order to
         # avoid a TypeError from SpectralCoord when image's spectral axis is in
         # pixels. it is not needed when image's spectral axis has physical units
         kwargs = {"compare_wcs": None} if image.spectral_axis.unit == u.pix else {}
-
+        if not SPECUTILS_LT_2:
+            kwargs["spectral_axis_index"] = image.flux.ndim - 1
         # https://docs.astropy.org/en/stable/nddata/mixins/ndarithmetic.html
         return image.subtract(self.bkg_image(image), **kwargs)
 
@@ -406,7 +414,7 @@ class Background(_ImageParser):
             # can't collapse with a spectral axis in pixels because
             # SpectralCoord only allows frequency/wavelength equivalent units...
             ext1d = np.nansum(sub_image.flux, axis=self.crossdisp_axis)
-            return Spectrum1D(ext1d, spectral_axis=sub_image.spectral_axis)
+            return Spectrum(ext1d, spectral_axis=sub_image.spectral_axis)
 
     def __rsub__(self, image):
         """

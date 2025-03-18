@@ -1,6 +1,7 @@
 include README.rst
 include CHANGES.rst
 include pyproject.toml
+include conftest.py
 
 recursive-include docs *
 recursive-include licenses *

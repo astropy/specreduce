@@ -6,7 +6,9 @@ from astropy import units as u
 from astropy.io import fits
 from astropy.nddata import CCDData, NDData, VarianceUncertainty
 from astropy.utils.data import get_pkg_data_filename
-from specutils import Spectrum1D, SpectralAxis
+from specutils import SpectralAxis
+
+from specreduce.compat import SPECUTILS_LT_2, Spectrum
 
 try:
     from pytest_astropy_header.display import PYTEST_HEADER_MODULES, TESTED_VERSIONS
@@ -31,9 +33,13 @@ def _mk_test_data(imgtype, nrows=30, ncols=10):
         flux = image * u.DN
         uncert = VarianceUncertainty(image_ones)
         if imgtype == "spec_no_axis":
-            image = Spectrum1D(flux, uncertainty=uncert)
+            if SPECUTILS_LT_2:
+                kwargs = {}
+            else:
+                kwargs = {"spectral_axis_index": image.ndim - 1}
+            image = Spectrum(flux, uncertainty=uncert, **kwargs)
         else:  # "spec"
-            image = Spectrum1D(flux, spectral_axis=np.arange(ncols) * u.um, uncertainty=uncert)
+            image = Spectrum(flux, spectral_axis=np.arange(ncols) * u.um, uncertainty=uncert)
     return image
 
 
@@ -71,10 +77,15 @@ def all_images():
     sax = SpectralAxis(np.linspace(14.377, 3.677, flux.shape[-1]) * u.um)
     unc = VarianceUncertainty(np.random.rand(*flux.shape))
 
+    if SPECUTILS_LT_2:
+        kwargs = {}
+    else:
+        kwargs = {"spectral_axis_index": img.ndim - 1}
+
     all_images = {}
     all_images['arr'] = img
-    all_images['s1d'] = Spectrum1D(flux, spectral_axis=sax, uncertainty=unc)
-    all_images['s1d_pix'] = Spectrum1D(flux, uncertainty=unc)
+    all_images['s1d'] = Spectrum(flux, spectral_axis=sax, uncertainty=unc)
+    all_images['s1d_pix'] = Spectrum(flux, uncertainty=unc, **kwargs)
     all_images['ccd'] = CCDData(img, uncertainty=unc, unit=flux.unit)
     all_images['ndd'] = NDData(img, uncertainty=unc, unit=flux.unit)
     all_images['qnt'] = img * flux.unit
@@ -86,7 +97,7 @@ def spec1d():
     np.random.seed(7)
     flux = np.random.random(50)*u.Jy
     sa = np.arange(0, 50)*u.pix
-    spec = Spectrum1D(flux, spectral_axis=sa)
+    spec = Spectrum(flux, spectral_axis=sa)
     return spec
 
 
@@ -97,7 +108,7 @@ def spec1d_with_emission_line():
     flux = (np.random.randn(200) +
             10*np.exp(-0.01*((sa.value-130)**2)) +
             sa.value/100) * u.Jy
-    spec = Spectrum1D(flux, spectral_axis=sa)
+    spec = Spectrum(flux, spectral_axis=sa)
     return spec
 
 
@@ -108,7 +119,7 @@ def spec1d_with_absorption_line():
     flux = (np.random.randn(200) -
             10*np.exp(-0.01*((sa.value-130)**2)) +
             sa.value/100) * u.Jy
-    spec = Spectrum1D(flux, spectral_axis=sa)
+    spec = Spectrum(flux, spectral_axis=sa)
     return spec
 
 

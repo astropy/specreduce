@@ -1,14 +1,15 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
-from copy import deepcopy
 import inspect
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
 from astropy import units as u
 from astropy.nddata import VarianceUncertainty, NDData
-from specutils import Spectrum1D
+
+from specreduce.compat import SPECUTILS_LT_2, Spectrum
 
 __all__ = ["SpecreduceOperation"]
 
@@ -21,14 +22,14 @@ ImageLike = np.ndarray | NDData | u.Quantity
 
 class _ImageParser:
     """
-    Coerces images from accepted formats to Spectrum1D objects for
+    Coerces images from accepted formats to Spectrum objects for
     internal use in specreduce's operation classes.
 
     Fills any and all of uncertainty, mask, units, and spectral axis
     that are missing in the provided image with generic values.
     Accepted image types are:
 
-        - `~specutils.spectra.spectrum1d.Spectrum1D` (preferred)
+        - `~specutils.Spectrum1D` (preferred)
         - `~astropy.nddata.ccddata.CCDData`
         - `~astropy.nddata.ndddata.NDDData`
         - `~astropy.units.quantity.Quantity`
@@ -49,9 +50,9 @@ class _ImageParser:
 
     def _parse_image(
         self, image: ImageLike, disp_axis: int = 1, mask_treatment: MaskingOption = "apply"
-    ) -> Spectrum1D:
+    ) -> Spectrum:
         """
-        Convert all accepted image types to a consistently formatted Spectrum1D object.
+        Convert all accepted image types to a consistently formatted Spectrum object.
 
         Parameters
         ----------
@@ -81,7 +82,7 @@ class _ImageParser:
 
         Returns
         -------
-        Spectrum1D
+        Spectrum
         """
         # would be nice to handle (cross)disp_axis consistently across
         # operations (public attribute? private attribute? argument only?) so
@@ -96,7 +97,7 @@ class _ImageParser:
     @staticmethod
     def _get_data_from_image(
         image: ImageLike, disp_axis: int = 1, mask_treatment: MaskingOption = "apply"
-    ) -> Spectrum1D:
+    ) -> Spectrum:
         """
         Extract data array from various input types for `image`.
 
@@ -112,13 +113,13 @@ class _ImageParser:
 
         Returns
         -------
-        Spectrum1D
+        Spectrum
         """
         if isinstance(image, u.quantity.Quantity):
             img = image.value
         elif isinstance(image, np.ndarray):
             img = image
-        else:  # NDData, including CCDData and Spectrum1D
+        else:  # NDData, including CCDData and Spectrum
             img = image.data
 
         mask = getattr(image, "mask", None)
@@ -136,7 +137,7 @@ class _ImageParser:
         )
 
         # mask (handled above) and uncertainty are set as None when they aren't
-        # specified upon creating a Spectrum1D object, so we must check whether
+        # specified upon creating a Spectrum object, so we must check whether
         # these attributes are absent *and* whether they are present but set as None
         if hasattr(image, "uncertainty"):
             uncertainty = image.uncertainty
@@ -147,8 +148,13 @@ class _ImageParser:
 
         spectral_axis = getattr(image, "spectral_axis", np.arange(img.shape[disp_axis]) * u.pix)
 
-        img = Spectrum1D(
-            img * unit, spectral_axis=spectral_axis, uncertainty=uncertainty, mask=mask
+        if SPECUTILS_LT_2:
+            kwargs = {}
+        else:
+            kwargs = {"spectral_axis_index": img.ndim - 1}
+        img = Spectrum(
+            img * unit, spectral_axis=spectral_axis, uncertainty=uncertainty, mask=mask,
+            **kwargs
         )
         return img
 
