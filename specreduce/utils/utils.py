@@ -18,7 +18,7 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
 
     If a single number is specified for `pixel`, then the profile at that pixel
     (i.e wavelength) will be returned. If several pixels are specified in a list or
-    array, then they will be averaged (median or mean, set by `statistic` which
+    array, then they will be averaged (median or average, set by `statistic` which
     defaults to median). Alternatively, `pixel_range` can be specified as a tuple
     of integers specifying the minimum and maximum pixel range to average the
     profile. `pixel` and `pixel_range` cannot be set simultaneously, and the default
@@ -66,10 +66,11 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
         If None, and `pixel` is not None, `pixel` will be used. If None and `pixel`
         is also None, this will be interpreted as using the entire dispersion axis
         to generate an average profile for the whole image. [default: None]
-    statistic: 'median' or 'mean'
+    statistic: 'median' or 'average'
         If `pixel` specifies multiple pixels, or `pixel_range` is specified, an
         average profile will be returned. This can be either `median` (default)
-        or `mean`. This is ignored if only one pixel is specified. [default: median]
+        or `average` (mean). This is ignored if only one pixel is specified.
+        [default: median]
     align_along_trace: bool
         Relevant only for non-flat traces. If True, "roll" each column so that
         the trace sits in the central row before calculating average profile. This
@@ -114,8 +115,8 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
                              'the location of a FlatTrace, or None to use center'
                              ' of image.')
 
-    if statistic not in ['median', 'mean']:
-        raise ValueError("`statistic` must be 'median' or 'mean'.")
+    if statistic not in ['median', 'average']:
+        raise ValueError("`statistic` must be 'median' or 'average.")
 
     # determine if there is one pixel/wavelength selected or many as either a
     # list or a tuple to specify a range
@@ -197,7 +198,7 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
     # and measure the cross dispersion profile. if multiple pixels/wavelengths,
     # this will be an average. we already transposed data based on disp_axis so
     # axis is always 1 for this calculation
-    if statistic == 'mean':
+    if statistic == 'average':
         avg_prof = np.ma.mean(masked_arr, axis=1)
     else:  # must be median, we already checked.
         avg_prof = np.ma.median(masked_arr, axis=1)
