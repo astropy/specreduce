@@ -317,7 +317,7 @@ class Background(_ImageParser):
             spectral_axis=image.spectral_axis, **kwargs
         )
 
-    def bkg_spectrum(self, image=None, bkg_statistic=np.nansum):
+    def bkg_spectrum(self, image=None, bkg_statistic=np.nanmedian):
         """
         Expose the 1D spectrum of the background.
 
@@ -330,8 +330,6 @@ class Background(_ImageParser):
             from ``image`` used to initialize the class. [default: None]
         bkg_statistic : func, optional
             Statistical method used to collapse the background image.
-            For historical reason, the default is `numpy.nansum` but
-            `numpy.nanmedian` or `numpy.nanmean` are better suited for this option.
             If you provide your own function, it must take an `~astropy.units.Quantity`
             array as input and accept an ``axis`` argument.
 
