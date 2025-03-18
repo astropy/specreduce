@@ -109,7 +109,7 @@ class TestMeasureCrossDispersionProfile():
                                                        width=None,
                                                        pixel=pixel,
                                                        align_along_trace=False,
-                                                       statistic='mean')
+                                                       statistic='average')
             peak_loc = (np.where(profile == max(profile))[0][0])
             assert peak_loc == peak_locs[i]
 
@@ -125,7 +125,7 @@ class TestMeasureCrossDispersionProfile():
                                                        width=None,
                                                        pixel=pixel,
                                                        align_along_trace=True,
-                                                       statistic='mean')
+                                                       statistic='average')
             peak_loc = (np.where(profile == max(profile))[0][0])
             assert peak_loc in [20, 21]
 
@@ -142,7 +142,7 @@ class TestMeasureCrossDispersionProfile():
             measure_cross_dispersion_profile(img, trace='not a trace or a number')
 
         with pytest.raises(ValueError, match="`statistic` must be 'median' "
-                                             "or 'mean'."):
+                                             "or 'average'."):
             measure_cross_dispersion_profile(img, statistic='n/a')
 
         with pytest.raises(ValueError, match='Both `pixel` and `pixel_range` '
