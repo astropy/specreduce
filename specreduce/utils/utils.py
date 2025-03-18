@@ -116,7 +116,7 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
                              ' of image.')
 
     if statistic not in ['median', 'average']:
-        raise ValueError("`statistic` must be 'median' or 'average.")
+        raise ValueError("`statistic` must be 'median' or 'average'.")
 
     # determine if there is one pixel/wavelength selected or many as either a
     # list or a tuple to specify a range
