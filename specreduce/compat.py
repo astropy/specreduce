@@ -8,4 +8,4 @@ SPECUTILS_LT_2 = not minversion(specutils, "2.0.dev")
 if SPECUTILS_LT_2:
     from specutils import Spectrum1D as Spectrum
 else:
-    from specutils import Spectrum
+    from specutils import Spectrum  # noqa: F401
