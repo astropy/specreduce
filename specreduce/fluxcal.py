@@ -5,8 +5,8 @@ from astropy import units as u
 from astropy.constants import c as cc
 from astropy.table import Table
 from scipy.interpolate import UnivariateSpline
-from specutils import Spectrum1D
 
+from specreduce.compat import Spectrum
 from specreduce.core import SpecreduceOperation
 
 
@@ -19,15 +19,15 @@ class FluxCalibration(SpecreduceOperation):
 
     Parameters
     ----------
-    object_spectrum : a Spectrum1D object
-            The observed object spectrum to apply the sensfunc to,
-            with the wavelength of the data points in Angstroms
-            as the ``spectral_axis``, and the magnitudes of the
-            data as the ``flux``.
+    object_spectrum : a Spectrum object
+        The observed object spectrum to apply the sensfunc to,
+        with the wavelength of the data points in Angstroms
+        as the ``spectral_axis``, and the magnitudes of the
+        data as the ``flux``.
     airmass : float
-            The value of the airmass. Note: NOT the header keyword.
+        The value of the airmass. Note: NOT the header keyword.
     zeropoint : float, optional
-            Conversion factor for mag->flux. (Default is 48.60).
+        Conversion factor for mag->flux. (Default is 48.60).
 
     """
 
@@ -44,15 +44,15 @@ class FluxCalibration(SpecreduceOperation):
 
         Parameters
         ----------
-        spec_in: a Spectrum1D object, optional
+        spec_in : a Spectrum object, optional
             An input spectrum with wavelength of the data points in Angstroms
             as the ``spectral_axis`` and magnitudes of the data as the ``flux``.
 
         Returns
         -------
-        spec_out: specutils.Spectrum1D
+        spec_out : specutils.Spectrum
             Containing both ``flux`` and ``spectral_axis`` data in which
-        the ``flux`` has been properly converted from mag->flux.
+            the ``flux`` has been properly converted from mag->flux.
 
         """
         if spec_in is None:
@@ -64,7 +64,7 @@ class FluxCalibration(SpecreduceOperation):
         flux = (10.0**((mag + self.zeropt) / (-2.5))) * (cc.to('AA/s').value / lamb ** 2.0)
         flux = flux * u.erg / u.s / u.angstrom / (u.cm * u.cm)
 
-        spec_out = Spectrum1D(spectral_axis=lamb, flux=flux)
+        spec_out = Spectrum(spectral_axis=lamb, flux=flux)
 
         return spec_out
 
@@ -79,12 +79,12 @@ class FluxCalibration(SpecreduceOperation):
             The observatory-specific airmass extinction file. If not known for your
             observatory, use one of the provided files (e.g. `kpnoextinct.dat`).
             Following IRAF standard, extinction files have 2-column format
-            wavelength (Angstroms), Extinction (Mag per Airmass)
+            wavelength (Angstroms), Extinction (Mag per Airmass).
 
         Returns
         -------
-        Xfile: an Astropy table
-            Table with the observatory extinction data
+        Xfile: `~astropy.table.Table`
+            Table with the observatory extinction data.
 
         """
         if len(obs_file) == 0:
@@ -110,14 +110,14 @@ class FluxCalibration(SpecreduceOperation):
 
         Parameters
         ----------
-        Xfile : astropy.table.Table
+        Xfile : `~astropy.table.Table`
             The extinction table from `obs_extinction`, with columns ('wave', 'X')
             that have standard units of: (angstroms, mag/airmass).
 
         Returns
         -------
-        airmass_cor_spec: specutils.Spectrum1D
-            The airmass-corrected Spectrum1D object.
+        airmass_cor_spec : specutils.Spectrum
+            The airmass-corrected Spectrum object.
 
         """
         object_spectrum = self.mag2flux()
@@ -131,7 +131,7 @@ class FluxCalibration(SpecreduceOperation):
         # air_cor in units of mag/airmass, convert to flux/airmass
         airmass_ext = 10.0**(0.4 * airmass * new_X)
 
-        airmass_cor_spec = Spectrum1D(flux=obj_flux * airmass_ext, spectral_axis=obj_wave)
+        airmass_cor_spec = Spectrum(flux=obj_flux * airmass_ext, spectral_axis=obj_wave)
 
         return airmass_cor_spec
 
@@ -146,15 +146,15 @@ class FluxCalibration(SpecreduceOperation):
             directory to be used for the flux calibration. The user must provide the
             subdirectory and file name.
 
-            For example:
+            For example::
 
-            >>> standard_sensfunc(obj_wave, obj_flux, stdstar='spec50cal/bd284211.dat', mode='spline')  # doctest: +SKIP
+                standard_sensfunc(obj_wave, obj_flux, stdstar='spec50cal/bd284211.dat', mode='spline')
 
             If no std is supplied, or an improper path is given, raises a ValueError.
 
         Returns
         -------
-        standard: astropy.talbe.Table
+        standard : `~astropy.table.Table`
             A table with the onedstd data.
         """  # noqa: E501
         std_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
@@ -170,8 +170,8 @@ class FluxCalibration(SpecreduceOperation):
         standard['width'].unit = u.angstrom
 
         # Standard star spectrum is stored in magnitude units (IRAF conventions)
-        std_flux = self.mag2flux(spec_in=Spectrum1D(flux=standard['mag'],
-                                                    spectral_axis=standard['wave']))
+        std_flux = self.mag2flux(spec_in=Spectrum(flux=standard['mag'],
+                                                  spectral_axis=standard['wave']))
         std_flux = std_flux.flux
         standard['mag'].unit = u.mag
         standard.add_column(std_flux, name='flux')
@@ -185,12 +185,12 @@ class FluxCalibration(SpecreduceOperation):
 
         Parameters
         ----------
-        standard : astropy.table.Table
-            output from ``onedstd``, has columns ('wave', 'width', 'mag', 'flux').
+        standard : `~astropy.table.Table`
+            Output from ``onedstd``, has columns ('wave', 'width', 'mag', 'flux').
         mode : str, optional
-            Can be "linear", "spline", or "poly" (Default is linear).
+            Can be "linear", "spline", or "poly". (Default is linear).
         polydeg : float, optional
-            if mode='poly', this is the order of the polynomial to fit through.
+            If mode='poly', this is the order of the polynomial to fit through.
             (Default is 9.)
         display : bool, optional
             If True, plot the sensfunc. (Default is False.)
@@ -200,7 +200,7 @@ class FluxCalibration(SpecreduceOperation):
 
         Returns
         -------
-        sensfunc_spec : specutils.Spectrum1D
+        sensfunc_spec : specutils.Spectrum
             The sensitivity function in the covered wavelength range
             for the given standard star.
 
@@ -254,7 +254,7 @@ class FluxCalibration(SpecreduceOperation):
 
         sensfunc_out = (10 ** sensfunc2) * standard['flux'].unit / obj_flux.unit
 
-        sensfunc_spec = Spectrum1D(spectral_axis=obj_wave, flux=sensfunc_out)
+        sensfunc_spec = Spectrum(spectral_axis=obj_wave, flux=sensfunc_out)
 
         if display is True:
             import matplotlib.pyplot as plt
@@ -279,19 +279,19 @@ class FluxCalibration(SpecreduceOperation):
     def apply_sensfunc(self, sensfunc):
         """
         Apply the derived sensitivity function, converts observed units (e.g. ADU/s)
-        to physical units (e.g. erg/s/cm2/A).
+        to physical units (e.g., erg/s/cm2/A).
         Sensitivity function is first linearly interpolated onto the wavelength scale
         of the observed data, and then directly multiplied.
 
         Parameters
         ----------
-        sensfunc : astropy.table.Table
+        sensfunc : `~astropy.table.Table`
             The output of ``standard_sensfunc``, table has columns ('wave', 'S').
 
         Returns
         -------
-        fluxcal_spec: specutils.Spectrum1D
-            The sensfunc corrected ``Spectrum1D`` object.
+        fluxcal_spec : specutils.Spectrum
+            The sensfunc corrected ``Spectrum`` object.
 
         """
         spec = self.mag2flux()
@@ -306,6 +306,6 @@ class FluxCalibration(SpecreduceOperation):
 
         object_spectrum = obj_flux * (sensfunc2 * sensfunc['S'].unit)
 
-        fluxcal_spec = Spectrum1D(spectral_axis=obj_wave, flux=object_spectrum)
+        fluxcal_spec = Spectrum(spectral_axis=obj_wave, flux=object_spectrum)
 
         return fluxcal_spec

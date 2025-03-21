@@ -7,7 +7,8 @@ from astropy.modeling.models import Linear1D
 from astropy.table import QTable, hstack
 from gwcs import coordinate_frames as cf
 from gwcs import wcs
-from specutils import Spectrum1D
+
+from specreduce.compat import Spectrum
 
 __all__ = [
     'WavelengthCalibration1D'
@@ -29,7 +30,7 @@ class WavelengthCalibration1D():
                  line_wavelengths=None, catalog=None, input_model=Linear1D(), fitter=None):
         """
         input_spectrum: `~specutils.Spectrum1D`
-            A one-dimensional Spectrum1D calibration spectrum from an arc lamp or similar.
+            A one-dimensional Spectrum calibration spectrum from an arc lamp or similar.
         matched_line_list: `~astropy.table.QTable`, optional
             An `~astropy.table.QTable` table with (minimally) columns named
             "pixel_center" and "wavelength" with known corresponding line pixel centers
@@ -64,8 +65,8 @@ class WavelengthCalibration1D():
         self._potential_wavelengths = None
         self._catalog = catalog
 
-        if not isinstance(input_spectrum, Spectrum1D):
-            raise ValueError('Input spectrum must be Spectrum1D.')
+        if not isinstance(input_spectrum, Spectrum):
+            raise ValueError('Input spectrum must be Spectrum.')
 
         # We use either line_pixels or matched_line_list to create self._matched_line_list,
         # and check that various requirements are fulfilled by the input args.
@@ -234,10 +235,10 @@ class WavelengthCalibration1D():
         return wcsobj
 
     def apply_to_spectrum(self, spectrum=None):
-        # returns spectrum1d with wavelength calibration applied
+        # returns Spectrum with wavelength calibration applied
         # actual line refinement and WCS solution should already be done so that this can
         # be called on multiple science sources
         spectrum = self.input_spectrum if spectrum is None else spectrum
-        updated_spectrum = Spectrum1D(spectrum.flux, wcs=self.wcs, mask=spectrum.mask,
-                                      uncertainty=spectrum.uncertainty)
+        updated_spectrum = Spectrum(spectrum.flux, wcs=self.wcs, mask=spectrum.mask,
+                                    uncertainty=spectrum.uncertainty)
         return updated_spectrum

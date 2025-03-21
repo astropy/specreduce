@@ -1,7 +1,7 @@
 import numpy as np
 from astropy import units as u
-from specutils import Spectrum1D
 
+from specreduce.compat import Spectrum
 from specreduce.core import _ImageParser
 from specreduce.extract import HorneExtract
 from specreduce.tracing import FlatTrace
@@ -14,9 +14,9 @@ def compare_images(all_images, key, collection, compare='s1d'):
     unc_def = np.ones_like(all_images['arr'])
     sax_def = np.arange(unc_def.shape[1]) * u.pix
 
-    # was input converted to Spectrum1D?
-    assert isinstance(collection[key], Spectrum1D), (f"image '{key}' not "
-                                                     "of type Spectrum1D")
+    # was input converted to Spectrum?
+    assert isinstance(collection[key], Spectrum), (f"image '{key}' not "
+                                                   "of type Spectrum")
 
     # do key's fluxes match its comparison's fluxes?
     assert np.allclose(collection[key].data,
