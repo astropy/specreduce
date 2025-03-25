@@ -1,4 +1,4 @@
-1.5.1 (unreleased)
+1.5.2 (unreleased)
 ------------------
 
 New Features
@@ -7,8 +7,13 @@ New Features
 API Changes
 ^^^^^^^^^^^
 
+- ``bkg_statistic`` keyword in ``Background.bkg_spectrum()`` now takes callable
+  instead of string. Its default is also changed from ``"sum"`` (``np.nansum``)
+  to ``np.nanmedian`` to better suit background calculation. [#253]
+
 Bug Fixes
 ^^^^^^^^^
+
 - When all-zero bin encountered in fit_trace with peak_method=gaussian, the bin peak
   will be set to NaN in this caseto work better with DogBoxLSQFitter. [#257]
 
