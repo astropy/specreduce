@@ -15,6 +15,7 @@ Bug Fixes
 Other changes
 ^^^^^^^^^^^^^
 
+- Compatibility with specutils 2.0. [#260]
 
 1.5.1 (2024-03-08)
 ------------------

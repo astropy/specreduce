@@ -1,19 +1,16 @@
-from typing import Sequence
 import warnings
-
-import numpy as np
+from typing import Sequence
 
 import astropy.units as u
+import numpy as np
 from astropy.stats import gaussian_fwhm_to_sigma, gaussian_sigma_to_fwhm
 from astropy.modeling import models
 from astropy.table import QTable
 from astropy.wcs import WCS as astropy_WCS
-
 from gwcs.wcs import WCS as gWCS
-
-from specutils import Spectrum1D
 from specutils.fitting import find_lines_threshold, fit_lines
 
+from specreduce.compat import Spectrum
 
 __all__ = [
     "find_arc_lines",
@@ -22,7 +19,7 @@ __all__ = [
 
 
 def find_arc_lines(
-    spectrum: Spectrum1D,
+    spectrum: Spectrum,
     fwhm: float | u.Quantity = 5.0 * u.pix,
     window: float = 3.0,
     noise_factor: float = 5.0
