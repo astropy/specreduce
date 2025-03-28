@@ -380,14 +380,7 @@ class Background(_ImageParser):
         """
         image = self._parse_image(image)
 
-        # a compare_wcs argument is needed for Spectrum.subtract() in order to
-        # avoid a TypeError from SpectralCoord when image's spectral axis is in
-        # pixels. it is not needed when image's spectral axis has physical units
-        kwargs = {"compare_wcs": None} if image.spectral_axis.unit == u.pix else {}
-        if not SPECUTILS_LT_2:
-            kwargs["spectral_axis_index"] = image.flux.ndim - 1
-        # https://docs.astropy.org/en/stable/nddata/mixins/ndarithmetic.html
-        return image.subtract(self.bkg_image(image), **kwargs)
+        return image - self.bkg_image(image)
 
     def sub_spectrum(self, image=None):
         """
