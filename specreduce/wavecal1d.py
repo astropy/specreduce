@@ -89,7 +89,7 @@ class WavelengthSolution1D:
             self.bounds_pix = (0, self.arc_spectra[0].shape[0])
 
         elif obs_lines is not None:
-            self._lines_pix = [obs_lines] if isinstance(obs_lines, ndarray) else obs_lines
+            self.lines_pix = obs_lines
             self.nframes = len(self._lines_pix)
             if self.bounds_pix is None:
                 raise ValueError("Must give pixel bounds when providing observed line positions.")
@@ -126,10 +126,10 @@ class WavelengthSolution1D:
         if not isinstance(line_lists, (tuple, list)):
             line_lists = [line_lists]
 
-        self._lines_wav = []
+        lines_wav = []
         for l in line_lists:
             if isinstance(l, ndarray):
-                self._lines_wav.append(l)
+                lines_wav.append(l)
             else:
                 lines = []
                 if isinstance(l, str):
@@ -140,9 +140,11 @@ class WavelengthSolution1D:
                         .to(self.unit)
                         .value
                     )
-                self._lines_wav.append(np.ma.masked_array(np.sort(np.concatenate(lines))))
-        for i, l in enumerate(self._lines_wav):
-            self._lines_wav[i] = l[(l >= line_list_bounds[0]) & (l <= line_list_bounds[1])]
+                lines_wav.append(np.ma.masked_array(np.sort(np.concatenate(lines))))
+        for i, l in enumerate(lines_wav):
+            lines_wav[i] = l[(l >= line_list_bounds[0]) & (l <= line_list_bounds[1])]
+
+        self.lines_wav = lines_wav
         self._trees = [KDTree(l.data[:, None]) for l in self._lines_wav]
 
     def find_lines(self, fwhm: float):
@@ -388,10 +390,32 @@ class WavelengthSolution1D:
         """List of pixel positions of identified spectral lines."""
         return self._lines_pix
 
+    @lines_pix.setter
+    def lines_pix(self, lines_pix: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
+        if not isinstance(lines_pix, Sequence):
+            lines_pix = [lines_pix]
+        self._lines_pix = []
+        for l in lines_pix:
+            if isinstance(l, MaskedArray) and l.mask is not np.False_:
+                self._lines_pix.append(l)
+            else:
+                self._lines_pix.append(np.ma.masked_array(l, mask=np.zeros(l.size, bool)))
+
     @property
     def lines_wav(self) -> list[MaskedArray]:
         """List of wavelength positions of theoretical spectral lines."""
         return self._lines_wav
+
+    @lines_wav.setter
+    def lines_wav(self, lines_wav: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
+        if not isinstance(lines_wav, Sequence):
+            lines_wav = [lines_wav]
+        self._lines_wav = []
+        for l in lines_wav:
+            if isinstance(l, MaskedArray) and l.mask is not np.False_:
+                self._lines_wav.append(l)
+            else:
+                self._lines_wav.append(np.ma.masked_array(l, mask=np.zeros(l.size, bool)))
 
     @property
     def wcs(self):
@@ -548,19 +572,73 @@ class WavelengthSolution1D:
         setp(axes[-1], xlabel=xlabel)
         return fig
 
-    def plot_fit(self, frame: int = 0, figsize: tuple[float, float] | None = None,
-                 plot_values: bool = True, transform_x: bool = False) -> Figure:
-        fig, axs = subplots(2, 1, constrained_layout=True, figsize=figsize)
+    def plot_lines_pix(self, frame: int = 0,
+                       ax: Axes | None = None,
+                       figsize: tuple[float, float] | None = None,
+                       plot_values: bool = True, map_to_wav: bool = False) -> Figure:
+        if ax is None:
+            fig, ax = subplots(figsize=figsize, constrained_layout=True)
+        else:
+            fig = ax.figure
 
-        if self._lines_wav is not None:
-            axs[0].vlines(self._lines_wav[frame].data, 0, 1)
+        if map_to_wav and self._p2w is None:
+            raise ValueError('Cannot map pixels to wavelengths without a fitted model.')
+
+        transform = self.pix_to_wav if map_to_wav else lambda x: x
+
+        if self._lines_pix is not None:
+            lines = self._lines_pix[frame]
+            ax.vlines(transform(lines[lines.mask].data), 0, 1, ls=':')
+            ax.vlines(transform(lines[~lines.mask].data), 0, 1)
             if plot_values:
-                for i, l in enumerate(sorted(self._lines_wav[frame].data)):
-                    axs[0].text(l, 0.25 + 0.25 * (i % 3), f"{l:.0f}", rotation=90, ha='right',
+                for i, l in enumerate(transform(lines.data)):
+                    if np.isfinite(l):
+                        ax.text(l, 0.25 + 0.25 * (i % 3), f"{l:.0f}", rotation=90, ha='right',
                                 va='center', bbox=dict(alpha=0.8, fc='w', lw=0), size='small')
 
-        if transform_x and self._p2w is None:
-            raise ValueError("Pixel to wavelength transform does not exist.")
+        if not map_to_wav:
+            setp(ax, yticks=[], xlabel='Observed lines [Pixel]')
+        else:
+            setp(ax, yticks=[], xlabel=f'Observed lines [{self._unit_str}]')
+        return fig
+
+    def plot_lines_wav(self, frame: int = 0,
+                       ax: Axes | None = None,
+                       figsize: tuple[float, float] | None = None,
+                       plot_values: bool = True, map_to_pix: bool = False) -> Figure:
+        if ax is None:
+            fig, ax = subplots(figsize=figsize, constrained_layout=True)
+        else:
+            fig = ax.figure
+
+        if map_to_pix and self._p2w is None:
+            raise ValueError('Cannot map wavelengths to pixels without a fitted model.')
+
+        transform = self.wav_to_pix if map_to_pix else lambda x: x
+
+        if self._lines_wav is not None:
+            lines = self._lines_wav[frame]
+            ax.vlines(transform(lines[lines.mask].data), 0, 1, ls=':')
+            ax.vlines(transform(lines[~lines.mask].data), 0, 1)
+            if plot_values:
+                for i, l in enumerate(transform(lines.data)):
+                    if np.isfinite(l):
+                        ax.text(l, 0.25 + 0.25 * (i % 3), f"{l:.0f}", rotation=90, ha='right',
+                                va='center', bbox=dict(alpha=0.8, fc='w', lw=0), size='small')
+
+        if not map_to_pix:
+            setp(ax, yticks=[], xlabel=f'Theoretical lines [{self._unit_str}]')
+        else:
+            setp(ax, yticks=[], xlabel='Theoretical lines [Pixel]')
+        ax.xaxis.set_label_position('top')
+        ax.xaxis.tick_top()
+        return fig
+
+    def plot_fit(self, frame: int = 0, figsize: tuple[float, float] | None = None,
+                 plot_values: bool = True, transform_x: bool = False, wav_to_pix: bool = False) -> Figure:
+        fig, axs = subplots(2, 1, constrained_layout=True, figsize=figsize)
+
+        self.plot_lines_wav(frame, axs[0], plot_values=plot_values, map_to_pix=wav_to_pix)
         self.plot(axs[1:], plot_line_values=plot_values, map_x=transform_x, plot_listed_lines=False)
         if transform_x:
             axs[1].set_xlim(axs[0].get_xlim())
