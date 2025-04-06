@@ -50,5 +50,5 @@ jobs:
           posargs: --remote-data=any
 
         - name: (Allowed Failure) Python 3.13 on Linux with dev dependencies
-          linux: py313-test-devdeps
+          linux: py313-test-devdeps-cov
           toxargs: -v
