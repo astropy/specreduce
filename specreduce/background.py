@@ -157,7 +157,10 @@ class Background(_ImageParser):
             img.mask = (self.bkg_wimage == 0) | self.image.mask
             self._bkg_array = np.ma.median(img, axis=self.crossdisp_axis)
         else:
-            raise ValueError("statistic must be 'average' or 'median'")
+            raise ValueError(
+                "statistic must be 'average', 'median', or a callable function that takes a masked"
+                "array as input and an axis argument."
+            )
 
     def _set_traces(self):
         """Determine `traces` from input. If an integer/float or list if int/float
@@ -316,10 +319,7 @@ class Background(_ImageParser):
             kwargs = {}
         else:
             kwargs = {"spectral_axis_index": arr.ndim - 1}
-        return Spectrum(
-            arr * image.unit,
-            spectral_axis=image.spectral_axis, **kwargs
-        )
+        return Spectrum(arr * image.unit, spectral_axis=image.spectral_axis, **kwargs)
 
     def bkg_spectrum(self, image=None):
         """
@@ -340,7 +340,7 @@ class Background(_ImageParser):
             units as the input image (or DN if none were provided) and
             the spectral axis expressed in pixel units.
         """
-        return Spectrum(self._bkg_array)
+        return Spectrum(self._bkg_array * self.image.unit, spectral_axis=self.image.spectral_axis)
 
     def sub_image(self, image=None):
         """
@@ -349,7 +349,7 @@ class Background(_ImageParser):
         Parameters
         ----------
         image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will extract
+            image with 2-D spectral image data.  If None, will subtract
             the background from ``image`` used to initialize the class.
 
         Returns

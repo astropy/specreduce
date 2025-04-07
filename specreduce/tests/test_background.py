@@ -59,7 +59,7 @@ def test_background(
     assert np.allclose(sub4.flux, sub5.flux)
     assert np.allclose(sub5.flux, sub6.flux)
 
-    bkg_spec = bg1.bkg_spectrum(bkg_statistic=np.nansum)
+    bkg_spec = bg1.bkg_spectrum()
     assert isinstance(bkg_spec, Spectrum)
     sub_spec = bg1.sub_spectrum()
     assert isinstance(sub_spec, Spectrum)
@@ -73,19 +73,18 @@ def test_background(
     # the final 1D spectra.
     img[0, 0] = np.nan  # out of window
     img[trace_pos, 0] = np.nan  # in window
-    stats = ["average", "median"]
+    stats = ["average", "median", np.nanmean, np.nanmedian]
 
     for st in stats:
         bg = Background(img, trace - bkg_sep, width=bkg_width, statistic=st)
         assert np.isnan(bg.image.flux).sum() == 2
         assert np.isnan(bg._bkg_array).sum() == 0
-        assert np.isnan(bg.bkg_spectrum(bkg_statistic=np.nansum).flux).sum() == 0
-        assert np.isnan(bg.sub_spectrum().flux).sum() == 0
+        assert np.isnan(bg.bkg_spectrum().flux).sum() == 0
 
-    bkg_spec_avg = bg1.bkg_spectrum(bkg_statistic=np.nanmean)
+    bkg_spec_avg = bg1.bkg_spectrum()
     assert_allclose(bkg_spec_avg.mean().value, 14.5, rtol=0.5)
 
-    bkg_spec_median = bg1.bkg_spectrum(bkg_statistic=np.nanmedian)
+    bkg_spec_median = bg1.bkg_spectrum()
     assert_allclose(bkg_spec_median.mean().value, 14.5, rtol=0.5)
 
 
@@ -281,15 +280,11 @@ class TestMasksBackground:
 
             # test background image matches 'expected'
             bk_img = background.bkg_image()
-            # change this and following assertions to assert_quantity_allclose once
-            # issue #213 is fixed
             np.testing.assert_allclose(bk_img.flux.value, np.tile(expected, (img_size, 1)))
 
-            # test background spectrum matches 'expected' times the number of rows
-            # in cross disp axis, since this is a sum and all values in a col are
-            # the same.
-            bk_spec = background.bkg_spectrum(bkg_statistic=np.nansum)
-            np.testing.assert_allclose(bk_spec.flux.value, expected * img_size)
+            # test background spectrum matches 'expected'
+            bk_spec = background.bkg_spectrum()
+            np.testing.assert_allclose(bk_spec.flux.value, expected)
 
     def test_sub_bkg_image(self):
         """
