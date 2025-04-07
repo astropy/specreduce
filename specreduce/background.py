@@ -321,7 +321,7 @@ class Background(_ImageParser):
             kwargs = {"spectral_axis_index": arr.ndim - 1}
         return Spectrum(arr * image.unit, spectral_axis=image.spectral_axis, **kwargs)
 
-    def bkg_spectrum(self, image=None):
+    def bkg_spectrum(self, image=None, bkg_statistic=None):
         """
         Expose the 1D spectrum of the background.
 
@@ -340,6 +340,12 @@ class Background(_ImageParser):
             units as the input image (or DN if none were provided) and
             the spectral axis expressed in pixel units.
         """
+        if bkg_statistic is not None:
+            warnings.warn(
+                "'bkg_statistic' is deprecated and will be removed in a future release. "
+                "Please use the 'statistic' argument in the Background initializer instead.",
+                DeprecationWarning,
+            )
         return Spectrum(self._bkg_array * self.image.unit, spectral_axis=self.image.spectral_axis)
 
     def sub_image(self, image=None):
