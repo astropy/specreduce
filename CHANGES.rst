@@ -7,9 +7,12 @@ New Features
 API Changes
 ^^^^^^^^^^^
 
-- ``bkg_statistic`` keyword in ``Background.bkg_spectrum()`` now takes callable
-  instead of string. Its default is also changed from ``"sum"`` (``np.nansum``)
-  to ``np.nanmedian`` to better suit background calculation. [#253]
+- ``statistic`` argument in ``Background`` initializer can now be either ``"average"``,
+  ``"median"``, or a custom callable that takes a ``numpy.ma.MaskedArray`` masked array
+  as an input and accepts ``axis`` as an argument. [#253]
+- ``bkg_statistic`` keyword in ``Background.bkg_spectrum()`` now deprecated and raises
+  a warning if set. The ``statistic`` argument in the ``Background`` initializer should
+  be used instead. [#253]
 
 Bug Fixes
 ^^^^^^^^^

@@ -3,6 +3,7 @@
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Literal
 
 import numpy as np
 from astropy import units as u
@@ -72,7 +73,7 @@ class Background(_ImageParser):
     image: ImageLike
     traces: list = field(default_factory=list)
     width: float = 5
-    statistic: str | Callable[..., np.ndarray] = "average"
+    statistic: Literal["average", "median"] | Callable[..., np.ndarray] = "average"
     disp_axis: int = 1
     crossdisp_axis: int = 0
     mask_treatment: MaskingOption = "apply"
