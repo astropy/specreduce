@@ -1,4 +1,4 @@
-1.5.1 (unreleased)
+1.5.2 (unreleased)
 ------------------
 
 New Features
@@ -7,8 +7,16 @@ New Features
 API Changes
 ^^^^^^^^^^^
 
+- ``statistic`` argument in ``Background`` initializer can now be either ``"average"``,
+  ``"median"``, or a custom callable that takes a ``numpy.ma.MaskedArray`` masked array
+  as an input and accepts ``axis`` as an argument. [#253]
+- ``bkg_statistic`` keyword in ``Background.bkg_spectrum()`` is now deprecated and raises
+  a warning if set. The ``statistic`` argument in the ``Background`` initializer should
+  be used instead. [#253]
+
 Bug Fixes
 ^^^^^^^^^
+
 - When all-zero bin encountered in fit_trace with peak_method=gaussian, the bin peak
   will be set to NaN in this caseto work better with DogBoxLSQFitter. [#257]
 

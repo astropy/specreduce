@@ -1,7 +1,9 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Literal
 
 import numpy as np
 from astropy import units as u
@@ -39,7 +41,8 @@ class Background(_ImageParser):
     statistic
         Statistic to use when computing the background.  ``average`` will
         account for partial pixel weights, ``median`` will include all partial
-        pixels.
+        pixels. If you provide your own function, it must take a `~numpy.ma.MaskedArray`
+        masked array as input and accept an ``axis`` argument.
     disp_axis
         Dispersion axis.
     crossdisp_axis
@@ -70,7 +73,7 @@ class Background(_ImageParser):
     image: ImageLike
     traces: list = field(default_factory=list)
     width: float = 5
-    statistic: str = "average"
+    statistic: Literal["average", "median"] | Callable[..., np.ndarray] = "average"
     disp_axis: int = 1
     crossdisp_axis: int = 0
     mask_treatment: MaskingOption = "apply"
@@ -146,16 +149,19 @@ class Background(_ImageParser):
 
         self.bkg_wimage = bkg_wimage
 
-        if self.statistic == "average":
+        if isinstance(self.statistic, Callable):
+            img.mask = (self.bkg_wimage == 0) | self.image.mask
+            self._bkg_array = self.statistic(img, axis=self.crossdisp_axis)
+        elif self.statistic == "average":
             self._bkg_array = np.ma.average(img, weights=self.bkg_wimage, axis=self.crossdisp_axis)
-
         elif self.statistic == "median":
-            # combine where background weight image is 0 with image masked (which already
-            # accounts for non-finite data that wasn't already masked)
-            img.mask = np.logical_or(self.bkg_wimage == 0, self.image.mask)
+            img.mask = (self.bkg_wimage == 0) | self.image.mask
             self._bkg_array = np.ma.median(img, axis=self.crossdisp_axis)
         else:
-            raise ValueError("statistic must be 'average' or 'median'")
+            raise ValueError(
+                "statistic must be 'average', 'median', or a callable function that takes a masked"
+                "array as input and an axis argument."
+            )
 
     def _set_traces(self):
         """Determine `traces` from input. If an integer/float or list if int/float
@@ -216,10 +222,11 @@ class Background(_ImageParser):
             separation from ``trace_object`` for the background regions
         width : float
             width of each background aperture in pixels
-        statistic: string
-            statistic to use when computing the background.  'average' will
-            account for partial pixel weights, 'median' will include all partial
-            pixels.
+        statistic: string or Callable
+            Statistic to use when computing the background.  ``average`` will
+            account for partial pixel weights, ``median`` will include all partial
+            pixels. If you provide your own function, it must take a `~numpy.ma.MaskedArray`
+            masked array as input and accept an ``axis`` argument.
         disp_axis : int
             dispersion axis
         crossdisp_axis : int
@@ -265,10 +272,11 @@ class Background(_ImageParser):
             above the trace, negative below.
         width : float
             width of each background aperture in pixels
-        statistic: string
-            statistic to use when computing the background.  'average' will
-            account for partial pixel weights, 'median' will include all partial
-            pixels.
+        statistic: string or Callable
+            Statistic to use when computing the background.  ``average`` will
+            account for partial pixel weights, ``median`` will include all partial
+            pixels. If you provide your own function, it must take a `~numpy.ma.MaskedArray`
+            masked array as input and accept an ``axis`` argument.
         disp_axis : int
             dispersion axis
         crossdisp_axis : int
@@ -312,12 +320,9 @@ class Background(_ImageParser):
             kwargs = {}
         else:
             kwargs = {"spectral_axis_index": arr.ndim - 1}
-        return Spectrum(
-            arr * image.unit,
-            spectral_axis=image.spectral_axis, **kwargs
-        )
+        return Spectrum(arr * image.unit, spectral_axis=image.spectral_axis, **kwargs)
 
-    def bkg_spectrum(self, image=None, bkg_statistic="sum"):
+    def bkg_spectrum(self, image=None, bkg_statistic=None):
         """
         Expose the 1D spectrum of the background.
 
@@ -328,40 +333,21 @@ class Background(_ImageParser):
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1. If None, will extract the background
             from ``image`` used to initialize the class. [default: None]
-        bkg_statistic : {'average', 'median', 'sum'}, optional
-            Statistical method used to collapse the background image. [default: ``'sum'``]
-            Supported values are:
-
-            - ``'average'`` : Uses the mean (`numpy.nanmean`).
-            - ``'median'`` : Uses the median (`numpy.nanmedian`).
-            - ``'sum'`` : Uses the sum (`numpy.nansum`).
 
         Returns
         -------
         spec : `~specutils.Spectrum1D`
             The background 1-D spectrum, with flux expressed in the same
-            units as the input image (or u.DN if none were provided) and
+            units as the input image (or DN if none were provided) and
             the spectral axis expressed in pixel units.
         """
-        bkg_image = self.bkg_image(image)
-
-        if bkg_statistic == 'sum':
-            statistic_function = np.nansum
-        elif bkg_statistic == 'median':
-            statistic_function = np.nanmedian
-        elif bkg_statistic == 'average':
-            statistic_function = np.nanmean
-        else:
-            raise ValueError(f"Background statistic {bkg_statistic} is not supported. "
-                             "Please choose from: average, median, or sum.")
-
-        try:
-            return bkg_image.collapse(statistic_function, axis=self.crossdisp_axis)
-        except u.UnitTypeError:
-            # can't collapse with a spectral axis in pixels because
-            # SpectralCoord only allows frequency/wavelength equivalent units...
-            ext1d = statistic_function(bkg_image.flux, axis=self.crossdisp_axis)
-            return Spectrum(ext1d, bkg_image.spectral_axis)
+        if bkg_statistic is not None:
+            warnings.warn(
+                "'bkg_statistic' is deprecated and will be removed in a future release. "
+                "Please use the 'statistic' argument in the Background initializer instead.",
+                DeprecationWarning,
+            )
+        return Spectrum(self._bkg_array * self.image.unit, spectral_axis=self.image.spectral_axis)
 
     def sub_image(self, image=None):
         """
@@ -370,7 +356,7 @@ class Background(_ImageParser):
         Parameters
         ----------
         image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will extract
+            image with 2-D spectral image data.  If None, will subtract
             the background from ``image`` used to initialize the class.
 
         Returns
