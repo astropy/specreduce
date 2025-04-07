@@ -1,11 +1,12 @@
+import astropy.units as u
 import numpy as np
 import pytest
 from astropy.modeling import fitting, models
+from astropy.nddata import NDData
+
+from specreduce.compat import SPECUTILS_LT_2, Spectrum
 from specreduce.tracing import FitTrace
 from specreduce.utils.utils import measure_cross_dispersion_profile
-from specutils import Spectrum1D
-from astropy.nddata import NDData
-import astropy.units as u
 
 
 def mk_gaussian_img(nrows=20, ncols=16, mean=10, stddev=4):
@@ -48,7 +49,7 @@ class TestMeasureCrossDispersionProfile():
         Basic test for `measure_cross_dispersion_profile`. Parametrized over
         different options for `pixel` to test using all wavelengths, a single
         wavelength, and a set of wavelengths, as well as different input types
-        (plain array, quantity, Spectrum1D, and NDData), as well as `width` to
+        (plain array, quantity, Spectrum, and NDData), as well as `width` to
         use a window of all rows and a smaller window.
         """
 
@@ -60,7 +61,11 @@ class TestMeasureCrossDispersionProfile():
         images.append(dat)  # test unitless
         images.append(dat * u.DN)
         images.append(NDData(dat * u.DN))
-        images.append(Spectrum1D(flux=dat * u.DN))
+        if SPECUTILS_LT_2:
+            kwargs = {}
+        else:
+            kwargs = {"spectral_axis_index": dat.ndim - 1}
+        images.append(Spectrum(flux=dat * u.DN, **kwargs))
 
         for img in images:
 

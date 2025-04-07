@@ -1,11 +1,11 @@
-from astropy.nddata import NDData
 import astropy.units as u
 import numpy as np
-from numpy.testing import assert_allclose
 import pytest
-from specutils import Spectrum1D
+from astropy.nddata import NDData
+from numpy.testing import assert_allclose
 
 from specreduce.background import Background
+from specreduce.compat import Spectrum
 from specreduce.tracing import FlatTrace, ArrayTrace
 
 
@@ -60,9 +60,9 @@ def test_background(
     assert np.allclose(sub5.flux, sub6.flux)
 
     bkg_spec = bg1.bkg_spectrum()
-    assert isinstance(bkg_spec, Spectrum1D)
+    assert isinstance(bkg_spec, Spectrum)
     sub_spec = bg1.sub_spectrum()
-    assert isinstance(sub_spec, Spectrum1D)
+    assert isinstance(sub_spec, Spectrum)
 
     # test that width==0 results in no background
     bg = Background.two_sided(image, trace, bkg_sep, width=0)

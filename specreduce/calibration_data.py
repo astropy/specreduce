@@ -12,9 +12,9 @@ from astropy.table import Table, vstack, QTable
 from astropy.utils.data import download_file
 from astropy.utils.exceptions import AstropyUserWarning
 from astropy.coordinates import SpectralCoord
-
-from specutils import Spectrum1D
 from specutils.utils.wcs_utils import vac_to_air
+
+from specreduce.compat import Spectrum
 
 __all__ = [
     'get_available_line_catalogs',
@@ -187,7 +187,7 @@ def load_MAST_calspec(
         filename: str | Path,
         cache: bool | Literal['update'] = True,
         show_progress: bool = False
-) -> Spectrum1D | None:
+) -> Spectrum | None:
     """
     Load a standard star spectrum from the ``calspec`` database at MAST. These spectra are provided
     in FITS format and are described in detail at:
@@ -238,7 +238,7 @@ def load_MAST_calspec(
         # supported directly by astropy.units. mJy is chosen since it's the JWST
         # standard and can easily be converted to/from AB magnitudes.
         flux_mjy = synphot.units.convert_flux(wave, flux, u.mJy)
-        spectrum = Spectrum1D(spectral_axis=wave, flux=flux_mjy)
+        spectrum = Spectrum(spectral_axis=wave, flux=flux_mjy)
         return spectrum
 
 
@@ -247,7 +247,7 @@ def load_onedstds(
         specfile: str = "EG131.dat",
         cache: bool | Literal['update'] = True,
         show_progress: bool = False
-) -> Spectrum1D | None:
+) -> Spectrum | None:
     """
     This is a convenience function for loading a standard star spectrum from the 'onedstds'
     dataset in the ``specreduce_data`` package. They will be downloaded from the
@@ -290,11 +290,11 @@ def load_onedstds(
     # the specreduce_data standard star spectra all provide fluxes in AB mag
     flux = t['ABmag'].data * u.ABmag
     flux = flux.to(u.mJy)  # convert to linear flux units
-    spectrum = Spectrum1D(spectral_axis=spectral_axis, flux=flux)
+    spectrum = Spectrum(spectral_axis=spectral_axis, flux=flux)
     return spectrum
 
 
-class AtmosphericExtinction(Spectrum1D):
+class AtmosphericExtinction(Spectrum):
     """
     Spectrum container for atmospheric extinction in magnitudes as a function of wavelength.
     If extinction and spectral_axis are provided, this will use them to build a custom model.
@@ -353,7 +353,7 @@ class AtmosphericExtinction(Spectrum1D):
                 extinction = u.Magnitude(
                     extinction,
                     u.MagUnit(u.dimensionless_unscaled)
-                ).to(u.dimensionless_unscaled)  # Spectrum1D wants this to be linear
+                ).to(u.dimensionless_unscaled)  # Spectrum wants this to be linear
             elif isinstance(extinction, (u.LogUnit, u.Magnitude)) or extinction.unit == u.mag:
                 # if in log or magnitudes, recast into Magnitude with dimensionless physical units
                 extinction = u.Magnitude(

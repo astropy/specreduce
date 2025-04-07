@@ -10,8 +10,8 @@ from astropy.nddata import NDData, VarianceUncertainty
 from numpy import ndarray
 from scipy.integrate import trapezoid
 from scipy.interpolate import RectBivariateSpline
-from specutils import Spectrum1D
 
+from specreduce.compat import Spectrum
 from specreduce.core import SpecreduceOperation, ImageLike, MaskingOption
 from specreduce.tracing import Trace, FlatTrace
 
@@ -201,7 +201,7 @@ class BoxcarExtract(SpecreduceOperation):
         width: float | None = None,
         disp_axis: int | None = None,
         crossdisp_axis: int | None = None,
-    ) -> Spectrum1D:
+    ) -> Spectrum:
         """
         Extract the 1D spectrum using the boxcar method.
 
@@ -258,7 +258,7 @@ class BoxcarExtract(SpecreduceOperation):
             image_windowed = np.where(window_weights, self.image.data * window_weights, 0.0)
             spectrum = np.sum(image_windowed, axis=cdisp_axis)
 
-        return Spectrum1D(spectrum * self.image.unit, spectral_axis=self.image.spectral_axis)
+        return Spectrum(spectrum * self.image.unit, spectral_axis=self.image.spectral_axis)
 
 
 @dataclass
@@ -358,7 +358,7 @@ class HorneExtract(SpecreduceOperation):
     def _parse_image(self, image, variance=None, mask=None, unit=None, disp_axis=1):
         """
         Convert all accepted image types to a consistently formatted
-        Spectrum1D object.
+        Spectrum object.
 
         HorneExtract needs its own version of this method because it is
         more stringent in its requirements for input images. The extra
@@ -397,10 +397,10 @@ class HorneExtract(SpecreduceOperation):
             img = image
         elif isinstance(image, u.quantity.Quantity):
             img = image.value
-        else:  # NDData, including CCDData and Spectrum1D
+        else:  # NDData, including CCDData and Spectrum
             img = image.data
 
-        # mask is set as None when not specified upon creating a Spectrum1D
+        # mask is set as None when not specified upon creating a Spectrum
         # object, so we must check whether it is absent *and* whether it's
         # present but set as None
         if getattr(image, "mask", None) is not None:
@@ -468,7 +468,7 @@ class HorneExtract(SpecreduceOperation):
 
         spectral_axis = getattr(image, "spectral_axis", np.arange(img.shape[disp_axis]) * u.pix)
 
-        return Spectrum1D(img * unit, spectral_axis=spectral_axis, uncertainty=variance, mask=mask)
+        return Spectrum(img * unit, spectral_axis=spectral_axis, uncertainty=variance, mask=mask)
 
     def _fit_gaussian_spatial_profile(
         self, img: ndarray, disp_axis: int, crossdisp_axis: int, or_mask: ndarray, bkgrd_prof: Model
@@ -747,7 +747,7 @@ class HorneExtract(SpecreduceOperation):
             den = np.sum(np.where(valid, kernel_vals**2 / variance, 0.0), axis=crossdisp_axis)
             extraction = (num / den) * norms
 
-        return Spectrum1D(extraction * unit, spectral_axis=self.image.spectral_axis)
+        return Spectrum(extraction * unit, spectral_axis=self.image.spectral_axis)
 
 
 def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):
