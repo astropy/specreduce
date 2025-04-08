@@ -436,7 +436,7 @@ class WavelengthSolution1D:
         self._wcs = wcs.WCS(pipeline)
         return self._wcs
 
-    def match_lines(self, upper_bound: float = 5, concatenate_frames: bool = True) -> None:
+    def match_lines(self, upper_bound: float = 5) -> None:
         """Match the observed lines to theoretical lines.
 
         Parameters
@@ -449,12 +449,12 @@ class WavelengthSolution1D:
         matched_lines_pix = []
         for iframe, tree in enumerate(self._trees):
             l, ix = tree.query(
-                self._p2w(self._lines_pix[iframe])[:, None], distance_upper_bound=upper_bound
+                self._p2w(self._lines_pix[iframe].data)[:, None], distance_upper_bound=upper_bound
             )
             m = np.isfinite(l)
             matched_lines_wav.append(np.ma.masked_array(tree.data[:, 0], mask=True))
             matched_lines_wav[-1].mask[ix[m]] = False
-            matched_lines_pix.append(np.ma.masked_array(self._lines_pix[iframe], mask=~m))
+            matched_lines_pix.append(np.ma.masked_array(self._lines_pix[iframe].data, mask=~m))
 
         self._lines_pix = matched_lines_pix
         self._lines_wav = matched_lines_wav
