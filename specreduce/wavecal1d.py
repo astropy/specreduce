@@ -357,7 +357,7 @@ class WavelengthSolution1D:
         ucty_wl = VarianceUncertainty(ucty_wl * n).represent_as(type(spectrum.uncertainty))
         return Spectrum1D(flux_wl, bin_centers_wav * u.angstrom, uncertainty=ucty_wl)
 
-    def pix_to_wav(self, pix: ndarray | float) -> ndarray | float:
+    def pix_to_wav(self, pix: MaskedArray | ndarray | float) -> ndarray | float:
         """Map pixel values into wavelength values.
 
         Parameters
@@ -369,9 +369,13 @@ class WavelengthSolution1D:
         -------
         Transformed wavelength value(s) corresponding to the input pixel value(s).
         """
-        return self._p2w(pix)
+        if isinstance(pix, MaskedArray):
+            wav = self._p2w(pix.data)
+            return np.ma.masked_array(wav, mask=pix.mask)
+        else:
+            return self._p2w(pix)
 
-    def wav_to_pix(self, wav: ndarray | float) -> ndarray | float:
+    def wav_to_pix(self, wav: MaskedArray | ndarray | float) -> ndarray | float:
         """Map wavelength values into pixel values.
 
         Parameters
@@ -383,7 +387,11 @@ class WavelengthSolution1D:
         -------
         The corresponding pixel value(s) for the input wavelength(s).
         """
-        return self._w2p(wav)
+        if isinstance(wav, MaskedArray):
+            pix = self._w2p(wav.data)
+            return np.ma.masked_array(pix, mask=wav.mask)
+        else:
+            return self._w2p(wav)
 
     @property
     def lines_pix(self) -> list[MaskedArray]:
