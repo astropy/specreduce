@@ -89,7 +89,7 @@ class WavelengthSolution1D:
             self.bounds_pix = (0, self.arc_spectra[0].shape[0])
 
         elif obs_lines is not None:
-            self.lines_pix = obs_lines
+            self.observed_lines = obs_lines
             self.nframes = len(self._obs_lines)
             if self.bounds_pix is None:
                 raise ValueError("Must give pixel bounds when providing observed line positions.")
@@ -149,7 +149,7 @@ class WavelengthSolution1D:
         for i, l in enumerate(lines_wav):
             lines_wav[i] = l[(l >= line_list_bounds[0]) & (l <= line_list_bounds[1])]
 
-        self.lines_wav = lines_wav
+        self.catalog_lines = lines_wav
         self._trees = [KDTree(l.data[:, None]) for l in self._cat_lines]
 
     def find_lines(self, fwhm: float, noise_factor: float = 1.0) -> None:
@@ -486,12 +486,12 @@ class WavelengthSolution1D:
             return self._w2p(wav)
 
     @property
-    def lines_pix(self) -> list[MaskedArray]:
+    def observed_lines(self) -> list[MaskedArray]:
         """List of pixel positions of identified spectral lines."""
         return self._obs_lines
 
-    @lines_pix.setter
-    def lines_pix(self, lines_pix: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
+    @observed_lines.setter
+    def observed_lines(self, lines_pix: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
         if not isinstance(lines_pix, Sequence):
             lines_pix = [lines_pix]
         self._obs_lines = []
@@ -502,12 +502,12 @@ class WavelengthSolution1D:
                 self._obs_lines.append(np.ma.masked_array(l, mask=np.zeros(l.size, bool)))
 
     @property
-    def lines_wav(self) -> list[MaskedArray]:
+    def catalog_lines(self) -> list[MaskedArray]:
         """List of wavelength positions of theoretical spectral lines."""
         return self._cat_lines
 
-    @lines_wav.setter
-    def lines_wav(self, lines_wav: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
+    @catalog_lines.setter
+    def catalog_lines(self, lines_wav: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
         if not isinstance(lines_wav, Sequence):
             lines_wav = [lines_wav]
         self._cat_lines = []
@@ -599,8 +599,8 @@ class WavelengthSolution1D:
         float
         """
         self.match_lines()
-        mpix = np.ma.concatenate(self.lines_pix).compressed()
-        mwav = np.ma.concatenate(self.lines_wav).compressed()
+        mpix = np.ma.concatenate(self.observed_lines).compressed()
+        mwav = np.ma.concatenate(self.catalog_lines).compressed()
         if space == "wavelength":
             return np.sqrt(((mwav - self.pix_to_wav(mpix)) ** 2).mean())
         else:
@@ -892,8 +892,8 @@ class WavelengthSolution1D:
             fig = ax.figure
 
         self.match_lines()
-        mpix = np.ma.concatenate(self.lines_pix).compressed()
-        mwav = np.ma.concatenate(self.lines_wav).compressed()
+        mpix = np.ma.concatenate(self.observed_lines).compressed()
+        mwav = np.ma.concatenate(self.catalog_lines).compressed()
 
         if space == "wavelength":
             twav = self.pix_to_wav(mpix)
