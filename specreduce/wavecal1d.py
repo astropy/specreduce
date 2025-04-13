@@ -107,21 +107,26 @@ class WavelengthSolution1D:
 
     def _read_linelists(
         self,
-        line_lists,
+        line_lists: Sequence,
         line_list_bounds: tuple[float, float] = (0.0, np.inf),
         wave_air: bool = False,
     ):
-        """Load and filter calibration line lists for specified lamps and wavelength bounds.
+        """Read and processes line lists and organize them for further use.
 
-        Notes
-        -----
-        This method uses the `load_pypeit_calibration_lines` function to load the
-        line lists for each lamp. It filters the loaded data to only include lines
-        within the defined wavelength boundaries. The filtered data is stored in
-        `self.linelists`, and the wavelengths are extracted and stored in
-        `self.lines_wav`. Additionally, KDTree objects are created for each extracted
-        wavelength list and stored in `self._trees` for quick nearest-neighbor
-        queries of line wavelengths.
+        This function handles line lists provided in various forms, applies wavelength bounds
+        filtering, and processes the data for efficient spatial querying using KDTree structures.
+         It also accounts for whether the input wavelengths are in air or vacuum.
+
+        Parameters
+        ----------
+        line_lists
+            A collection of line lists that can either be arrays of wavelengths or ``pypeit``
+            lamp names .
+        line_list_bounds
+            A tuple specifying the minimum and maximum wavelength bounds. Only wavelengths
+            within this range are retained.
+        wave_air
+             If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
         """
         if not isinstance(line_lists, (tuple, list)):
             line_lists = [line_lists]
@@ -175,24 +180,39 @@ class WavelengthSolution1D:
         wavelengths: Sequence,
         match_pix: bool = True,
         match_wav: bool = True,
+        refine_fit: bool = True,
     ) -> None:
-        """Fit wavelength calibration lines to a model.
+        """Fit the wavelength solution model using provided line pairs.
 
-        This method takes input arrays of pixel values and their corresponding wavelengths and fits
-        them to a calibration model, updating the pixel-to-wavelength transformation for the system.
-        Optionally, the method can match the provided pixel or wavelength values to known catalog
-        or observed values for better fitting.
+        Fits the pixel-to-wavelength transformation model using explicitly
+        provided pairs of pixel coordinates and their corresponding wavelengths.
+        This method uses linear least squares fitting.
+
+        Optionally, the provided pixel and wavelength values can be "snapped"
+        to the nearest values present in the internally stored observed line
+        list and catalog line list, respectively. This can correct for small
+        inaccuracies in the input pairs if the internal lists are populated.
 
         Parameters
         ----------
         pixels
-            A sequence of pixel positions to be used for fitting.
+            A sequence of pixel positions corresponding to known spectral lines.
         wavelengths
-            A sequence of associated wavelengths corresponding to the pixel positions.
+            A sequence of the same size as `pixels`, containing the known
+            wavelengths corresponding to the given pixel positions.
         match_pix
-            A flag indicating whether to match the input pixel values to observed pixel values.
+            If True (default), snap the input `pixels` values to the nearest
+            pixel values found in `self._obs_lines` (if available). This helps
+            ensure the fit uses the precise centroids detected by `find_lines`
+            or provided initially.
         match_wav
-            A flag indicating whether to match the input wavelengths to catalog values.
+            If True (default), snap the input `wavelengths` values to the
+            nearest wavelength values found in `self._cat_lines` (if available).
+            This ensures the fit uses the precise catalog wavelengths.
+        refine_fit
+            If True (default), automatically call the ``refine_fit`` method
+            immediately after the global optimization to improve the solution
+            using a least-squares fit on matched lines.
         """
         pixels = np.asarray(pixels)
         wavelengths = np.asarray(wavelengths)
@@ -229,42 +249,57 @@ class WavelengthSolution1D:
         for i in range(m.degree + 1):
             m.fixed[f"c{i}"] = False
         self._p2w = self._p2w[0] | m
-        self._calculate_p2w_derivative()
-        self._calculate_p2w_inverse()
 
-    def fit(
+        if refine_fit:
+            self.refine_fit()
+        else:
+            self._calculate_p2w_derivative()
+            self._calculate_p2w_inverse()
+            self.match_lines()
+
+    def fit_global(
         self,
         wavelength_bounds: tuple[float, float],
         dispersion_bounds: tuple[float, float],
         popsize: int = 30,
         max_distance: float = 100,
         refine_fit: bool = True,
-    ):
-        """Calculate and refine the pixel-to-wavelength and wavelength-to-pixel transformations.
+    ) -> None:
+        """Calculate a wavelength solution using global optimization.
 
-        This method determines the functional relationships between pixel positions and
-        wavelengths in a spectrum, including their derivatives, by fitting calibration data
-        to given constraints. The transformations include forward (pixel-to-wavelength)
-        and backward (wavelength-to-pixel) mappings as well as their respective derivatives
-        across the spectral axis.
+        Determines an initial functional relationship between pixel positions
+        and wavelengths using a global optimization algorithm (differential
+        evolution). This method does not require pre-matched pixel-wavelength
+        pairs. It works by finding model parameters that minimize the
+        distance between the predicted wavelengths of observed lines
+        (``self._obs_lines``) and their nearest theoretical counterparts
+        (``self._cat_lines`` accessed via KDTree).
+
+        Optionally, this initial solution can be immediately refined using a
+        least-squares fit on automatically matched lines.
 
         Parameters
         ----------
         wavelength_bounds
-            Initial bounds for the wavelength value at the reference pixel.
+            Bounds (min, max) for the wavelength value at the ``ref_pixel``.
+            Used as a constraint in the optimization.
         dispersion_bounds
-            Initial bounds for the dispersion value at the reference pixel.
+            Bounds (min, max) for the dispersion (d_wavelength / d_pixel)
+            at the ``ref_pixel``. Used as a constraint in the optimization.
         popsize
-            The population size for differential evolution optimization.
+            Population size for the ``scipy.optimize.differential_evolution``
+            optimizer. Larger values increase the likelihood of finding the
+            global minimum but also increase computation time.
         max_distance
-            The maximum allowable distance when querying the tree in the optimization process.
+            Maximum distance (in wavelength units) allowed when associating
+            an observed line with a theoretical line during the optimization's
+            cost function evaluation. Points beyond this distance contribute
+            this maximum value to the cost, preventing outliers from having
+            excessive influence.
         refine_fit
-            Refine the global fit of the pixel-to-wavelength transformation.
-
-        Raises
-        ------
-        ValueError
-            Raised if the optimization or fitting process fails due to invalid inputs or constraints.
+            If True (default), automatically call the ``refine_fit`` method
+            immediately after the global optimization to improve the solution
+            using a least-squares fit on matched lines.
         """
 
         if self._p2w is None:
@@ -278,6 +313,8 @@ class WavelengthSolution1D:
                 total_distance += np.clip(t.query(transformed_lines)[0], 0, max_distance).sum()
             return total_distance
 
+        # Define bounds for differential_evolution.
+        # Assumes first 3 coefficients correspond to wavelength, dispersion, and curvature.
         bounds = np.concatenate(
             [
                 [wavelength_bounds, dispersion_bounds, [-1e-3, 1e-3]],
@@ -293,13 +330,22 @@ class WavelengthSolution1D:
             self.degree, **{f"c{i}": fit.x[i] for i in range(fit.x.size)}
         )
 
+        # Check if optimization was successful
+        if not fit.success:
+            warnings.warn(
+                f"Global optimization may not have converged: {fit.message}", RuntimeWarning
+            )
+
+        # Update the model with the best-fit parameters found
         if refine_fit:
             self.refine_fit()
-        self._calculate_p2w_derivative()
-        self._calculate_p2w_inverse()
+        else:
+            self._calculate_p2w_derivative()
+            self._calculate_p2w_inverse()
+            self.match_lines()
 
-    def refine_fit(self, match_distance_bound: float = 5.0):
-        """Refine the global fit of the pixel-to-wavelength transformation.
+    def refine_fit(self, match_distance_bound: float = 5.0) -> None:
+        """Refine the fit of the pixel-to-wavelength transformation.
 
         Refines the fit of a polynomial model to data by performing a fitting operation
         using matched pixel and wavelength data points. The method uses a linear least
@@ -534,6 +580,7 @@ class WavelengthSolution1D:
             )
 
     def remove_ummatched_lines(self):
+        """Remove unmatched lines from observation and catalog line data."""
         self._obs_lines = [np.ma.masked_array(l.compressed()) for l in self._obs_lines]
         self._cat_lines = [np.ma.masked_array(l.compressed()) for l in self._cat_lines]
 
@@ -641,6 +688,37 @@ class WavelengthSolution1D:
         plot_values: bool = True,
         map_to_pix: bool = False,
     ) -> Figure:
+        """Plot the catalog lines.
+
+        Parameters
+        ----------
+        frames
+            Specifies the frames to be plotted. If an integer, only one frame is plotted.
+            If a sequence, the specified frames are plotted. If None, default selection
+            or all frames are plotted.
+
+        axes
+            The matplotlib axes where catalog data will be plotted. If provided, the function
+            will plot on these axes. If None, new axes will be created.
+
+        figsize
+            Specifies the dimensions of the figure as (width, height). If None, the default
+            dimensions are used.
+
+        plot_values
+            If True, the numerical values associated with the catalog data will be displayed
+            in the plot. If False, only the graphical representation of the lines will be shown.
+
+        map_to_pix
+            Indicates whether the catalog data should be mapped to pixel coordinates
+            before plotting. If True, the data is converted to pixel coordinates.
+
+        Returns
+        -------
+        Figure
+            The matplotlib figure containing the plotted catalog lines.
+
+        """
         return self._plot_lines(
             "catalog",
             frames=frames,
@@ -659,7 +737,32 @@ class WavelengthSolution1D:
         plot_spectra: bool = True,
         map_to_wav: bool = False,
     ) -> Figure:
+        """Plot observed spectral lines for the given arc spectra.
 
+        Parameters
+        ----------
+        frames
+            Specifies the frame(s) for which the plot is to be generated. If None, all frames
+            are plotted. When an integer is provided, a single frame is used. For a sequence
+            of integers, multiple frames are plotted.
+        axes
+            Axes object(s) to plot the spectral lines on. If None, new axes are created.
+        figsize
+            Dimensions of the figure to be created, specified as a tuple (width, height). Ignored
+            if `axes` is provided.
+        plot_values
+            If True, plots the numerical values of the observed lines at their respective
+            locations on the graph. Default is True.
+        plot_spectra
+            If True, includes the arc spectra on the plot for comparison. Default is True.
+        map_to_wav
+            Determines whether to map the x-axis values to wavelengths. Default is False.
+
+        Returns
+        -------
+        Figure
+            The matplotlib figure containing the observed lines plot.
+        """
         fig = self._plot_lines(
             "observed",
             frames=frames,
@@ -705,7 +808,33 @@ class WavelengthSolution1D:
         obs_to_wav: bool = False,
         cat_to_pix: bool = False,
     ) -> Figure:
+        """Plot the fitted catalog and observed lines for the specified arc spectra.
 
+        Parameters
+        ----------
+        frames
+            The indices of the frames to plot. If `None`, all frames from 0 to
+            `self.nframes - 1` are plotted.
+
+        figsize
+            Defines the width and height of the figure in inches. If `None`, the
+            default size is used.
+
+        plot_values
+            Whether or not to display value annotations over the plotted lines.
+
+        obs_to_wav
+            If `True`, transform the x-axis of observed lines to the wavelength domain
+            using `self._p2w`, if available.
+
+        cat_to_pix
+            If `True`, transforms catalog data points to pixel values before plotting.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The figure object containing the generated subplots.
+        """
         if frames is None:
             frames = np.arange(self.nframes)
         else:
