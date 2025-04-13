@@ -344,7 +344,7 @@ class WavelengthSolution1D:
             self._calculate_p2w_inverse()
             self.match_lines()
 
-    def refine_fit(self, match_distance_bound: float = 5.0) -> None:
+    def refine_fit(self, match_distance_bound: float = 5.0, max_iter: int = 5) -> None:
         """Refine the fit of the pixel-to-wavelength transformation.
 
         Refines the fit of a polynomial model to data by performing a fitting operation
@@ -362,12 +362,21 @@ class WavelengthSolution1D:
             data points. Points exceeding the bound will not be considered in the fit.
             Default is 5.0.
         """
-        self.match_lines(match_distance_bound)
-        matched_pix = np.ma.concatenate(self._obs_lines).compressed()
-        matched_wav = np.ma.concatenate(self._cat_lines).compressed()
+
         model = self._p2w[1]
         fitter = fitting.LinearLSQFitter()
-        self._p2w = self._p2w[0].copy() | fitter(model, matched_pix - self.ref_pixel, matched_wav)
+        rms = np.nan
+        for i in range(max_iter):
+            self.match_lines(match_distance_bound)
+            matched_pix = np.ma.concatenate(self._obs_lines).compressed()
+            matched_wav = np.ma.concatenate(self._cat_lines).compressed()
+            rms_new = np.sqrt(((matched_wav - self.pix_to_wav(matched_pix)) ** 2).mean())
+            if rms_new == rms:
+                break
+            else:
+                self._p2w = self._p2w[0].copy() | fitter(model, matched_pix - self.ref_pixel,
+                                                         matched_wav)
+                rms = rms_new
         self._calculate_p2w_derivative()
         self._calculate_p2w_inverse()
         self.match_lines(match_distance_bound)
