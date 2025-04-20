@@ -48,7 +48,7 @@ class WavelengthSolution1D:
         ref_pixel: float,
         unit: u.Unit = u.angstrom,
         degree: int = 3,
-        line_lists=None,
+        line_lists: Sequence | None = None,
         arc_spectra: Spectrum1D | Sequence[Spectrum1D] | None = None,
         obs_lines: ndarray | Sequence[ndarray] | None = None,
         pix_bounds: tuple[int, int] | None = None,
@@ -60,7 +60,9 @@ class WavelengthSolution1D:
         self._unit_str = unit.to_string("latex")
         self.degree = degree
         self.ref_pixel = ref_pixel
+        self.nframes = 0
 
+        self.arc_spectra: list[Spectrum1D] | None = None
         self.bounds_pix: tuple[int, int] | None = pix_bounds
         self.bounds_wav: tuple[float, float] | None = None
         self._cat_lines: list[MaskedArray] | None = None
@@ -98,6 +100,9 @@ class WavelengthSolution1D:
         # or a list of line list names (used by `load_pypeit_calibration_lines`) for each arc
         # spectrum.
         if line_lists is not None:
+            if not isinstance(line_lists, (tuple, list)):
+                line_lists = [line_lists]
+
             if len(line_lists) != self.nframes:
                 raise ValueError("The number of line lists must match the number of arc spectra.")
             self._read_linelists(line_lists, line_list_bounds=line_list_bounds, wave_air=wave_air)
@@ -115,7 +120,7 @@ class WavelengthSolution1D:
 
         This function handles line lists provided in various forms, applies wavelength bounds
         filtering, and processes the data for efficient spatial querying using KDTree structures.
-         It also accounts for whether the input wavelengths are in air or vacuum.
+        It also accounts for whether the input wavelengths are in air or vacuum.
 
         Parameters
         ----------
@@ -128,8 +133,6 @@ class WavelengthSolution1D:
         wave_air
              If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
         """
-        if not isinstance(line_lists, (tuple, list)):
-            line_lists = [line_lists]
 
         lines_wav = []
         for l in line_lists:
@@ -167,6 +170,9 @@ class WavelengthSolution1D:
             The factor to multiply the uncertainty by to determine the noise threshold
             in the `~specutils.fitting.find_lines_threshold` routine.
         """
+        if self.arc_spectra is None:
+            raise ValueError("Must provide arc spectra to find lines.")
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             lines_obs = [
@@ -178,9 +184,10 @@ class WavelengthSolution1D:
         self,
         pixels: Sequence,
         wavelengths: Sequence,
-        match_pix: bool = True,
-        match_wav: bool = True,
+        match_obs: bool = False,
+        match_cat: bool = False,
         refine_fit: bool = True,
+        refine_max_distance: float = 5.0
     ) -> None:
         """Fit the wavelength solution model using provided line pairs.
 
@@ -200,13 +207,13 @@ class WavelengthSolution1D:
         wavelengths
             A sequence of the same size as `pixels`, containing the known
             wavelengths corresponding to the given pixel positions.
-        match_pix
-            If True (default), snap the input `pixels` values to the nearest
+        match_obs
+            If True, snap the input `pixels` values to the nearest
             pixel values found in `self._obs_lines` (if available). This helps
             ensure the fit uses the precise centroids detected by `find_lines`
             or provided initially.
-        match_wav
-            If True (default), snap the input `wavelengths` values to the
+        match_cat
+            If True, snap the input `wavelengths` values to the
             nearest wavelength values found in `self._cat_lines` (if available).
             This ensures the fit uses the precise catalog wavelengths.
         refine_fit
@@ -229,13 +236,17 @@ class WavelengthSolution1D:
             self._init_model()
 
         # Match the input wavelengths to catalog lines.
-        if match_wav:
+        if match_cat:
+            if self._cat_lines is None:
+                raise ValueError("Cannot fit without catalog lines set.")
             tree = KDTree(np.concatenate([c.data for c in self._cat_lines])[:, None])
             ix = tree.query(wavelengths[:, None])[1]
             wavelengths = tree.data[ix][:, 0]
 
         # Match the input pixel values to observed pixel values.
-        if match_pix:
+        if match_obs:
+            if self._obs_lines is None:
+                raise ValueError("Cannot fit without observed lines set.")
             tree = KDTree(np.concatenate([c.data for c in self._obs_lines])[:, None])
             ix = tree.query(pixels[:, None])[1]
             pixels = tree.data[ix][:, 0]
@@ -250,12 +261,14 @@ class WavelengthSolution1D:
             m.fixed[f"c{i}"] = False
         self._p2w = self._p2w[0] | m
 
-        if refine_fit:
-            self.refine_fit()
+        can_match = self._cat_lines is not None and self._obs_lines is not None
+        if refine_fit and can_match:
+            self.refine_fit(refine_max_distance)
         else:
             self._calculate_p2w_derivative()
             self._calculate_p2w_inverse()
-            self.match_lines()
+            if can_match:
+                self.match_lines()
 
     def fit_global(
         self,
@@ -344,7 +357,7 @@ class WavelengthSolution1D:
             self._calculate_p2w_inverse()
             self.match_lines()
 
-    def refine_fit(self, match_distance_bound: float = 5.0, max_iter: int = 5) -> None:
+    def refine_fit(self, max_match_distance: float = 5.0, max_iter: int = 5) -> None:
         """Refine the fit of the pixel-to-wavelength transformation.
 
         Refines the fit of a polynomial model to data by performing a fitting operation
@@ -353,11 +366,12 @@ class WavelengthSolution1D:
 
         Parameters
         ----------
+
         degree : int, optional
             The degree of the polynomial model used for fitting. Higher values
             allow for more complex polynomial models. Default is 4.
 
-        match_distance_bound : float, optional
+        max_match_distance : float, optional
             Maximum allowable distance used to identify matched pixel and wavelength
             data points. Points exceeding the bound will not be considered in the fit.
             Default is 5.0.
@@ -367,7 +381,7 @@ class WavelengthSolution1D:
         fitter = fitting.LinearLSQFitter()
         rms = np.nan
         for i in range(max_iter):
-            self.match_lines(match_distance_bound)
+            self.match_lines(max_match_distance)
             matched_pix = np.ma.concatenate(self._obs_lines).compressed()
             matched_wav = np.ma.concatenate(self._cat_lines).compressed()
             rms_new = np.sqrt(((matched_wav - self.pix_to_wav(matched_pix)) ** 2).mean())
@@ -379,7 +393,7 @@ class WavelengthSolution1D:
                 rms = rms_new
         self._calculate_p2w_derivative()
         self._calculate_p2w_inverse()
-        self.match_lines(match_distance_bound)
+        self.match_lines(max_match_distance)
 
     def _calculate_p2w_derivative(self):
         """Calculate (d wavelength) / (d pixel) for the pixel-to-wavelength transformation."""
@@ -388,7 +402,7 @@ class WavelengthSolution1D:
 
     def _calculate_p2w_inverse(self) -> None:
         """Compute the wavelength-to-pixel mapping from the pixel-to-wavelength transformation."""
-        p = np.arange(*self.bounds_pix)
+        p = np.arange(self.bounds_pix[0]-2, self.bounds_pix[1]+2)
         self._w2p = interp1d(self._p2w(p), p, bounds_error=False, fill_value=np.nan)
         self.bounds_wav = self._p2w(self.bounds_pix)
 
@@ -421,13 +435,19 @@ class WavelengthSolution1D:
         -------
             1D spectrum binned to the specified wavelength bins.
         """
+        if self._p2w is None:
+            raise ValueError("Wavelength solution not yet computed.")
+
+        if nbins is not None and nbins < 0:
+            raise ValueError("Number of bins must be positive.")
+
         flux = spectrum.flux.value
         ucty = spectrum.uncertainty.represent_as(VarianceUncertainty).array
         npix = flux.size
         nbins = npix if nbins is None else nbins
         if wlbounds is None:
-            l1 = self._p2w(0)
-            l2 = self._p2w(npix - 1)
+            l1 = self._p2w(0) - self._p2w_dldx(0)
+            l2 = self._p2w(npix) + self._p2w_dldx(npix)
         else:
             l1, l2 = wlbounds
 
@@ -456,6 +476,7 @@ class WavelengthSolution1D:
                 ucty_wl[i] = (bin_edges_pix[i + 1] - bin_edges_pix[i]) * ucty[i1] * dldx[i1]
         flux_wl = (flux_wl * n) * spectrum.flux.unit
         ucty_wl = VarianceUncertainty(ucty_wl * n).represent_as(type(spectrum.uncertainty))
+
         return Spectrum1D(flux_wl, bin_centers_wav * u.angstrom, uncertainty=ucty_wl)
 
     def pix_to_wav(self, pix: MaskedArray | ndarray | float) -> ndarray | float:
@@ -496,7 +517,7 @@ class WavelengthSolution1D:
 
     @property
     def observed_lines(self) -> list[MaskedArray]:
-        """List of pixel positions of identified spectral lines."""
+        """Pixel positions of the observed lines as a list of masked arrays."""
         return self._obs_lines
 
     @observed_lines.setter
@@ -512,7 +533,7 @@ class WavelengthSolution1D:
 
     @property
     def catalog_lines(self) -> list[MaskedArray]:
-        """List of wavelength positions of theoretical spectral lines."""
+        """Catalogue line wavelengths as a list of masked arrays."""
         return self._cat_lines
 
     @catalog_lines.setter
@@ -527,7 +548,9 @@ class WavelengthSolution1D:
                 self._cat_lines.append(np.ma.masked_array(l, mask=np.zeros(l.size, bool)))
 
     @property
-    def wcs(self):
+    def wcs(self) -> wcs.WCS:
+        """GWCS object defining the mapping between pixel and spectral coordinate frames.
+        """
         pixel_frame = cf.CoordinateFrame(
             1,
             "SPECTRAL",
@@ -545,12 +568,12 @@ class WavelengthSolution1D:
         self._wcs = wcs.WCS(pipeline)
         return self._wcs
 
-    def match_lines(self, upper_bound: float = 5) -> None:
+    def match_lines(self, max_distance: float = 5) -> None:
         """Match the observed lines to theoretical lines.
 
         Parameters
         ----------
-        upper_bound
+        max_distance
             The maximum allowed distance between the query points and the KD-tree
             data points for them to be considered a match.
         """
@@ -559,7 +582,7 @@ class WavelengthSolution1D:
         for iframe, tree in enumerate(self._trees):
             l, ix = tree.query(
                 self._p2w(self._obs_lines[iframe].data)[:, None],
-                distance_upper_bound=upper_bound,
+                distance_upper_bound=max_distance,
             )
             m = np.isfinite(l)
 
@@ -637,6 +660,7 @@ class WavelengthSolution1D:
             axs = [axs]
         else:
             fig = axs[0].figure
+        axs = np.atleast_1d(axs)
 
         if isinstance(plot_values, bool):
             plot_values = np.full(frames.size, plot_values, dtype=bool)
@@ -782,7 +806,7 @@ class WavelengthSolution1D:
         )
 
         if axes is None:
-            axes = fig.axes
+            axes = np.atleast_1d(fig.axes)
 
         if self.arc_spectra is not None and plot_spectra:
             if frames is None:
