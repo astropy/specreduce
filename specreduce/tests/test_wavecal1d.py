@@ -17,21 +17,20 @@ def test_diff_poly1d():
 
 def test_init_default_values():
     ref_pixel = 100
-    wavelength_solution = WavelengthSolution1D(ref_pixel)
-
-    assert wavelength_solution.ref_pixel == ref_pixel
-    assert wavelength_solution.unit == u.angstrom
-    assert wavelength_solution.degree == 3
-    assert wavelength_solution.bounds_pix is None
-    assert wavelength_solution.bounds_wav is None
-    assert wavelength_solution._cat_lines is None
-    assert wavelength_solution._obs_lines is None
-    assert wavelength_solution._trees is None
-    assert wavelength_solution._fit is None
-    assert wavelength_solution._wcs is None
-    assert wavelength_solution._p2w is None
-    assert wavelength_solution._w2p is None
-    assert wavelength_solution._p2w_dldx is None
+    ws = WavelengthSolution1D(ref_pixel)
+    assert ws.ref_pixel == ref_pixel
+    assert ws.unit == u.angstrom
+    assert ws.degree == 3
+    assert ws.bounds_pix is None
+    assert ws.bounds_wav is None
+    assert ws._cat_lines is None
+    assert ws._obs_lines is None
+    assert ws._trees is None
+    assert ws._fit is None
+    assert ws._wcs is None
+    assert ws._p2w is None
+    assert ws._w2p is None
+    assert ws._p2w_dldx is None
 
 
 def test_init_raises_error_for_multiple_sources():
@@ -70,77 +69,78 @@ def test_init_line_list():
         WavelengthSolution1D(ref_pixel, arc_spectra=[arc, arc], line_lists=[['ArI']])
 
 
-
-# def test_fit_lines_with_valid_input():
-#    ref_pixel = 100
-#    pix_bounds = (0, 10)
-#    pixels = [2, 4, 6, 8]
-#    wavelengths = [500, 600, 700, 800]
-
-#    wavelength_solution = WavelengthSolution1D(ref_pixel, pix_bounds=pix_bounds)
-
-#    wavelength_solution.fit_lines(pixels=pixels, wavelengths=wavelengths)
-
-#    assert wavelength_solution._p2w is not None
-#    assert wavelength_solution._p2w[1].degree == wavelength_solution.degree
-
-
-
-
-def test_fit_lines_raises_error_for_mismatched_sizes():
-    ref_pixel = 100
-    pix_bounds = (0, 10)
-    pixels = [2, 4, 6]
-    wavelengths = [500, 600, 700, 800]
-
-    wavelength_solution = WavelengthSolution1D(ref_pixel, pix_bounds=pix_bounds)
-
-    with pytest.raises(ValueError, match="The sizes of pixel and wavelength arrays must match."):
-        wavelength_solution.fit_lines(pixels=pixels, wavelengths=wavelengths)
-
-
-def test_fit_lines_raises_error_for_insufficient_lines():
-    ref_pixel = 100
-    pix_bounds = (0, 10)
-    pixels = [5]
-    wavelengths = [500]
-
-    wavelength_solution = WavelengthSolution1D(ref_pixel, pix_bounds=pix_bounds)
-
-    with pytest.raises(ValueError, match="Need at least two lines for a fit"):
-        wavelength_solution.fit_lines(pixels=pixels, wavelengths=wavelengths)
-
-
-def test_fit_lines_raises_error_for_missing_pixel_bounds():
-    ref_pixel = 100
-    pixels = [2, 4, 6, 8]
-    wavelengths = [500, 600, 700, 800]
-
-    wavelength_solution = WavelengthSolution1D(ref_pixel)
-
-    with pytest.raises(ValueError, match="Cannot fit without pixel bounds set."):
-        wavelength_solution.fit_lines(pixels=pixels, wavelengths=wavelengths)
-
-
 def test_find_lines_with_valid_input(mocker):
-    ref_pixel = 100
     arc_spectra = [Spectrum1D(flux=np.ones(10) * u.DN, spectral_axis=np.arange(10) * u.angstrom)]
-    wavelength_solution = WavelengthSolution1D(ref_pixel, arc_spectra=arc_spectra)
-
+    ws = WavelengthSolution1D(ref_pixel, arc_spectra=arc_spectra)
     mock_find_arc_lines = mocker.patch("specreduce.wavecal1d.find_arc_lines")
     mock_find_arc_lines.return_value = {"centroid": np.array([5.0]) * u.angstrom}
-
-    wavelength_solution.find_lines(fwhm=2.0, noise_factor=1.5)
-
-    assert wavelength_solution._obs_lines is not None
-    assert len(wavelength_solution._obs_lines) == len(arc_spectra)
+    ws.find_lines(fwhm=2.0, noise_factor=1.5)
+    assert ws._obs_lines is not None
+    assert len(ws._obs_lines) == len(arc_spectra)
     assert mock_find_arc_lines.called_once_with(arc_spectra[0], 2.0, noise_factor=1.5)
 
 
 def test_find_lines_with_missing_arc_spectra():
-    ref_pixel = 100
-    wavelength_solution = WavelengthSolution1D(ref_pixel)
-
+    ws = WavelengthSolution1D(ref_pixel)
     with pytest.raises(ValueError, match="Must provide arc spectra to find lines."):
-        wavelength_solution.find_lines(fwhm=2.0, noise_factor=1.5)
+        ws.find_lines(fwhm=2.0, noise_factor=1.5)
 
+
+def test_fit_lines_with_valid_input():
+    pix_bounds = (0, 10)
+    pixels = array([2, 4, 6, 8])
+    wavelengths = array([500, 600, 700, 800])
+    ws = WavelengthSolution1D(ref_pixel, pix_bounds=pix_bounds)
+    ws.fit_lines(pixels=pixels, wavelengths=wavelengths)
+    assert ws._p2w is not None
+    assert ws._p2w[1].degree == ws.degree
+    ws = WavelengthSolution1D(ref_pixel, obs_lines=pixels, line_lists=wavelengths, pix_bounds=pix_bounds)
+    ws.fit_lines(pixels=pixels, wavelengths=wavelengths, match_cat=True, match_obs=True)
+    assert ws._p2w is not None
+    assert ws._p2w[1].degree == ws.degree
+    ws = WavelengthSolution1D(ref_pixel, degree=5, pix_bounds=pix_bounds)
+    ws.fit_lines(pixels=pixels[:3], wavelengths=wavelengths[:3])
+
+
+def test_fit_lines_raises_error_for_missing_input():
+    pix_bounds = (0, 10)
+    pixels = array([2, 4, 6, 8])
+    wavelengths = array([500, 600, 700, 800])
+    ws = WavelengthSolution1D(ref_pixel, pix_bounds=pix_bounds)
+    with pytest.raises(ValueError, match="Cannot fit without catalog"):
+        ws.fit_lines(pixels=pixels, wavelengths=wavelengths, match_cat=True, match_obs=True)
+    with pytest.raises(ValueError, match="Cannot fit without observed"):
+        ws.fit_lines(pixels=pixels, wavelengths=wavelengths, match_cat=False, match_obs=True)
+
+#def test_fit_lines_raises_error_for_nonexisting_lists():
+#    pix_bounds = (0, 10)
+#    pixels = array([2, 4, 6, 8])
+#    wavelengths = array([500, 600, 700, 800])
+#    ws = WavelengthSolution1D(ref_pixel, line_lists=wavelengths, pix_bounds=pix_bounds)
+#    #with pytest.raises(ValueError, match="The sizes of pixel and wavelength arrays must match."):
+#    ws.fit_lines(pixels=pixels, wavelengths=wavelengths)
+
+def test_fit_lines_raises_error_for_mismatched_sizes():
+    pix_bounds = (0, 10)
+    pixels = array([2, 4, 6])
+    wavelengths = array([500, 600, 700, 800])
+    ws = WavelengthSolution1D(ref_pixel, pix_bounds=pix_bounds)
+    with pytest.raises(ValueError, match="The sizes of pixel and wavelength arrays must match."):
+        ws.fit_lines(pixels=pixels, wavelengths=wavelengths)
+
+
+def test_fit_lines_raises_error_for_insufficient_lines():
+    pix_bounds = (0, 10)
+    pixels = [5]
+    wavelengths = [500]
+    ws = WavelengthSolution1D(ref_pixel, pix_bounds=pix_bounds)
+    with pytest.raises(ValueError, match="Need at least two lines for a fit"):
+        ws.fit_lines(pixels=pixels, wavelengths=wavelengths)
+
+
+def test_fit_lines_raises_error_for_missing_pixel_bounds():
+    pixels = [2, 4, 6, 8]
+    wavelengths = [500, 600, 700, 800]
+    ws = WavelengthSolution1D(ref_pixel)
+    with pytest.raises(ValueError, match="Cannot fit without pixel bounds set."):
+        ws.fit_lines(pixels=pixels, wavelengths=wavelengths)
