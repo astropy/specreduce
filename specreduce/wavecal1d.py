@@ -343,12 +343,6 @@ class WavelengthSolution1D:
             self.degree, **{f"c{i}": fit.x[i] for i in range(fit.x.size)}
         )
 
-        # Check if optimization was successful
-        if not fit.success:
-            warnings.warn(
-                f"Global optimization may not have converged: {fit.message}", RuntimeWarning
-            )
-
         # Update the model with the best-fit parameters found
         if refine_fit:
             self.refine_fit()
@@ -605,11 +599,6 @@ class WavelengthSolution1D:
         self._obs_lines = matched_lines_pix
         self._cat_lines = matched_lines_wav
 
-        if any([o.count() != c.count() for o, c in zip(self._obs_lines, self._cat_lines)]):
-            warnings.warn(
-                "Line matching failed, the number of matched catalog lines != "
-                "the number of matched observed lines."
-            )
 
     def remove_ummatched_lines(self):
         """Remove unmatched lines from observation and catalog line data."""
@@ -635,8 +624,11 @@ class WavelengthSolution1D:
         mwav = np.ma.concatenate(self.catalog_lines).compressed()
         if space == "wavelength":
             return np.sqrt(((mwav - self.pix_to_wav(mpix)) ** 2).mean())
-        else:
+        elif space == "pixel":
             return np.sqrt(((mpix - self.wav_to_pix(mwav)) ** 2).mean())
+        else:
+            raise ValueError("Space must be either 'pixel' or 'wavelength'")
+
 
     def _plot_lines(
         self,
@@ -944,7 +936,7 @@ class WavelengthSolution1D:
                 xlabel=f"Wavelength [{self._unit_str}]",
                 ylabel=f"Residuals [{self._unit_str}]",
             )
-        else:
+        elif space == "pixel":
             tpix = self.wav_to_pix(mwav)
             ax.plot(mpix, mpix - tpix, ".")
             ax.text(
@@ -956,5 +948,7 @@ class WavelengthSolution1D:
                 va="top",
             )
             setp(ax, xlabel="Pixel", ylabel="Residuals [pix]")
+        else:
+            raise ValueError("Invalid space specified for plotting residuals.")
         ax.axhline(0, c="k", lw=1, ls="--")
         return fig
