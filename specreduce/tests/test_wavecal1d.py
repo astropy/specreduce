@@ -2,8 +2,10 @@
 import astropy.units as u
 import numpy as np
 import pytest
+from astropy.modeling import models
 from astropy.modeling.polynomial import Polynomial1D
 from astropy.nddata import StdDevUncertainty
+from gwcs import wcs
 from numpy import array
 
 from specreduce.wavecal1d import WavelengthSolution1D, _diff_poly1d
@@ -118,6 +120,18 @@ def test_fit_lines_raises_error_for_missing_input():
         ws.fit_lines(pixels=pixels, wavelengths=wavelengths, match_cat=False, match_obs=True)
 
 
+def test_observed_lines_returns_none_when_not_set():
+    ws = WavelengthSolution1D(ref_pixel)
+    assert ws.observed_lines is None
+
+
+def test_observed_lines_returns_expected_lines():
+    mock_obs_lines = [np.ma.masked_array([100, 200], mask=[False, True])]
+    ws = WavelengthSolution1D(ref_pixel)
+    ws._obs_lines = mock_obs_lines
+    assert ws.observed_lines == mock_obs_lines
+
+
 # def test_fit_lines_raises_error_for_nonexisting_lists():
 #    pix_bounds = (0, 10)
 #    pixels = array([2, 4, 6, 8])
@@ -195,3 +209,48 @@ def test_resample_raises_error_for_invalid_bins():
     ws._w2p = lambda x: x / 2  # Mock wavelength-to-pixel conversion
     with pytest.raises(ValueError, match="Number of bins must be positive"):
         ws.resample(arc_spectrum, nbins=-5)
+
+
+def test_pix_to_wav_with_array():
+    pix_values = np.array([1, 2, 3, 4, 5])
+    ws = WavelengthSolution1D(ref_pixel)
+    ws._p2w = lambda x: x * 10  # Mock pixel-to-wavelength conversion
+    wavelengths = ws.pix_to_wav(pix_values)
+    np.testing.assert_array_equal(wavelengths, np.array([10, 20, 30, 40, 50]))
+
+
+def test_pix_to_wav_with_masked_array():
+    pix_values = np.ma.masked_array([1, 2, 3], mask=[0, 1, 0])
+    ws = WavelengthSolution1D(ref_pixel)
+    ws._p2w = lambda x: x * 10  # Mock pixel-to-wavelength conversion
+    wavelengths = ws.pix_to_wav(pix_values)
+    np.testing.assert_array_equal(wavelengths.data, np.array([10, 20, 30]))
+    np.testing.assert_array_equal(wavelengths.mask, np.array([0, 1, 0]))
+
+
+def test_wav_to_pix_with_array():
+    wav_values = np.array([500, 1000, 1500])
+    ws = WavelengthSolution1D(ref_pixel)
+    ws._w2p = lambda x: x / 10  # Mock wavelength-to-pixel conversion
+    pixel_values = ws.wav_to_pix(wav_values)
+    np.testing.assert_array_equal(pixel_values, np.array([50, 100, 150]))
+
+
+def test_wav_to_pix_with_masked_array():
+    wav_values = np.ma.masked_array([500, 1000, 1500], mask=[0, 1, 0])
+    ws = WavelengthSolution1D(ref_pixel)
+    ws._w2p = lambda x: x / 10  # Mock wavelength-to-pixel conversion
+    pixel_values = ws.wav_to_pix(wav_values)
+    np.testing.assert_array_equal(pixel_values.data, np.array([50, 100, 150]))
+    np.testing.assert_array_equal(pixel_values.mask, np.array([0, 1, 0]))
+
+
+def test_wcs_creates_valid_gwcs_object():
+    ws = WavelengthSolution1D(ref_pixel, unit=u.angstrom, pix_bounds=(0, 100))
+    ws._p2w = models.Shift(5) | models.Polynomial1D(degree=3, c0=1, c1=2, c2=3)
+    ws._calculate_p2w_inverse()
+    ws._calculate_p2w_derivative()
+    wcs_obj = ws.wcs
+    assert wcs_obj is not None
+    assert isinstance(wcs_obj, wcs.WCS)
+    assert wcs_obj.output_frame.unit[0] == u.angstrom
