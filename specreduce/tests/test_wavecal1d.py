@@ -6,13 +6,17 @@ from astropy.modeling import models
 from astropy.modeling.polynomial import Polynomial1D
 from astropy.nddata import StdDevUncertainty
 from gwcs import wcs
+from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
 from numpy import array
 
 from specreduce.wavecal1d import WavelengthSolution1D, _diff_poly1d
 from specutils import Spectrum1D
 
-ref_pixel = 100
-
+ref_pixel = 5
+p2w =  models.Shift(ref_pixel) | models.Polynomial1D(degree=3, c0=1, c1=2, c2=3)
+obs_lines = array([1, 2, 5, 8, 10])
+cat_lines = p2w(array([1, 3, 5, 7, 8, 10]))
 
 def test_diff_poly1d():
     p = _diff_poly1d(Polynomial1D(3, c0=1.0, c1=2.0, c2=3.0, c3=4.0))
@@ -180,6 +184,9 @@ def test_fit_global_runs_successfully_with_valid_input():
     assert ws._fit.success
     assert ws._p2w is not None
 
+    ws = WavelengthSolution1D(5, pix_bounds=pix_bounds, obs_lines=pixels, line_lists=wavelengths)
+    ws.fit_global(wavelength_bounds, dispersion_bounds, popsize=10, refine_fit=False)
+
 
 def test_resample_with_valid_input():
     arc_spectrum = Spectrum1D(flux=np.ones(20) * u.DN, spectral_axis=np.arange(20) * u.angstrom, uncertainty=StdDevUncertainty(np.ones(20)))
@@ -254,3 +261,132 @@ def test_wcs_creates_valid_gwcs_object():
     assert wcs_obj is not None
     assert isinstance(wcs_obj, wcs.WCS)
     assert wcs_obj.output_frame.unit[0] == u.angstrom
+
+
+def test_rms():
+    ws = WavelengthSolution1D(ref_pixel, obs_lines=obs_lines, line_lists=cat_lines, pix_bounds=(0, 10))
+    ws._p2w = p2w
+    ws._calculate_p2w_inverse()
+    assert np.isclose(ws.rms(space="wavelength"), 0)  # Perfect match, so RMS should be zero
+    assert np.isclose(ws.rms(space="pixel"), 0)  # Perfect match, so RMS should be zero
+    with pytest.raises(ValueError, match="Space must be either 'pixel' or 'wavelength'"):
+        ws.rms(space="wavelenght")
+
+
+def test_remove_unmatched_lines():
+    ws = WavelengthSolution1D(ref_pixel, obs_lines=obs_lines, line_lists=cat_lines, pix_bounds=(0, 10))
+    ws._p2w = p2w
+    ws._calculate_p2w_inverse()
+    ws.match_lines()
+    ws.remove_ummatched_lines()
+
+
+def test_plot_lines_with_valid_input():
+    ws = WavelengthSolution1D(ref_pixel)
+    ws._obs_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
+    ws._cat_lines = ws._obs_lines
+    fig = ws._plot_lines(kind="observed", frames=0, figsize=(8, 4), plot_values=True)
+    assert isinstance(fig, Figure)
+    assert fig.axes[0].has_data()
+
+    fig = ws._plot_lines(kind="catalog", frames=0, figsize=(8, 4), plot_values=True)
+    assert isinstance(fig, Figure)
+    assert fig.axes[0].has_data()
+
+    fig, ax = plt.subplots(1, 1)
+    fig = ws._plot_lines(kind="catalog", frames=0, axs=ax, plot_values=True)
+    assert isinstance(fig, Figure)
+    assert fig.axes[0].has_data()
+
+    fig, axs = plt.subplots(1, 2)
+    fig = ws._plot_lines(kind="catalog", frames=0, axs=axs, plot_values=True)
+    assert isinstance(fig, Figure)
+    assert fig.axes[0].has_data()
+
+    fig = ws._plot_lines(kind="observed", frames=0, axs=axs, plot_values=True)
+    assert isinstance(fig, Figure)
+    assert fig.axes[0].has_data()
+
+
+def test_plot_lines_raises_for_missing_transform():
+    ws = WavelengthSolution1D(
+        ref_pixel, obs_lines=array([2, 5, 8]), line_lists=array([500, 600, 700]), pix_bounds=(0, 10)
+    )
+    with pytest.raises(ValueError, match="Cannot map between pixels and"):
+        ws._plot_lines(kind="observed", map_x=True)
+
+
+def test_plot_lines_calls_transform_correctly(mocker):
+    ws = WavelengthSolution1D(
+        ref_pixel, obs_lines=array([2, 5, 8]), line_lists=array([500, 600, 700]), pix_bounds=(0, 10)
+    )
+    ws._p2w = p2w
+    ws._calculate_p2w_inverse()
+    ws._plot_lines(kind="observed", map_x=True)
+    ws._plot_lines(kind="catalog", map_x=True)
+
+
+def test_plot_catalog_lines_with_valid_input():
+    ws = WavelengthSolution1D(ref_pixel)
+    ws._cat_lines = [np.ma.masked_array([400, 500, 600], mask=[False, True, False])]
+    fig = ws.plot_catalog_lines(frames=0, figsize=(10, 6), plot_values=True, map_to_pix=False)
+    assert isinstance(fig, Figure)
+    assert fig.axes[0].has_data()
+
+    fig, ax = plt.subplots(1, 1)
+    fig = ws.plot_catalog_lines(frames=0, axes=ax, plot_values=True)
+    assert isinstance(fig, Figure)
+    assert fig.axes[0].has_data()
+
+    fig, axs = plt.subplots(1, 2)
+    fig = ws.plot_catalog_lines(frames=[0], axes=axs, plot_values=False)
+    assert isinstance(fig, Figure)
+    assert fig.axes[0].has_data()
+
+
+def test_plot_observed_lines_with_valid_input():
+    ws = WavelengthSolution1D(ref_pixel)
+    ws._obs_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
+    arc_spectrum = Spectrum1D(flux=np.ones(20) * u.DN, spectral_axis=np.arange(20) * u.angstrom)
+    ws.arc_spectra = [arc_spectrum]
+    ws._p2w = p2w
+    fig = ws.plot_observed_lines(frames=0, figsize=(10, 5), plot_values=True, plot_spectra=True)
+    assert isinstance(fig, Figure)
+    assert fig.axes[0].has_data()
+    assert len(fig.axes) == 1
+
+
+def test_plot_fit_with_valid_input():
+    arc_spectrum = Spectrum1D(flux=np.ones(20) * u.DN, spectral_axis=np.arange(20) * u.angstrom)
+    ws = WavelengthSolution1D(
+        ref_pixel, obs_lines=array([2, 5, 8]), line_lists=array([500, 600, 700]), pix_bounds=(0, 10)
+    )
+    ws.arc_spectra = [arc_spectrum]
+    ws._p2w = p2w
+    fig = ws.plot_fit(frames=0, figsize=(12, 6), plot_values=True)
+    assert isinstance(fig, Figure)
+    assert len(fig.axes) == 2
+    assert fig.axes[0].has_data()
+    assert fig.axes[1].has_data()
+
+
+def test_plot_residuals():
+    obs_lines = array([2, 5, 8])
+    cat_lines = p2w(obs_lines)
+    ws = WavelengthSolution1D(ref_pixel, pix_bounds=(0, 10), obs_lines=obs_lines, line_lists=cat_lines)
+    ws._p2w = p2w
+    ws._calculate_p2w_inverse()
+
+    fig = ws.plot_residuals(space="pixel", figsize=(8, 4))
+    assert isinstance(fig, Figure)
+    assert fig.axes[0].has_data()
+
+    fig = ws.plot_residuals(space="wavelength", figsize=(8, 4))
+    assert isinstance(fig, Figure)
+    assert fig.axes[0].has_data()
+
+    fig, ax = plt.subplots(1, 1)
+    ws.plot_residuals(ax=ax, space="wavelength", figsize=(8, 4))
+
+    with pytest.raises(ValueError, match="Invalid space specified"):
+        fig = ws.plot_residuals(space="wavelenght", figsize=(8, 4))
