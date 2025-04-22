@@ -27,6 +27,8 @@ docs = [
     "matplotlib",
     "photutils",
     "synphot",
+    "nbsphinx",
+    "ipykernel"
 ]
 all = [
     "matplotlib",
