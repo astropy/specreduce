@@ -27,6 +27,8 @@ docs = [
     "matplotlib>=3.7",
     "photutils>=1.0",
     "synphot",
+    "nbsphinx",
+    "ipykernel"
 ]
 all = [
     "matplotlib>=3.7",
