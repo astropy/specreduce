@@ -42,7 +42,7 @@ def _diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
     return models.Polynomial1D(m.degree - 1, **coeffs)
 
 
-class WavelengthSolution1D:
+class WavelengthCalibration1D:
     def __init__(
         self,
         ref_pixel: float,
