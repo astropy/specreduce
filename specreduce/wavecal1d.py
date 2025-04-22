@@ -87,7 +87,7 @@ class WavelengthSolution1D:
             self.nframes = len(self.arc_spectra)
             for s in self.arc_spectra:
                 if s.data.ndim > 1:
-                    raise ValueError("The arc spectra must be 1 dimensional.")
+                    raise ValueError("The arc spectrum must be one dimensional.")
             self.bounds_pix = (0, self.arc_spectra[0].shape[0])
 
         elif obs_lines is not None:
