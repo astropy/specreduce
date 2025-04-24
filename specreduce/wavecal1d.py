@@ -20,6 +20,8 @@ from specutils import Spectrum1D
 from specreduce.calibration_data import load_pypeit_calibration_lines
 from specreduce.line_matching import find_arc_lines
 
+__all__ = ["WavelengthCalibration1D"]
+
 
 def _diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
     """Compute the derivative of a Polynomial1D model.
@@ -135,25 +137,25 @@ class WavelengthCalibration1D:
         """
 
         lines_wav = []
-        for l in line_lists:
-            if isinstance(l, ndarray):
-                lines_wav.append(l)
+        for lst in line_lists:
+            if isinstance(lst, ndarray):
+                lines_wav.append(lst)
             else:
                 lines = []
-                if isinstance(l, str):
-                    l = [l]
-                for ll in l:
+                if isinstance(lst, str):
+                    lst = [lst]
+                for ll in lst:
                     lines.append(
                         load_pypeit_calibration_lines(ll, wave_air=wave_air)["wavelength"]
                         .to(self.unit)
                         .value
                     )
                 lines_wav.append(np.ma.masked_array(np.sort(np.concatenate(lines))))
-        for i, l in enumerate(lines_wav):
-            lines_wav[i] = l[(l >= line_list_bounds[0]) & (l <= line_list_bounds[1])]
+        for i, lst in enumerate(lines_wav):
+            lines_wav[i] = lst[(lst >= line_list_bounds[0]) & (lst <= line_list_bounds[1])]
 
         self.catalog_lines = lines_wav
-        self._trees = [KDTree(l.data[:, None]) for l in self._cat_lines]
+        self._trees = [KDTree(lst.data[:, None]) for lst in self._cat_lines]
 
     def find_lines(self, fwhm: float, noise_factor: float = 1.0) -> None:
         """Find lines in the provided arc spectra.
@@ -205,15 +207,15 @@ class WavelengthCalibration1D:
         pixels
             A sequence of pixel positions corresponding to known spectral lines.
         wavelengths
-            A sequence of the same size as `pixels`, containing the known
+            A sequence of the same size as ``pixels``, containing the known
             wavelengths corresponding to the given pixel positions.
         match_obs
-            If True, snap the input `pixels` values to the nearest
+            If True, snap the input ``pixels`` values to the nearest
             pixel values found in `self._obs_lines` (if available). This helps
             ensure the fit uses the precise centroids detected by `find_lines`
             or provided initially.
         match_cat
-            If True, snap the input `wavelengths` values to the
+            If True, snap the input ``wavelengths`` values to the
             nearest wavelength values found in `self._cat_lines` (if available).
             This ensures the fit uses the precise catalog wavelengths.
         refine_fit
@@ -410,21 +412,24 @@ class WavelengthCalibration1D:
     ) -> Spectrum1D:
         """Bin the given pixel-space 1D spectrum to a wavelength space conserving the flux.
 
-        This method bins a pixel-space spectrum to a wavelength space using the computed pixel-to-wavelength and
-        wavelength-to-pixel transformations and their derivatives with respect to the spectral axis. The binning is
-        exact and conserves the total flux.
+        This method bins a pixel-space spectrum to a wavelength space using the computed
+        pixel-to-wavelength and wavelength-to-pixel transformations and their derivatives with
+        respect to the spectral axis. The binning is exact and conserves the total flux.
 
         Parameters
         ----------
         spectrum
             A Spectrum1D instance containing the flux to be resampled over the wavelength space.
         nbins
-            The number of bins for resampling. If not provided, it defaults to the size of the input spectrum.
+            The number of bins for resampling. If not provided, it defaults to the size of the
+            input spectrum.
         wlbounds
-            A tuple specifying the starting and ending wavelengths for resampling. If not provided, the
-            wavelength bounds are inferred from the object's methods and the entire flux array is used.
+            A tuple specifying the starting and ending wavelengths for resampling. If not
+            provided, the wavelength bounds are inferred from the object's methods and the
+            entire flux array is used.
         bin_edges
-            Explicit bin edges in the wavelength space. If provided, `nbins` and `wlbounds` are ignored.
+            Explicit bin edges in the wavelength space. If provided, ``nbins`` and ``wlbounds``
+            are ignored.
 
         Returns
         -------
@@ -520,11 +525,11 @@ class WavelengthCalibration1D:
         if not isinstance(lines_pix, Sequence):
             lines_pix = [lines_pix]
         self._obs_lines = []
-        for l in lines_pix:
-            if isinstance(l, MaskedArray) and l.mask is not np.False_:
-                self._obs_lines.append(l)
+        for lst in lines_pix:
+            if isinstance(lst, MaskedArray) and lst.mask is not np.False_:
+                self._obs_lines.append(lst)
             else:
-                self._obs_lines.append(np.ma.masked_array(l, mask=np.zeros(l.size, bool)))
+                self._obs_lines.append(np.ma.masked_array(lst, mask=np.zeros(lst.size, bool)))
 
     @property
     def catalog_lines(self) -> list[MaskedArray]:
@@ -536,11 +541,11 @@ class WavelengthCalibration1D:
         if not isinstance(lines_wav, Sequence):
             lines_wav = [lines_wav]
         self._cat_lines = []
-        for l in lines_wav:
-            if isinstance(l, MaskedArray) and l.mask is not np.False_:
-                self._cat_lines.append(l)
+        for lst in lines_wav:
+            if isinstance(lst, MaskedArray) and lst.mask is not np.False_:
+                self._cat_lines.append(lst)
             else:
-                self._cat_lines.append(np.ma.masked_array(l, mask=np.zeros(l.size, bool)))
+                self._cat_lines.append(np.ma.masked_array(lst, mask=np.zeros(lst.size, bool)))
 
     @property
     def gwcs(self) -> gwcs.wcs.WCS:
@@ -601,8 +606,8 @@ class WavelengthCalibration1D:
 
     def remove_ummatched_lines(self):
         """Remove unmatched lines from observation and catalog line data."""
-        self._obs_lines = [np.ma.masked_array(l.compressed()) for l in self._obs_lines]
-        self._cat_lines = [np.ma.masked_array(l.compressed()) for l in self._cat_lines]
+        self._obs_lines = [np.ma.masked_array(lst.compressed()) for lst in self._obs_lines]
+        self._cat_lines = [np.ma.masked_array(lst.compressed()) for lst in self._cat_lines]
 
     def rms(self, space: Literal["pixel", "wavelength"] = "wavelength") -> float:
         """Compute the RMS of the residuals between matched lines in the pixel or wavelength space.
@@ -778,7 +783,7 @@ class WavelengthCalibration1D:
             Axes object(s) to plot the spectral lines on. If None, new axes are created.
         figsize
             Dimensions of the figure to be created, specified as a tuple (width, height). Ignored
-            if `axes` is provided.
+            if ``axes`` is provided.
         plot_values
             If True, plots the numerical values of the observed lines at their respective
             locations on the graph. Default is True.
@@ -845,7 +850,7 @@ class WavelengthCalibration1D:
         ----------
         frames
             The indices of the frames to plot. If `None`, all frames from 0 to
-            `self.nframes - 1` are plotted.
+            ``self.nframes - 1`` are plotted.
 
         figsize
             Defines the width and height of the figure in inches. If `None`, the
@@ -870,11 +875,6 @@ class WavelengthCalibration1D:
             frames = np.arange(self.nframes)
         else:
             frames = np.atleast_1d(frames)
-
-        if self._p2w is not None and obs_to_wav:
-            transform = self._p2w
-        else:
-            transform = lambda x: x
 
         fig, axs = subplots(2 * frames.size, 1, constrained_layout=True, figsize=figsize)
         self.plot_catalog_lines(
@@ -918,10 +918,10 @@ class WavelengthCalibration1D:
         Parameters
         ----------
         ax
-            Matplotlib Axes object to plot on. If None, a new figure and axes are created. Default is None.
+            Matplotlib Axes object to plot on. If None, a new figure and axes are created.
         space
-            The reference space used for plotting residuals. Options are 'pixel' for residuals in pixel space or
-            'wavelength' for residuals in wavelength space.
+            The reference space used for plotting residuals. Options are 'pixel' for residuals
+            in pixel space or 'wavelength' for residuals in wavelength space.
         figsize
             The size of the figure in inches, if a new figure is created. Default is None.
 
