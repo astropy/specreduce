@@ -13,12 +13,7 @@ from scipy import optimize
 from scipy.interpolate import interp1d
 from scipy.spatial import KDTree
 from specutils import Spectrum1D
-
-try:
-    from matplotlib.pyplot import Axes, Figure, setp, subplots
-    with_matplotlib = True
-except ImportError:
-    with_matplotlib = False
+from matplotlib.pyplot import Axes, Figure, setp, subplots
 
 from specreduce.calibration_data import load_pypeit_calibration_lines
 from specreduce.line_matching import find_arc_lines
@@ -687,10 +682,6 @@ class WavelengthCalibration1D:
         map_x: bool = False,
         value_fontsize: int | str | None = "small",
     ) -> Figure:
-
-        if not with_matplotlib:
-            raise ImportError("Matplotlib is required for plots.")
-
         if frames is None:
             frames = np.arange(self.nframes)
         else:
@@ -918,9 +909,6 @@ class WavelengthCalibration1D:
         matplotlib.figure.Figure
             The figure object containing the generated subplots.
         """
-        if not with_matplotlib:
-            raise ImportError("Matplotlib is required for plots.")
-
         if frames is None:
             frames = np.arange(self.nframes)
         else:
@@ -979,9 +967,6 @@ class WavelengthCalibration1D:
         -------
         matplotlib.figure.Figure
         """
-        if not with_matplotlib:
-            raise ImportError("Matplotlib is required for plots.")
-
         if ax is None:
             fig, ax = subplots(figsize=figsize, constrained_layout=True)
         else:
