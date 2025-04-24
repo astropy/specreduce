@@ -269,7 +269,7 @@ def test_wav_to_pix(mk_wc):
 
 def test_wcs_creates_valid_gwcs_object(mk_good_wc_with_transform):
     wc = mk_good_wc_with_transform
-    wcs_obj = wc.wcs
+    wcs_obj = wc.gwcs
     assert wcs_obj is not None
     assert isinstance(wcs_obj, wcs.WCS)
     assert wcs_obj.output_frame.unit[0] == u.angstrom
