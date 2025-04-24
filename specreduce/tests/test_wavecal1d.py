@@ -105,7 +105,6 @@ def test_init_line_list(mk_arc):
 
 
 def test_find_lines(mocker, mk_arc):
-    arc = mk_arc
     wc = WavelengthCalibration1D(ref_pixel, arc_spectra=mk_arc)
     mock_find_arc_lines = mocker.patch("specreduce.wavecal1d.find_arc_lines")
     mock_find_arc_lines.return_value = {"centroid": np.array([5.0]) * u.angstrom}
