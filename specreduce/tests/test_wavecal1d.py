@@ -6,9 +6,15 @@ from astropy.modeling import models
 from astropy.modeling.polynomial import Polynomial1D
 from astropy.nddata import StdDevUncertainty
 from gwcs import wcs
-from matplotlib import pyplot as plt
-from matplotlib.figure import Figure
 from numpy import array
+
+try:
+    from matplotlib import pyplot as plt
+    from matplotlib.figure import Figure
+    with_matplotlib = True
+except ImportError:
+    with_matplotlib = False
+
 
 from specreduce.wavecal1d import WavelengthCalibration1D, _diff_poly1d
 from specreduce.compat import Spectrum
@@ -291,101 +297,107 @@ def test_remove_unmatched_lines(mk_good_wc_with_transform):
 
 
 def test_plot_lines_with_valid_input():
-    wc = WavelengthCalibration1D(ref_pixel)
-    wc._obs_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
-    wc._cat_lines = wc._obs_lines
-    fig = wc._plot_lines(kind="observed", frames=0, figsize=(8, 4), plot_values=True)
-    assert isinstance(fig, Figure)
-    assert fig.axes[0].has_data()
+    if with_matplotlib:
+        wc = WavelengthCalibration1D(ref_pixel)
+        wc._obs_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
+        wc._cat_lines = wc._obs_lines
+        fig = wc._plot_lines(kind="observed", frames=0, figsize=(8, 4), plot_values=True)
+        assert isinstance(fig, Figure)
+        assert fig.axes[0].has_data()
 
-    fig = wc._plot_lines(kind="catalog", frames=0, figsize=(8, 4), plot_values=True)
-    assert isinstance(fig, Figure)
-    assert fig.axes[0].has_data()
+        fig = wc._plot_lines(kind="catalog", frames=0, figsize=(8, 4), plot_values=True)
+        assert isinstance(fig, Figure)
+        assert fig.axes[0].has_data()
 
-    fig, ax = plt.subplots(1, 1)
-    fig = wc._plot_lines(kind="catalog", frames=0, axs=ax, plot_values=True)
-    assert isinstance(fig, Figure)
-    assert fig.axes[0].has_data()
+        fig, ax = plt.subplots(1, 1)
+        fig = wc._plot_lines(kind="catalog", frames=0, axs=ax, plot_values=True)
+        assert isinstance(fig, Figure)
+        assert fig.axes[0].has_data()
 
-    fig, axs = plt.subplots(1, 2)
-    fig = wc._plot_lines(kind="catalog", frames=0, axs=axs, plot_values=True)
-    assert isinstance(fig, Figure)
-    assert fig.axes[0].has_data()
+        fig, axs = plt.subplots(1, 2)
+        fig = wc._plot_lines(kind="catalog", frames=0, axs=axs, plot_values=True)
+        assert isinstance(fig, Figure)
+        assert fig.axes[0].has_data()
 
-    fig = wc._plot_lines(kind="observed", frames=0, axs=axs, plot_values=True)
-    assert isinstance(fig, Figure)
-    assert fig.axes[0].has_data()
+        fig = wc._plot_lines(kind="observed", frames=0, axs=axs, plot_values=True)
+        assert isinstance(fig, Figure)
+        assert fig.axes[0].has_data()
 
 
 def test_plot_lines_raises_for_missing_transform(mk_wc):
-    wc = mk_wc
-    with pytest.raises(ValueError, match="Cannot map between pixels and"):
-        wc._plot_lines(kind="observed", map_x=True)
+    if with_matplotlib:
+        wc = mk_wc
+        with pytest.raises(ValueError, match="Cannot map between pixels and"):
+            wc._plot_lines(kind="observed", map_x=True)
 
 
 def test_plot_lines_calls_transform_correctly(mk_good_wc_with_transform):
-    wc = mk_good_wc_with_transform
-    wc._plot_lines(kind="observed", map_x=True)
-    wc._plot_lines(kind="catalog", map_x=True)
+    if with_matplotlib:
+        wc = mk_good_wc_with_transform
+        wc._plot_lines(kind="observed", map_x=True)
+        wc._plot_lines(kind="catalog", map_x=True)
 
 
 def test_plot_catalog_lines(mk_wc):
-    wc = mk_wc
-    wc._cat_lines = [np.ma.masked_array([400, 500, 600], mask=[False, True, False])]
-    fig = wc.plot_catalog_lines(frames=0, figsize=(10, 6), plot_values=True, map_to_pix=False)
-    assert isinstance(fig, Figure)
-    assert fig.axes[0].has_data()
+    if with_matplotlib:
+        wc = mk_wc
+        wc._cat_lines = [np.ma.masked_array([400, 500, 600], mask=[False, True, False])]
+        fig = wc.plot_catalog_lines(frames=0, figsize=(10, 6), plot_values=True, map_to_pix=False)
+        assert isinstance(fig, Figure)
+        assert fig.axes[0].has_data()
 
-    fig, ax = plt.subplots(1, 1)
-    fig = wc.plot_catalog_lines(frames=0, axes=ax, plot_values=True)
-    assert isinstance(fig, Figure)
-    assert fig.axes[0].has_data()
+        fig, ax = plt.subplots(1, 1)
+        fig = wc.plot_catalog_lines(frames=0, axes=ax, plot_values=True)
+        assert isinstance(fig, Figure)
+        assert fig.axes[0].has_data()
 
-    fig, axs = plt.subplots(1, 2)
-    fig = wc.plot_catalog_lines(frames=[0], axes=axs, plot_values=False)
-    assert isinstance(fig, Figure)
-    assert fig.axes[0].has_data()
+        fig, axs = plt.subplots(1, 2)
+        fig = wc.plot_catalog_lines(frames=[0], axes=axs, plot_values=False)
+        assert isinstance(fig, Figure)
+        assert fig.axes[0].has_data()
 
 
 def test_plot_observed_lines(mk_good_wc_with_transform, mk_arc):
-    wc = mk_good_wc_with_transform
-    wc._obs_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
-    wc.arc_spectra = [mk_arc]
-    for frames in [None, 0]:
-        fig = wc.plot_observed_lines(
-            frames=frames, figsize=(10, 5), plot_values=True, plot_spectra=True
-        )
-        assert isinstance(fig, Figure)
-        assert fig.axes[0].has_data()
-        assert len(fig.axes) == 1
+    if with_matplotlib:
+        wc = mk_good_wc_with_transform
+        wc._obs_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
+        wc.arc_spectra = [mk_arc]
+        for frames in [None, 0]:
+            fig = wc.plot_observed_lines(
+                frames=frames, figsize=(10, 5), plot_values=True, plot_spectra=True
+            )
+            assert isinstance(fig, Figure)
+            assert fig.axes[0].has_data()
+            assert len(fig.axes) == 1
 
 
 def test_plot_fit(mk_arc, mk_good_wc_with_transform):
-    wc = mk_good_wc_with_transform
-    wc.arc_spectra = [mk_arc]
-    for frames in [None, 0]:
-        fig = wc.plot_fit(frames=frames, figsize=(12, 6), plot_values=True)
-        assert isinstance(fig, Figure)
-        assert len(fig.axes) == 2
-        assert fig.axes[0].has_data()
-        assert fig.axes[1].has_data()
-
-    fig = wc.plot_fit(frames=frames, figsize=(12, 6), plot_values=True, obs_to_wav=True)
+    if with_matplotlib:
+        wc = mk_good_wc_with_transform
+        wc.arc_spectra = [mk_arc]
+        for frames in [None, 0]:
+            fig = wc.plot_fit(frames=frames, figsize=(12, 6), plot_values=True)
+            assert isinstance(fig, Figure)
+            assert len(fig.axes) == 2
+            assert fig.axes[0].has_data()
+            assert fig.axes[1].has_data()
+        wc.plot_fit(frames=frames, figsize=(12, 6), plot_values=True, obs_to_wav=True)
 
 
 def test_plot_residuals(mk_good_wc_with_transform):
-    wc = mk_good_wc_with_transform
+    if with_matplotlib:
+        wc = mk_good_wc_with_transform
 
-    fig = wc.plot_residuals(space="pixel", figsize=(8, 4))
-    assert isinstance(fig, Figure)
-    assert fig.axes[0].has_data()
+        fig = wc.plot_residuals(space="pixel", figsize=(8, 4))
+        assert isinstance(fig, Figure)
+        assert fig.axes[0].has_data()
 
-    fig = wc.plot_residuals(space="wavelength", figsize=(8, 4))
-    assert isinstance(fig, Figure)
-    assert fig.axes[0].has_data()
+        fig = wc.plot_residuals(space="wavelength", figsize=(8, 4))
+        assert isinstance(fig, Figure)
+        assert fig.axes[0].has_data()
 
-    fig, ax = plt.subplots(1, 1)
-    wc.plot_residuals(ax=ax, space="wavelength", figsize=(8, 4))
+        fig, ax = plt.subplots(1, 1)
+        wc.plot_residuals(ax=ax, space="wavelength", figsize=(8, 4))
 
-    with pytest.raises(ValueError, match="Invalid space specified"):
-        fig = wc.plot_residuals(space="wavelenght", figsize=(8, 4))
+        with pytest.raises(ValueError, match="Invalid space specified"):
+            wc.plot_residuals(space="wavelenght", figsize=(8, 4))
