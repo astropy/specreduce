@@ -23,7 +23,6 @@ API Index
 
 .. automodapi:: specreduce.wavecal1d
     :no-inheritance-diagram:
-    :include-all-objects:
 
 .. automodapi:: specreduce.calibration_data
     :no-inheritance-diagram:
