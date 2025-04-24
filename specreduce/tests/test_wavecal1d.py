@@ -112,7 +112,6 @@ def test_find_lines(mocker, mk_arc):
     wc.find_lines(fwhm=2.0, noise_factor=1.5)
     assert wc._obs_lines is not None
     assert len(wc._obs_lines) == 1
-    assert mock_find_arc_lines.called_once_with(arc, 2.0, noise_factor=1.5)
 
     wc = WavelengthCalibration1D(ref_pixel)
     with pytest.raises(ValueError, match="Must provide arc spectra to find lines."):
