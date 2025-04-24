@@ -3,10 +3,10 @@ from typing import Sequence, Callable, Literal
 
 import astropy.units as u
 import numpy as np
+import gwcs
 from astropy.modeling import models, Model, fitting
 from astropy.nddata import VarianceUncertainty
 from gwcs import coordinate_frames as cf
-from gwcs import wcs
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.pyplot import setp, subplots
@@ -70,7 +70,7 @@ class WavelengthCalibration1D:
         self._trees: Sequence[KDTree] | None = None
 
         self._fit: optimize.OptimizeResult | None = None
-        self._wcs: wcs.WCS | None = None
+        self._wcs: gwcs.wcs.WCS | None = None
 
         self._p2w: Model | None = None  # pixel -> wavelength model
         self._w2p: Callable | None = None  # wavelength -> pixel model
@@ -543,7 +543,7 @@ class WavelengthCalibration1D:
                 self._cat_lines.append(np.ma.masked_array(l, mask=np.zeros(l.size, bool)))
 
     @property
-    def wcs(self) -> wcs.WCS:
+    def gwcs(self) -> gwcs.wcs.WCS:
         """GWCS object defining the mapping between pixel and spectral coordinate frames."""
         pixel_frame = cf.CoordinateFrame(
             1,
@@ -559,7 +559,7 @@ class WavelengthCalibration1D:
             unit=[self.unit],
         )
         pipeline = [(pixel_frame, self._p2w), (spectral_frame, None)]
-        self._wcs = wcs.WCS(pipeline)
+        self._wcs = gwcs.wcs.WCS(pipeline)
         return self._wcs
 
     def match_lines(self, max_distance: float = 5) -> None:
