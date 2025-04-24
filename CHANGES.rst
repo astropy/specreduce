@@ -1,8 +1,12 @@
-1.5.1 (unreleased)
+1.6 (unreleased)
 ------------------
 
 New Features
 ^^^^^^^^^^^^
+
+- Added a new ``specreduce.wavecal1d.WavelengthCalibration1D`` class for one-dimensional wavelength
+  calibration. The old ``specreduce.wavelength_calibration.WavelengthCalibration1D`` is
+  deprecated and will be removed in v. 2.0.
 
 API Changes
 ^^^^^^^^^^^
