@@ -6,6 +6,9 @@ New Features
 
 - Added a ``disp_bounds`` argument to ``tracing.FitTrace``. The argument allows for adjusting the
   dispersion-axis window from which the trace peaks are estimated.
+- Added a new ``specreduce.wavecal1d.WavelengthCalibration1D`` class for one-dimensional wavelength
+  calibration. The old ``specreduce.wavelength_calibration.WavelengthCalibration1D`` is
+  deprecated and will be removed in v. 2.0.
 
 1.6.0 (2025-06-18)
 ------------------
