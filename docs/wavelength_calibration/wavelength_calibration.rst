@@ -75,7 +75,7 @@ polynomial for the fit.
 You must provide *either* a list of arc spectra (or a single arc spectrum) *or* a list of known
 observed line positions:
 
-*   **Using an Arc Spectrum**: Provide the arc spectrum as a `specutils.Spectrum`
+*   **Using an Arc Spectrum**: Provide the arc spectrum as a `specutils.Spectrum1D`
     object via the ``arc_spectra`` argument. You also need to provide a ``line_lists`` argument,
     which can be a list of known catalog wavelengths or the name(s) of standard line lists
     recognized by `specreduce` (e.g., ``"HeI"``).
@@ -236,8 +236,8 @@ Once satisfied with the fit, you can use the wavelength solution:
         print(wavelengths)
 
 *   **Get WCS Object**: Access the `~gwcs.wcs.WCS` object representing the solution via the
-    :attr:`~specreduce.wavecal1d.WavelengthCalibration1D.wcs` attribute. This is particularly useful
-    for attaching the calibration to a :class:`~specutils.Spectrum` object.
+    :attr:`~specreduce.wavecal1d.WavelengthCalibration1D.gwcs` attribute. This is particularly
+    useful for attaching the calibration to a :class:`~specutils.Spectrum1D` object.
 
 *   **Rebin Spectrum**: Resample a spectrum onto a new wavelength grid using
     :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.resample`. The rebinning is
