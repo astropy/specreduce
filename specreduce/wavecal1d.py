@@ -187,7 +187,7 @@ class WavelengthCalibration1D:
         match_obs: bool = False,
         match_cat: bool = False,
         refine_fit: bool = True,
-        refine_max_distance: float = 5.0
+        refine_max_distance: float = 5.0,
     ) -> None:
         """Fit the wavelength solution model using provided line pairs.
 
@@ -382,8 +382,9 @@ class WavelengthCalibration1D:
             if rms_new == rms:
                 break
             else:
-                self._p2w = self._p2w[0].copy() | fitter(model, matched_pix - self.ref_pixel,
-                                                         matched_wav)
+                self._p2w = self._p2w[0].copy() | fitter(
+                    model, matched_pix - self.ref_pixel, matched_wav
+                )
                 rms = rms_new
         self._calculate_p2w_derivative()
         self._calculate_p2w_inverse()
@@ -396,7 +397,7 @@ class WavelengthCalibration1D:
 
     def _calculate_p2w_inverse(self) -> None:
         """Compute the wavelength-to-pixel mapping from the pixel-to-wavelength transformation."""
-        p = np.arange(self.bounds_pix[0]-2, self.bounds_pix[1]+2)
+        p = np.arange(self.bounds_pix[0] - 2, self.bounds_pix[1] + 2)
         self._w2p = interp1d(self._p2w(p), p, bounds_error=False, fill_value=np.nan)
         self.bounds_wav = self._p2w(self.bounds_pix)
 
@@ -543,8 +544,7 @@ class WavelengthCalibration1D:
 
     @property
     def wcs(self) -> wcs.WCS:
-        """GWCS object defining the mapping between pixel and spectral coordinate frames.
-        """
+        """GWCS object defining the mapping between pixel and spectral coordinate frames."""
         pixel_frame = cf.CoordinateFrame(
             1,
             "SPECTRAL",
@@ -599,7 +599,6 @@ class WavelengthCalibration1D:
         self._obs_lines = matched_lines_pix
         self._cat_lines = matched_lines_wav
 
-
     def remove_ummatched_lines(self):
         """Remove unmatched lines from observation and catalog line data."""
         self._obs_lines = [np.ma.masked_array(l.compressed()) for l in self._obs_lines]
@@ -629,7 +628,6 @@ class WavelengthCalibration1D:
         else:
             raise ValueError("Space must be either 'pixel' or 'wavelength'")
 
-
     def _plot_lines(
         self,
         kind: Literal["observed", "catalog"],
@@ -638,6 +636,7 @@ class WavelengthCalibration1D:
         figsize: tuple[float, float] | None = None,
         plot_values: bool | Sequence[bool] = True,
         map_x: bool = False,
+        value_fontsize: int | str | None = "small",
     ) -> Figure:
 
         if frames is None:
@@ -663,15 +662,17 @@ class WavelengthCalibration1D:
         if kind == "observed":
             transform = self.pix_to_wav if map_x else lambda x: x
             linelists = self._obs_lines
+            lc = "C0"
         else:
             transform = self.wav_to_pix if map_x else lambda x: x
             linelists = self._cat_lines
+            lc = "C1"
 
         if linelists is not None:
             for iax, (ax, frame) in enumerate(zip(axs, frames)):
                 lines = linelists[frame]
-                ax.vlines(transform(lines[lines.mask].data), 0, 1, ls=":")
-                ax.vlines(transform(lines[~lines.mask].data), 0, 1)
+                ax.vlines(transform(lines[lines.mask].data), 0, 1, ls=":", color=lc)
+                ax.vlines(transform(lines[~lines.mask].data), 0, 1, color=lc)
                 if plot_values[iax]:
                     for i, l in enumerate(transform(lines.data)):
                         if np.isfinite(l):
@@ -683,7 +684,7 @@ class WavelengthCalibration1D:
                                 ha="right",
                                 va="center",
                                 bbox=dict(alpha=0.8, fc="w", lw=0),
-                                size="small",
+                                size=value_fontsize,
                             )
 
         if (kind == "observed" and not map_x) or (kind == "catalog" and map_x):
@@ -712,6 +713,7 @@ class WavelengthCalibration1D:
         figsize: tuple[float, float] | None = None,
         plot_values: bool = True,
         map_to_pix: bool = False,
+        value_fontsize: int | str | None = "small",
     ) -> Figure:
         """Plot the catalog lines.
 
@@ -751,6 +753,7 @@ class WavelengthCalibration1D:
             figsize=figsize,
             plot_values=plot_values,
             map_x=map_to_pix,
+            value_fontsize=value_fontsize,
         )
 
     def plot_observed_lines(
@@ -761,6 +764,7 @@ class WavelengthCalibration1D:
         plot_values: bool = True,
         plot_spectra: bool = True,
         map_to_wav: bool = False,
+        value_fontsize: int | str | None = "small",
     ) -> Figure:
         """Plot observed spectral lines for the given arc spectra.
 
@@ -795,6 +799,7 @@ class WavelengthCalibration1D:
             figsize=figsize,
             plot_values=plot_values,
             map_x=map_to_wav,
+            value_fontsize=value_fontsize,
         )
 
         if axes is None:
@@ -832,6 +837,7 @@ class WavelengthCalibration1D:
         plot_values: bool = True,
         obs_to_wav: bool = False,
         cat_to_pix: bool = False,
+        value_fontsize: int | str | None = "small",
     ) -> Figure:
         """Plot the fitted catalog and observed lines for the specified arc spectra.
 
@@ -871,8 +877,20 @@ class WavelengthCalibration1D:
             transform = lambda x: x
 
         fig, axs = subplots(2 * frames.size, 1, constrained_layout=True, figsize=figsize)
-        self.plot_catalog_lines(frames, axs[::2], plot_values=plot_values, map_to_pix=cat_to_pix)
-        self.plot_observed_lines(frames, axs[1::2], plot_values=plot_values, map_to_wav=obs_to_wav)
+        self.plot_catalog_lines(
+            frames,
+            axs[::2],
+            plot_values=plot_values,
+            map_to_pix=cat_to_pix,
+            value_fontsize=value_fontsize,
+        )
+        self.plot_observed_lines(
+            frames,
+            axs[1::2],
+            plot_values=plot_values,
+            map_to_wav=obs_to_wav,
+            value_fontsize=value_fontsize,
+        )
 
         xlims = np.array([ax.get_xlim() for ax in axs[::2]])
         if obs_to_wav:
