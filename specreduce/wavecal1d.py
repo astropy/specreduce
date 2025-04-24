@@ -57,7 +57,48 @@ class WavelengthCalibration1D:
         line_list_bounds: tuple[float, float] = (0, np.inf),
         wave_air: bool = False,
     ) -> None:
+        """A class for wavelength calibration of one-dimensional spectral data.
 
+        This class is designed to facilitate wavelength calibration of one-dimensional spectra,
+        with support for both direct input of line lists and observed spectra. It uses a polynomial
+        model for fitting the wavelength solution and offers features to incorporate catalog lines
+        and observed line positions.
+
+        Parameters
+        ----------
+        ref_pixel
+            The reference pixel in which the wavelength solution will be centered.
+
+        unit
+            The unit of the wavelength calibration, by default ``astropy.units.Angstrom``.
+
+        degree
+            The polynomial degree for the wavelength solution, by default 3.
+
+        line_lists
+            Catalogs of spectral line wavelengths for wavelength calibration. Provide either an
+            array of line wavelengths or a list of catalog names. If `None`, no line lists are used.
+
+        arc_spectra
+            Arc spectra provided as ``Spectrum`` objects for wavelength fitting, by default
+            None. This parameter and ``obs_lines`` cannot be provided simultaneously.
+
+        obs_lines
+            Pixel positions of observed spectral lines for wavelength fitting, by default None. This
+            parameter and ``arc_spectra`` cannot be provided simultaneously.
+
+        pix_bounds
+            Lower and upper pixel bounds for fitting, defined as a 2-tuple (min, max). If
+            ``obs_lines`` is provided, this parameter is mandatory.
+
+        line_list_bounds
+            Wavelength bounds (inclusive) as a range (min, max) for filtering usable spectral
+            lines from the provided line lists, by default (0, np.inf).
+
+        wave_air
+            Boolean indicating whether the input wavelengths correspond to air rather than vacuum;
+            by default `False`, meaning vacuum wavelengths.
+        """
         self.unit = unit
         self._unit_str = unit.to_string("latex")
         self.degree = degree
