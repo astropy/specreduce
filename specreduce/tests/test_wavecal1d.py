@@ -44,7 +44,9 @@ def mk_wc(mk_lines):
 @pytest.fixture
 def mk_good_wc_with_transform(mk_lines):
     obs_lines, cat_lines = mk_lines
-    wc = WavelengthCalibration1D(ref_pixel, line_lists=cat_lines, obs_lines=obs_lines, pix_bounds=(0, 10))
+    wc = WavelengthCalibration1D(
+        ref_pixel, line_lists=cat_lines, obs_lines=obs_lines, pix_bounds=(0, 10)
+    )
     wc._p2w = p2w
     wc._calculate_p2w_inverse()
     wc._calculate_p2w_derivative()
@@ -69,7 +71,9 @@ def test_init(mk_arc, mk_lines):
     arc = mk_arc
     obs_lines, cat_lines = mk_lines
     WavelengthCalibration1D(ref_pixel, line_lists=cat_lines, arc_spectra=arc)
-    WavelengthCalibration1D(ref_pixel, line_lists=cat_lines, obs_lines=obs_lines, pix_bounds=(0, 10))
+    WavelengthCalibration1D(
+        ref_pixel, line_lists=cat_lines, obs_lines=obs_lines, pix_bounds=(0, 10)
+    )
 
     with pytest.raises(ValueError, match="Only one of arc_spectra or obs_lines can be provided."):
         WavelengthCalibration1D(ref_pixel, arc_spectra=arc, obs_lines=obs_lines)
@@ -83,7 +87,6 @@ def test_init(mk_arc, mk_lines):
 
 
 def test_init_line_list(mk_arc):
-    """Test the catalog line list initialization with various configurations of `arc_spectra` and `line_lists`."""
     arc = mk_arc
     WavelengthCalibration1D(ref_pixel, arc_spectra=arc, line_lists=["ArI"])
     WavelengthCalibration1D(ref_pixel, arc_spectra=arc, line_lists="ArI")
@@ -92,8 +95,12 @@ def test_init_line_list(mk_arc):
     WavelengthCalibration1D(ref_pixel, arc_spectra=[arc, arc], line_lists=[["ArI"], ["ArI"]])
     WavelengthCalibration1D(ref_pixel, arc_spectra=[arc, arc], line_lists=["ArI", ["ArI"]])
     WavelengthCalibration1D(ref_pixel, arc_spectra=[arc, arc], line_lists=["ArI", "ArI"])
-    WavelengthCalibration1D(ref_pixel, arc_spectra=[arc, arc], line_lists=[array([0.1]), array([0.1])])
-    WavelengthCalibration1D(ref_pixel, arc_spectra=[arc, arc], line_lists=[array([0.1, 0.3]), ["ArI"]])
+    WavelengthCalibration1D(
+        ref_pixel, arc_spectra=[arc, arc], line_lists=[array([0.1]), array([0.1])]
+    )
+    WavelengthCalibration1D(
+        ref_pixel, arc_spectra=[arc, arc], line_lists=[array([0.1, 0.3]), ["ArI"]]
+    )
     with pytest.raises(ValueError, match="The number of line lists"):
         WavelengthCalibration1D(ref_pixel, arc_spectra=[arc, arc], line_lists=[["ArI"]])
 
@@ -156,7 +163,9 @@ def test_catalog_lines(mk_lines):
     wc = WavelengthCalibration1D(ref_pixel)
     assert wc.catalog_lines is None
     obs_lines, cat_lines = mk_lines
-    wc = WavelengthCalibration1D(ref_pixel, obs_lines=obs_lines, line_lists=cat_lines, pix_bounds=pix_bounds)
+    wc = WavelengthCalibration1D(
+        ref_pixel, obs_lines=obs_lines, line_lists=cat_lines, pix_bounds=pix_bounds
+    )
     assert len(wc.catalog_lines) == 1
     np.testing.assert_allclose(wc.catalog_lines[0].data, cat_lines)
 
@@ -198,14 +207,18 @@ def test_fit_global():
     lines_cat = array([500, 550, 600, 650, 700, 750, 800])
     wavelength_bounds = (649, 651)
     dispersion_bounds = (49, 51)
-    wc = WavelengthCalibration1D(5, pix_bounds=pix_bounds, obs_lines=lines_obs, line_lists=lines_cat)
+    wc = WavelengthCalibration1D(
+        5, pix_bounds=pix_bounds, obs_lines=lines_obs, line_lists=lines_cat
+    )
     wc.fit_global(wavelength_bounds, dispersion_bounds, popsize=10)
     np.testing.assert_allclose(wc._fit.x, [650.0, 50.0, 0.0, 0.0], atol=1e-4)
     assert wc._fit is not None
     assert wc._fit.success
     assert wc._p2w is not None
 
-    wc = WavelengthCalibration1D(5, pix_bounds=pix_bounds, obs_lines=lines_obs, line_lists=lines_cat)
+    wc = WavelengthCalibration1D(
+        5, pix_bounds=pix_bounds, obs_lines=lines_obs, line_lists=lines_cat
+    )
     wc.fit_global(wavelength_bounds, dispersion_bounds, popsize=10, refine_fit=False)
 
 
@@ -339,7 +352,9 @@ def test_plot_observed_lines(mk_good_wc_with_transform, mk_arc):
     wc._obs_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
     wc.arc_spectra = [mk_arc]
     for frames in [None, 0]:
-        fig = wc.plot_observed_lines(frames=frames, figsize=(10, 5), plot_values=True, plot_spectra=True)
+        fig = wc.plot_observed_lines(
+            frames=frames, figsize=(10, 5), plot_values=True, plot_spectra=True
+        )
         assert isinstance(fig, Figure)
         assert fig.axes[0].has_data()
         assert len(fig.axes) == 1
