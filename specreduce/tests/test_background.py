@@ -81,6 +81,9 @@ def test_background(
         assert np.isnan(bg.bkg_spectrum().flux).sum() == 0
         assert np.isnan(bg.sub_spectrum().flux).sum() == 0
 
+    with pytest.warns(DeprecationWarning, match="bkg_statistic.*deprecated"):
+        bg.bkg_spectrum(bkg_statistic="mean")
+
 
 def test_warnings_errors(mk_test_spec_no_spectral_axis):
     image = mk_test_spec_no_spectral_axis
