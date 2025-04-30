@@ -291,7 +291,7 @@ class TestMasksTracing:
         window = 10
         guess = int(nrows / 2)
         img_win_nans = img.copy()
-        img_win_nans[guess - window: guess + window] = np.nan
+        img_win_nans[guess - window : guess + window] = np.nan
 
         # error on trace of otherwise valid image with all-nan window around guess
         with pytest.raises(ValueError, match="pixels in window region are masked"):
