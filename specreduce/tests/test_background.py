@@ -2,7 +2,6 @@ import astropy.units as u
 import numpy as np
 import pytest
 from astropy.nddata import NDData
-from numpy.testing import assert_allclose
 
 from specreduce.background import Background
 from specreduce.compat import Spectrum
@@ -82,18 +81,8 @@ def test_background(
         assert np.isnan(bg.bkg_spectrum().flux).sum() == 0
         assert np.isnan(bg.sub_spectrum().flux).sum() == 0
 
-    bkg_spec_avg = bg1.bkg_spectrum(bkg_statistic="average")
-    assert_allclose(bkg_spec_avg.mean().value, 14.5, rtol=0.5)
-
-    bkg_spec_median = bg1.bkg_spectrum(bkg_statistic="median")
-    assert_allclose(bkg_spec_median.mean().value, 14.5, rtol=0.5)
-
-    with pytest.raises(
-        ValueError,
-        match="Background statistic max is not supported. "
-        "Please choose from: average, median, or sum.",
-    ):
-        bg1.bkg_spectrum(bkg_statistic="max")
+    with pytest.warns(DeprecationWarning, match="bkg_statistic.*deprecated"):
+        bg.bkg_spectrum(bkg_statistic="mean")
 
 
 def test_warnings_errors(mk_test_spec_no_spectral_axis):
@@ -292,11 +281,9 @@ class TestMasksBackground:
             # issue #213 is fixed
             np.testing.assert_allclose(bk_img.flux.value, np.tile(expected, (img_size, 1)))
 
-            # test background spectrum matches 'expected' times the number of rows
-            # in cross disp axis, since this is a sum and all values in a col are
-            # the same.
+            # test background spectrum matches 'expected'
             bk_spec = background.bkg_spectrum()
-            np.testing.assert_allclose(bk_spec.flux.value, expected * img_size)
+            np.testing.assert_allclose(bk_spec.flux.value, expected)
 
     def test_sub_bkg_image(self):
         """
