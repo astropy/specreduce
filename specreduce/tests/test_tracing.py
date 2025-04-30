@@ -151,7 +151,7 @@ def test_fit_trace():
     window = 10
     guess = int(nrows / 2)
     img_win_nans = img.copy()
-    img_win_nans[guess - window: guess + window] = np.nan
+    img_win_nans[guess - window : guess + window] = np.nan
 
     # ensure float bin values trigger a warning but no issues otherwise
     with pytest.warns(UserWarning, match="TRACE: Converting bins to int"):
