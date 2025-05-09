@@ -16,13 +16,32 @@ from specreduce.line_matching import find_arc_lines
 from specreduce.compat import Spectrum
 
 
-def diff_poly2d_x(m):
+def diff_poly2d_x(model: models.Polynomial2D) -> models.Polynomial2D:
+    """Compute the partial derivative of a 2D polynomial model with respect to x.
+
+    Generates a new 2D polynomial model representing the derivative of the input
+    model in the x-direction. The coefficients of the resulting model are calculated
+    by multiplying the coefficients from the input model by their respective x
+    index and reducing the order in the x-dimension.
+
+    Parameters
+    ----------
+    model
+        An `astropy.modeling.models.Polynomial2D` model.
+
+    Returns
+    -------
+    models.Polynomial2D
+        A new 2D polynomial model representing the derivative of the input model
+        with respect to x. The degree of the resulting model will be decreased
+        by 1 in the x-dimension.
+    """
     coeffs = {}
-    for n in m.param_names:
+    for n in model.param_names:
         ix, iy = int(n[1]), int(n[3])
         if ix > 0:
-            coeffs[f"c{ix-1}_{iy}"] = ix * getattr(m, n).value
-    return models.Polynomial2D(m.degree - 1, **coeffs)
+            coeffs[f"c{ix-1}_{iy}"] = ix * getattr(model, n).value
+    return models.Polynomial2D(model.degree - 1, **coeffs)
 
 
 class TiltCorrection:
