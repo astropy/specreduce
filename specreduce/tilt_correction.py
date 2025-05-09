@@ -34,6 +34,25 @@ class TiltCorrection:
         cd_sample_lims: tuple[float, float] | None = None,
         cd_samples: Sequence[float] | None = None,
     ):
+        """A class for 2D spectrum rectification.
+
+        Parameters
+        ----------
+        ref_pixel
+            A reference pixel position specified as a tuple of floating-point coordinates (x, y).
+
+        arc_frames
+            A sequence of arc frames as `NDData` instances.
+
+        n_cd_samples
+            Number of cross-dispersion (CD) samples to generate.
+
+        cd_sample_lims
+            Tuple specifying the limits for calculating cross-dispersion sampling.
+
+        cd_samples
+            A list of cross-dispersion locations to use. Overrides ``n_cd_samples`` if provided.
+        """
         self.ref_pixel = ref_pixel
         self.arc_frames = arc_frames
         self.nframes = len(arc_frames)
@@ -44,23 +63,40 @@ class TiltCorrection:
         self._samples_rec_y: Sequence[ndarray] | None = None
         self._samples_det_x: Sequence[ndarray] | None = None
         self._samples_det_y: Sequence[ndarray] | None = None
+        self._arc_spectra: Sequence[Spectrum1D] | None = None
         self._trees: Sequence[KDTree] | None = None
-        self._spectra: Sequence[Spectrum1D] | None = None
+
+        self._shift = models.Shift(-self.ref_pixel[0]) & models.Shift(-self.ref_pixel[1])
 
         # The rectified space -> detectoir space transform
         self._r2d: Model | None = None
 
+        # Calculate the cross-dispersion axis sample positions
+        slims = cd_sample_lims if cd_sample_lims is not None else (0, self.n_cd_pix)
         if cd_samples is not None:
             self.cd_samples = np.array(cd_samples)
         else:
-            self.cd_samples = np.round(
-                np.arange(1, n_cd_samples + 1) * self.n_cd_pix / (n_cd_samples + 1)
+            self.cd_samples = slims[0] + np.round(
+                np.arange(1, n_cd_samples + 1) * (slims[1] - slims[0]) / (n_cd_samples + 1)
             ).astype(int)
         self.ncd = self.cd_samples.size
-        self._shift = None
 
-    def find_arc_lines(self, fwhm: float, noise_factor: float = 5.0):
-        self._spectra = []
+    def find_arc_lines(self, fwhm: float, noise_factor: float = 5.0) -> None:
+        """Find arc lines from the provided arc frames for all cross-dispersion samples.
+
+        This method locates spectral arc lines from the provided arc frames, calculates
+        their centroids, and organizes them into reference lists and sample arrays
+        for further analysis.
+
+        Parameters
+        ----------
+        fwhm
+            Full width at half maximum of the spectral line to be detected, used
+            by the line-finding algorithm.
+        noise_factor
+            A multiplier for noise thresholding in the line-finding process.
+        """
+        self._arc_spectra = []
         self._samples_rec_x = []
         self._lines_ref = []
         samples_x = []
@@ -69,7 +105,7 @@ class TiltCorrection:
             warnings.simplefilter("ignore")
 
             for i, d in enumerate(self.arc_frames):
-                self._spectra.append([])
+                self._arc_spectra.append([])
                 samples_x.append([])
                 samples_y.append([])
 
@@ -90,7 +126,7 @@ class TiltCorrection:
                     lines = find_arc_lines(spectrum, fwhm, noise_factor=noise_factor)
                     samples_x[i].append(lines["centroid"].value)
                     samples_y[i].append(np.full(len(lines), s))
-                    self._spectra[i].append(spectrum)
+                    self._arc_spectra[i].append(spectrum)
 
         self._samples_det_x = [np.concatenate(lpx) for lpx in samples_x]
         self._samples_det_y = [np.concatenate(lpy) for lpy in samples_y]
@@ -98,11 +134,28 @@ class TiltCorrection:
         self._samples_rec_x = [tile(lref, self.cd_samples.size) for lref in self._lines_ref]
 
         self._trees = [
-            KDTree(np.vstack([lx, ly]).T) for lx, ly in zip(self._samples_det_x, self._samples_det_y)
+            KDTree(np.vstack([lx, ly]).T)
+            for lx, ly in zip(self._samples_det_x, self._samples_det_y)
         ]
 
-    def fit(self):
-        self._shift = models.Shift(-self.ref_pixel[0]) & models.Shift(-self.ref_pixel[1])
+    def fit(self, degree: int = 3, method: str = "Powell", max_distance: float = 10) -> None:
+        """Fits a 2D polynomial transformation from rectified space to detector space.
+
+        The transformation is calculated by minimizing the sum of distances between transformed
+        samples and their corresponding detector-space targets. The minimization is performed in
+        two stages: an initial minimization of a kd-tree based sum of line-line distances using
+        `scipy.optimize.minimize` and a refinement using least-squares optimization of matched
+        lines.
+
+        Parameters
+        ----------
+        degree
+            The degree of the final 2D polynomial model.
+        method
+            The optimization method used during the initial fitting stage.
+        max_distance
+            The maximum allowable distance to constrain the minimization..
+        """
         model = self._shift | models.Polynomial2D(3)
 
         coeffs = np.zeros(10)
@@ -112,24 +165,43 @@ class TiltCorrection:
 
         def minfun(x):
             coeffs[4:] = x
-            distance_sum = 0.0
+            total_distance = 0.0
             for i, t in enumerate(self._trees):
                 transformed_points[i][:, 0] = model.evaluate(
-                    self._samples_rec_x[i], self._samples_rec_y[i], -self.ref_pixel[0], -self.ref_pixel[1], *coeffs
+                    self._samples_rec_x[i],
+                    self._samples_rec_y[i],
+                    -self.ref_pixel[0],
+                    -self.ref_pixel[1],
+                    *coeffs,
                 )
-                distance_sum += t.query(transformed_points[i])[0].sum()
-            return distance_sum
+                total_distance += np.clip(t.query(transformed_points[i])[0], 0, max_distance).sum()
+            return total_distance
 
-        res = minimize(minfun, np.zeros(6), method="powell")
+        self._initial_optimization_result = res = minimize(minfun, np.zeros(6), method=method)
         coeffs[4:] = res.x
         self._r2d = self._shift | models.Polynomial2D(
             model[-1].degree, **{model[-1].param_names[i]: coeffs[i] for i in range(coeffs.size)}
         )
 
+        # Calculate the final fit using least-squares optimization between matched lines
+        self._refine_fit(degree)
         self._calculate_derivative()
-        # self._refine_fit()
 
-    def _refine_fit(self, degree: int = 4, match_distance_bound: float = 5.0):
+    def _refine_fit(self, degree: int = 4, match_distance_bound: float = 5.0) -> None:
+        """Refine the rectified space -> detector space transformation model parameters.
+
+        Refines the polynomial fit model parameters for matching features with a specified
+        degree and match distance bound. The refinement includes matching lines,
+        updating a polynomial model, and optimizing the parameters using a least squares
+        fitter. The derivative is recalculated after the optimization.
+
+        Parameters
+        ----------
+        degree
+            Degree of the polynomial used in the Polynomial2D model.
+        match_distance_bound
+            Maximum acceptable distance between features to be considered a match.
+        """
         rx, ry, ox = self._match_lines(match_distance_bound)
         model = self._shift | models.Polynomial2D(
             degree, **{n: getattr(self._r2d[-1], n).value for n in self._r2d[-1].param_names}
@@ -141,16 +213,34 @@ class TiltCorrection:
 
         fitter = fitting.LMLSQFitter()
         self._r2d = fitter(model, rx, ry, ox)
+        self._refined_optimization_result = fitter.fit_info
         self._calculate_derivative()
 
     def _match_lines(self, upper_bound: float = 5):
+        """Match the reference arc line locations with the detector-space targets.
+
+        Parameters
+        ----------
+        upper_bound
+            Specifies the maximum allowed distance for matching lines. Matches beyond this distance will
+            be ignored.
+
+        Returns
+        -------
+        tuple of numpy.ndarray
+            A tuple containing three concatenated numpy arrays representing:
+            - Matched x-coordinates of reference lines.
+            - Matched y-coordinates of reference lines.
+            - Observational data points that matched.
+        """
         matched_lines_obs = []
         matched_lines_ref_x = []
         matched_lines_ref_y = []
         for iframe, tree in enumerate(self._trees):
             x_mapped = self._r2d(self._samples_rec_x[iframe], self._samples_rec_y[iframe])
             l, ix = tree.query(
-                np.array([x_mapped, self._samples_rec_y[iframe]]).T, distance_upper_bound=upper_bound
+                np.array([x_mapped, self._samples_rec_y[iframe]]).T,
+                distance_upper_bound=upper_bound,
             )
             m = np.isfinite(l)
             matched_lines_obs.append(tree.data[ix[m], 0])
@@ -163,8 +253,7 @@ class TiltCorrection:
         )
 
     def _calculate_derivative(self):
-        """Calculate the derivative for the rectified space -> detector space transformation.
-        """
+        """Calculate the derivative for the rectified space -> detector space transformation."""
         if self._r2d is not None:
             self._r2d_dxdx = self._shift | diff_poly2d_x(self._r2d[-1])
 
@@ -213,7 +302,7 @@ class TiltCorrection:
         l1, l2 = bounds if bounds is not None else (0, nx)
 
         bin_edges_rec = bin_edges if bin_edges is not None else np.linspace(l1, l2, num=nbins + 1)
-        bin_edges_det = np.clip(self._r2d(*np.meshgrid(bin_edges_rec, ypix)) , 0, nx - 1e-12)
+        bin_edges_det = np.clip(self._r2d(*np.meshgrid(bin_edges_rec, ypix)), 0, nx - 1e-12)
         bin_edge_ix = np.floor(bin_edges_det).astype(int)
         bin_edge_w = bin_edges_det - bin_edge_ix
 
@@ -266,7 +355,17 @@ class TiltCorrection:
         rectified_flux *= n[:, None]
         return rectified_flux
 
-    def plot_transform(self, frame: int = 0, nx: int = 50, ny: int = 100, ax=None, figsize=None, plot_lines: bool = False, cmap=None, vmax=None):
+    def plot_transform(
+        self,
+        frame: int = 0,
+        nx: int = 50,
+        ny: int = 100,
+        ax=None,
+        figsize=None,
+        plot_lines: bool = False,
+        cmap=None,
+        vmax=None,
+    ):
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
         else:
@@ -276,31 +375,11 @@ class TiltCorrection:
         if plot_lines:
             nx = self._lines_ref[frame].size
             xs = tile(self._lines_ref[frame], (ny, 1))
-            ys = tile(np.linspace(0, d.shape[0], ny)[:,None], (1, nx))
+            ys = tile(np.linspace(0, d.shape[0], ny)[:, None], (1, nx))
         else:
             xs = tile(np.linspace(0, d.shape[1], nx), (ny, 1))
-            ys = tile(np.linspace(0, d.shape[0], ny)[:,None], (1, nx))
-        ax.imshow(d.data, aspect='auto', origin='lower', cmap=cmap, vmax=vmax)
-        ax.plot(self._r2d(xs, ys), ys, 'w--', lw=1, alpha=1)
+            ys = tile(np.linspace(0, d.shape[0], ny)[:, None], (1, nx))
+        ax.imshow(d.data, aspect="auto", origin="lower", cmap=cmap, vmax=vmax)
+        ax.plot(self._r2d(xs, ys), ys, "w--", lw=1, alpha=1)
         plt.setp(ax, xlim=(0, d.shape[1]), ylim=(0, d.shape[0]))
         return fig
-
-    def plot_residuals(self, axes=None, model=None, figsize=None):
-        if axes is None:
-            fig, axes = plt.subplots(
-                self.nframes,
-                1,
-                figsize=figsize,
-                constrained_layout=True,
-                sharex="all",
-                sharey="all",
-            )
-        else:
-            fig = axes[0].figure
-        model = model if model is not None else self._p2w
-        trees = [KDTree(l[:, None]) for l in self.lines_wav]
-        for lamp, t in enumerate(trees):
-            l, ix = t.query(
-                model(self._samples_det_x[lamp], self._samples_det_y[lamp])[:, None], distance_upper_bound=5
-            )
-            axes[lamp].plot(self._samples_det_x[lamp], l, ".")
