@@ -158,7 +158,7 @@ class TiltCorrection:
         ]
 
     def fit(self, degree: int = 3, method: str = "Powell", max_distance: float = 10) -> None:
-        """Fits a 2D polynomial transformation from rectified space to detector space.
+        """Fit a 2D polynomial transformation from rectified space to detector space.
 
         The transformation is calculated by minimizing the sum of distances between transformed
         samples and their corresponding detector-space targets. The minimization is performed in
@@ -203,10 +203,10 @@ class TiltCorrection:
         )
 
         # Calculate the final fit using least-squares optimization between matched lines
-        self._refine_fit(degree)
+        self.refine_fit(degree)
         self._calculate_derivative()
 
-    def _refine_fit(self, degree: int = 4, match_distance_bound: float = 5.0) -> None:
+    def refine_fit(self, degree: int = 4, match_distance_bound: float = 5.0) -> None:
         """Refine the rectified space -> detector space transformation model parameters.
 
         Refines the polynomial fit model parameters for matching features with a specified
@@ -221,7 +221,7 @@ class TiltCorrection:
         match_distance_bound
             Maximum acceptable distance between features to be considered a match.
         """
-        rx, ry, ox = self._match_lines(match_distance_bound)
+        rx, ry, ox = self.match_lines(match_distance_bound)
         model = self._shift | models.Polynomial2D(
             degree, **{n: getattr(self._r2d[-1], n).value for n in self._r2d[-1].param_names}
         )
@@ -235,41 +235,47 @@ class TiltCorrection:
         self._refined_optimization_result = fitter.fit_info
         self._calculate_derivative()
 
-    def _match_lines(self, upper_bound: float = 5):
+    def match_lines(
+        self, max_distance: float = 5, concatenate: bool = True
+    ) -> tuple[ndarray, ndarray, ndarray] | tuple[list[ndarray], list[ndarray], list[ndarray]]:
         """Match the reference arc line locations with the detector-space targets.
 
         Parameters
         ----------
-        upper_bound
-            Specifies the maximum allowed distance for matching lines. Matches beyond this distance will
-            be ignored.
+        max_distance
+            Specifies the maximum allowed distance for matching lines. Matches beyond this distance
+            will be ignored.
 
         Returns
         -------
         tuple of numpy.ndarray
             A tuple containing three concatenated numpy arrays representing:
-            - Matched x-coordinates of reference lines.
-            - Matched y-coordinates of reference lines.
-            - Observational data points that matched.
+            - x-coordinates of matched rectified-space lines.
+            - y-coordinates of matched rectified-space lines.
+            - x-coordinates of matched detector-space lines.
         """
-        matched_lines_obs = []
-        matched_lines_ref_x = []
-        matched_lines_ref_y = []
+        matched_det_x = []
+        matched_rec_x = []
+        matched_rec_y = []
         for iframe, tree in enumerate(self._trees):
             x_mapped = self._r2d(self._samples_rec_x[iframe], self._samples_rec_y[iframe])
             l, ix = tree.query(
                 np.array([x_mapped, self._samples_rec_y[iframe]]).T,
-                distance_upper_bound=upper_bound,
+                distance_upper_bound=max_distance,
             )
             m = np.isfinite(l)
-            matched_lines_obs.append(tree.data[ix[m], 0])
-            matched_lines_ref_x.append(self._samples_rec_x[iframe][m])
-            matched_lines_ref_y.append(self._samples_rec_y[iframe][m])
-        return (
-            np.concatenate(matched_lines_ref_x),
-            np.concatenate(matched_lines_ref_y),
-            np.concatenate(matched_lines_obs),
-        )
+            matched_det_x.append(tree.data[ix[m], 0])
+            matched_rec_x.append(self._samples_rec_x[iframe][m])
+            matched_rec_y.append(self._samples_rec_y[iframe][m])
+
+        if concatenate:
+            return (
+                np.concatenate(matched_rec_x),
+                np.concatenate(matched_rec_y),
+                np.concatenate(matched_det_x),
+            )
+        else:
+            return matched_rec_x, matched_rec_y, matched_det_x
 
     def _calculate_derivative(self):
         """Calculate the derivative for the rectified space -> detector space transformation."""
