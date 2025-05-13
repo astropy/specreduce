@@ -398,31 +398,89 @@ class TiltCorrection:
         rectified_flux *= n[:, None]
         return rectified_flux
 
-    def plot_transform(
+    def plot_wavelength_contours(
         self,
-        frame: int = 0,
-        nx: int = 50,
-        ny: int = 100,
-        ax=None,
-        figsize=None,
-        plot_lines: bool = False,
-        cmap=None,
-        vmax=None,
+        ncol: int = 50,
+        nrow: int = 100,
+        cols: Sequence[float] | None = None,
+        ax: plt.Axes | None = None,
+        figsize: tuple[float, float] | None = None,
+        line_args: dict | None =None,
     ):
+        """Plot wavelength contour lines in detector space.
+
+        Parameters
+        ----------
+        ncol
+            The number of columns in the grid.
+        nrow
+            The number of rows in the grid.
+        cols
+            A sequence specifying the x-coordinates of the grid columns. If not
+            provided, it will be automatically calculated based on the arc frame
+            dimensions.
+        ax
+            The Matplotlib Axes on which to plot. If None, a new figure and Axes
+            are created.
+        figsize
+            Tuple specifying the size of the figure to create, applicable only if
+            `ax` is None..
+        line_args
+            A dictionary of line properties (e.g., color, linewidth, linestyle).
+            These properties modify the default styling provided for grid lines.
+            If None, default styles are used. Default is None.
+
+        Returns
+        -------
+        figure : matplotlib.figure.Figure
+            The Matplotlib figure containing the plot. If an Axes instance is passed
+            to `ax`, the associated figure is returned.
+        """
+        largs = {'c': 'k', 'lw': 0.5, 'alpha': 0.5, 'ls':'--'}
+        if line_args is not None:
+            largs.update(line_args)
+
         if ax is None:
             fig, ax = plt.subplots(figsize=figsize)
         else:
             fig = ax.figure
 
-        d = self.arc_frames[frame]
-        if plot_lines:
-            nx = self._lines_ref[frame].size
-            xs = tile(self._lines_ref[frame], (ny, 1))
-            ys = tile(np.linspace(0, d.shape[0], ny)[:, None], (1, nx))
+        if cols is None:
+            cols = tile(np.linspace(0, self.arc_frames[0].data.shape[1], ncol), (nrow, 1))
         else:
-            xs = tile(np.linspace(0, d.shape[1], nx), (ny, 1))
-            ys = tile(np.linspace(0, d.shape[0], ny)[:, None], (1, nx))
-        ax.imshow(d.data, aspect="auto", origin="lower", cmap=cmap, vmax=vmax)
-        ax.plot(self._r2d(xs, ys), ys, "w--", lw=1, alpha=1)
-        plt.setp(ax, xlim=(0, d.shape[1]), ylim=(0, d.shape[0]))
+            ncol = len(cols)
+        rows = tile(np.linspace(0, self.arc_frames[0].data.shape[0], nrow)[:, None], (1, ncol))
+
+        ax.plot(self._r2d(cols, rows), rows, **largs)
+        return fig
+
+    def plot_fit_quality(
+        self, figsize=None, max_match_distance: float = 5, rlim: tuple[float, float] | None = None
+    ):
+        fig = plt.Figure(figsize=figsize, layout="constrained")
+        gs = plt.GridSpec(2, 2, width_ratios=(4, 1), height_ratios=(1, 3), figure=fig)
+
+        ax1 = fig.add_subplot(gs[1, 0])
+        ax2 = fig.add_subplot(gs[0, 0])
+        ax3 = fig.add_subplot(gs[1, 1])
+
+        rxs, rys, dxs = self.match_lines(max_match_distance, concatenate=False)
+        for i, (rx, ry, dx) in enumerate(zip(rxs, rys, dxs)):
+            residuals = dx - self.rec_to_det(rx, ry)[0]
+            ax1.scatter(rx, ry, s=50 * abs(residuals), label=f"Arc {i+1}")
+            ax2.plot(rx, residuals, ".")
+            ax3.plot(residuals, ry, ".")
+        ax1.legend(loc="upper right")
+        ax2.set_xlim(ax1.get_xlim())
+        ax3.set_ylim(ax1.get_ylim())
+        plt.setp(ax2.get_xticklabels(), visible=False)
+        plt.setp(ax3.get_yticklabels(), visible=False)
+        plt.setp(ax1, xlabel="Dispersion axis [pix]", ylabel="Cross-dispersion axis [pix]")
+        ax2.set_ylabel("Residuals [pix]")
+        ax3.set_xlabel("Residuals [pix]")
+
+        if rlim is not None:
+            ax2.set_ylim(rlim)
+            ax3.set_xlim(rlim)
+
         return fig
