@@ -282,6 +282,24 @@ class TiltCorrection:
         if self._r2d is not None:
             self._r2d_dxdx = self._shift | diff_poly2d_x(self._r2d[-1])
 
+    def rec_to_det(self, col: ndarray, row: ndarray) -> tuple[ndarray, ndarray]:
+        """Transform coordinates from the rectified space to detector space.
+
+        Parameters
+        ----------
+        col : ndarray
+            The dispersion-axis coordinates to be transformed.
+        row : ndarray
+            The cross-dispersion coordinates, returned as is.
+
+        Returns
+        -------
+        tuple of (ndarray, ndarray)
+            A tuple containing the transformed dispersion-axis coordinates as the first element
+            and the original cross-dispersion-axis coordinates as the second element..
+        """
+        return self._r2d(col, row), row
+
     def rectify(
         self,
         flux: ndarray,
