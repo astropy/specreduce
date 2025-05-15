@@ -1,11 +1,12 @@
 import numpy as np
 import pytest
 from astropy.modeling import models
-from astropy.nddata import NDData, StdDevUncertainty
+from astropy.nddata import StdDevUncertainty
 from astropy.wcs import WCS
 
 from specreduce.tilt_correction import TiltCorrection, diff_poly2d_x
 from specreduce.utils.synth_data import make_2d_arc_image
+
 
 # Arc frame creation code taken from Tim Pickering's example notebook
 @pytest.fixture
