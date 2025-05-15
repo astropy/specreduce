@@ -1,19 +1,18 @@
 import warnings
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, Literal
 
 import matplotlib.pyplot as plt
-import astropy.units as u
 import numpy as np
 from astropy.modeling import models, Model, fitting
 from astropy.nddata import StdDevUncertainty, NDData
+from numpy import ndarray, repeat, tile
 from scipy.optimize import minimize
 from scipy.spatial import KDTree
-
-from numpy import ndarray, concatenate, repeat, tile
 from specutils import Spectrum1D
 
-from specreduce.line_matching import find_arc_lines
 from specreduce.compat import Spectrum
+from specreduce.core import _ImageParser
+from specreduce.line_matching import find_arc_lines
 
 
 def diff_poly2d_x(model: models.Polynomial2D) -> models.Polynomial2D:
@@ -52,16 +51,27 @@ class TiltCorrection:
         n_cd_samples: int = 10,
         cd_sample_lims: tuple[float, float] | None = None,
         cd_samples: Sequence[float] | None = None,
+        disp_axis: int = 1,
+        mask_treatment: Literal[
+            "apply",
+            "ignore",
+            "propagate",
+            "zero_fill",
+            "nan_fill",
+            "apply_mask_only",
+            "apply_nan_only",
+        ] = "apply",
     ):
         """A class for 2D spectrum rectification.
 
         Parameters
         ----------
         ref_pixel
-            A reference pixel position specified as a tuple of floating-point coordinates (x, y).
+            A reference pixel position specified as a tuple of floating-point coordinates
+            (dispersion axis, cross-dispersion axis).
 
         arc_frames
-            A sequence of arc frames as `NDData` instances.
+            A sequence of arc frames as `~astropy.nddata.NDData` instances.
 
         n_cd_samples
             Number of cross-dispersion (CD) samples to generate.
@@ -71,11 +81,49 @@ class TiltCorrection:
 
         cd_samples
             A list of cross-dispersion locations to use. Overrides ``n_cd_samples`` if provided.
+
+        disp_axis
+            The index of the image's dispersion axis.
+
+        mask_treatment
+            Specifies how to handle masked or non-finite values in the input image.
+            The accepted values are:
+
+            - ``apply``: The image remains unchanged, and any existing mask is combined with a mask
+            derived from non-finite values.
+            - ``ignore``: The image remains unchanged, and any existing mask is dropped.
+            - ``propagate``: The image remains unchanged, and any masked or non-finite pixel
+            causes the mask to extend across the entire cross-dispersion axis.
+            - ``zero_fill``: Pixels that are either masked or non-finite are replaced with 0.0,
+            and the mask is dropped.
+            - ``nan_fill``:  Pixels that are either masked or non-finite are replaced with nan,
+            and the mask is dropped.
+            - ``apply_mask_only``: The  image and mask are left unmodified.
+            - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped,
+            and a new mask is created based on non-finite values.
         """
         self.ref_pixel = ref_pixel
+        self.disp_axis = disp_axis
+        self.mask_treatment = mask_treatment
+
+        # IMPLEMENTATION NOTES: the code assumes that the image-parsing routines ensure that the
+        # cross-dispersion axis is aligned with the y-axis (1st array dimension) and the
+        # dispersion axis with the x-axis (2nd array dimension). However, this should not be
+        # visible to the end-user. The rectified spectra are returned with the original axis
+        # alignment given by the ``disp_axis`` argument. Also, I've decided to use `x` and `y`
+        # naming instead of `col` and `row` because this leads to (slightly) more readable code.
+        # The methods that are visible to the end-user use `disp` and `cdisp` naming. -HP
+
+        # An ugly hack that should be changed after the refactoring of image parsing.
+        ip = _ImageParser()
+        self.arc_frames = []
+        for f in arc_frames:
+            im = ip._parse_image(f, disp_axis=disp_axis, mask_treatment=mask_treatment)
+            self.arc_frames.append(NDData(im.flux, uncertainty=im.uncertainty, mask=im.mask))
+
         self.arc_frames = arc_frames
         self.nframes = len(arc_frames)
-        self.n_cd_pix = self.arc_frames[0].data.shape[0]
+        self._ny, self._nx = self.arc_frames[0].data.shape
 
         self._lines_ref: Sequence[ndarray] | None = None
         self._samples_rec_x: Sequence[ndarray] | None = None
@@ -87,11 +135,11 @@ class TiltCorrection:
 
         self._shift = models.Shift(-self.ref_pixel[0]) & models.Shift(-self.ref_pixel[1])
 
-        # The rectified space -> detectoir space transform
+        # The rectified space -> detector space transform
         self._r2d: Model | None = None
 
         # Calculate the cross-dispersion axis sample positions
-        slims = cd_sample_lims if cd_sample_lims is not None else (0, self.n_cd_pix)
+        slims = cd_sample_lims if cd_sample_lims is not None else (0, self._ny)
         if cd_samples is not None:
             self.cd_samples = np.array(cd_samples)
         else:
@@ -282,14 +330,14 @@ class TiltCorrection:
         if self._r2d is not None:
             self._r2d_dxdx = self._shift | diff_poly2d_x(self._r2d[-1])
 
-    def rec_to_det(self, col: ndarray, row: ndarray) -> tuple[ndarray, ndarray]:
+    def rec_to_det(self, disp: ndarray, cdisp: ndarray) -> tuple[ndarray, ndarray]:
         """Transform coordinates from the rectified space to detector space.
 
         Parameters
         ----------
-        col : ndarray
+        disp : ndarray
             The dispersion-axis coordinates to be transformed.
-        row : ndarray
+        cdisp : ndarray
             The cross-dispersion coordinates, returned as is.
 
         Returns
@@ -298,11 +346,11 @@ class TiltCorrection:
             A tuple containing the transformed dispersion-axis coordinates as the first element
             and the original cross-dispersion-axis coordinates as the second element..
         """
-        return self._r2d(col, row), row
+        return self._r2d(disp, cdisp), cdisp
 
     def rectify(
         self,
-        flux: ndarray,
+        flux: NDData,
         nbins: int | None = None,
         bounds: tuple[float, float] | None = None,
         bin_edges: Iterable[float] | None = None,
@@ -310,36 +358,40 @@ class TiltCorrection:
         """Resample a 2D spectrum from the detector space to a rectified space.
 
         Resample a 2D spectrum from the detector space to a rectified space where the wavelength
-        is constant along the rows. The grid edges are based on the specified number of bins,
-        bounds, or bin edges. The resampling is eaxct and conserves flux (as long as the
-        rectified space covers the whole detector space.)
+        is constant along the cross-dispersion axis. The grid edges are based on the specified
+        number of bins, bounds, or bin edges. The resampling is exact and conserves flux (as
+        long as the rectified space covers the whole detector space.)
 
         Parameters
         ----------
         flux
-            2D array representing the flux values of the distorted input image. The first
-            dimension corresponds to rows (typically the y-axis), and the second dimension
-            corresponds to columns (typically the x-axis).
+            2D spectrum as an NDData instance. The dispersion and cross-dispersion axis alignment
+            should be the same as in the arc frames.
         nbins
             Number of bins in the rectified space. If None, the number of bins will be set
             to the number of columns in the `flux` input image.
         bound
             Tuple specifying the start and end coordinates for the rectified space along the
-            x-axis. If None, the bounds default to (0, number of columns in `flux`).
+            x-axis. If None, the bounds default to (0, number of columns in ``flux``).
         bin_edges
             Explicitly provided edges of the bins in the rectified space. If None, bin
-            edges are automatically calculated as a uniform grid based on `nbins` and
-            `bounds`.
+            edges are automatically calculated as a uniform grid based on ``nbins`` and
+            ``bounds``.
 
         Returns
         -------
         rectified_flux : ndarray
-            2D array containing the flux values rectified into the uniform grid defined
-            by `nbins`, `bounds`, or `bin_edges`. The output has the same number of rows
-            as the input `flux`, and its second dimension corresponds to the number of
-            rectified bins.
+            NDData instance containing the flux values rectified into the uniform grid
+            defined by ``nbins``, ``bounds``, or ``bin_edges``.
         """
-        ny, nx = flux.shape
+
+        # TODO: In the future, we want to make sure that we don't copy the data unless absolutely
+        # necessary.
+        ip = _ImageParser()
+        im = ip._parse_image(flux, disp_axis=self.disp_axis, mask_treatment=self.mask_treatment)
+        flux = im.flux
+
+        ny, nx = flux.data.shape
         ypix = np.arange(ny)
         nbins = nx if nbins is None else nbins
         l1, l2 = bounds if bounds is not None else (0, nx)
@@ -396,27 +448,30 @@ class TiltCorrection:
 
         # Apply the normalization factor to conserve flux
         rectified_flux *= n[:, None]
-        return rectified_flux
+        if self.disp_axis == 0:
+            rectified_flux = rectified_flux.T
+
+        return NDData(rectified_flux*im.unit)
 
     def plot_wavelength_contours(
         self,
-        ncol: int = 50,
-        nrow: int = 100,
-        cols: Sequence[float] | None = None,
+        ndisp: int = 50,
+        ncdisp: int = 100,
+        disp_values: Sequence[float] | None = None,
         ax: plt.Axes | None = None,
         figsize: tuple[float, float] | None = None,
-        line_args: dict | None =None,
+        line_args: dict | None = None,
     ):
         """Plot wavelength contour lines in detector space.
 
         Parameters
         ----------
-        ncol
-            The number of columns in the grid.
-        nrow
-            The number of rows in the grid.
-        cols
-            A sequence specifying the x-coordinates of the grid columns. If not
+        ndisp
+            The number of dispersion-axis lines.
+        ncdisp
+            The number of cross-dispersion axis points for each disp-axis line.
+        disp_values
+            A sequence specifying the dispersion-axis coordinates explicitly. If not
             provided, it will be automatically calculated based on the arc frame
             dimensions.
         ax
@@ -436,7 +491,7 @@ class TiltCorrection:
             The Matplotlib figure containing the plot. If an Axes instance is passed
             to `ax`, the associated figure is returned.
         """
-        largs = {'c': 'k', 'lw': 0.5, 'alpha': 0.5, 'ls':'--'}
+        largs = {"c": "k", "lw": 0.5, "alpha": 0.5, "ls": "--"}
         if line_args is not None:
             largs.update(line_args)
 
@@ -445,13 +500,13 @@ class TiltCorrection:
         else:
             fig = ax.figure
 
-        if cols is None:
-            cols = tile(np.linspace(0, self.arc_frames[0].data.shape[1], ncol), (nrow, 1))
+        if disp_values is None:
+            disp_values = tile(np.linspace(0, self.arc_frames[0].data.shape[1], ndisp), (ncdisp, 1))
         else:
-            ncol = len(cols)
-        rows = tile(np.linspace(0, self.arc_frames[0].data.shape[0], nrow)[:, None], (1, ncol))
+            ndisp = len(disp_values)
+        rows = tile(np.linspace(0, self.arc_frames[0].data.shape[0], ncdisp)[:, None], (1, ndisp))
 
-        ax.plot(self._r2d(cols, rows), rows, **largs)
+        ax.plot(self._r2d(disp_values, rows), rows, **largs)
         return fig
 
     def plot_fit_quality(
