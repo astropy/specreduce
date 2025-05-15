@@ -18,7 +18,8 @@ wavelength calibration and performing robust sky subtraction.
 
 In the `specreduce` package, the tilt function is represented as a 2D polynomial using an
 ``~astropy.modeling.models.Polynomial2D`` instance of a specified degree. The
-`~specreduce.tilt_correction.TiltCorrection` class implements this correction through several steps:
+``~specreduce.tilt_correction.TiltCorrection`` class implements this correction through several
+steps:
 
 1. Identifying emission lines in one or more arc lamp calibration spectra for a given number of
    cross-dispersion sample positions
@@ -31,7 +32,7 @@ Tutorials
 ---------
 
 The following tutorial provides hands-on examples demonstrating the usage of the
-`~specreduce.tilt_correction.TiltCorrection` class.
+``~specreduce.tilt_correction.TiltCorrection`` class.
 
 .. toctree::
    :maxdepth: 1
