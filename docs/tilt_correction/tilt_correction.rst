@@ -17,7 +17,7 @@ process known as 2D rectification). This alignment is essential for achieving ac
 wavelength calibration and performing robust sky subtraction.
 
 In the `specreduce` package, the tilt function is represented as a 2D polynomial using an
-`~astropy.modeling.models.Polynomial2D` instance of a specified degree. The
+``~astropy.modeling.models.Polynomial2D`` instance of a specified degree. The
 `~specreduce.tilt_correction.TiltCorrection` class implements this correction through several steps:
 
 1. Identifying emission lines in one or more arc lamp calibration spectra for a given number of

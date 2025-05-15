@@ -14,6 +14,8 @@ from specreduce.compat import Spectrum
 from specreduce.core import _ImageParser
 from specreduce.line_matching import find_arc_lines
 
+__all__ = ["TiltCorrection"]
+
 
 def diff_poly2d_x(model: models.Polynomial2D) -> models.Polynomial2D:
     """Compute the partial derivative of a 2D polynomial model with respect to x.
@@ -451,7 +453,7 @@ class TiltCorrection:
         if self.disp_axis == 0:
             rectified_flux = rectified_flux.T
 
-        return NDData(rectified_flux*im.unit)
+        return NDData(rectified_flux * im.unit)
 
     def plot_wavelength_contours(
         self,
