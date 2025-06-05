@@ -33,7 +33,7 @@ import sphinx
 from specreduce import __version__
 
 try:
-    from sphinx_astropy.conf.v1 import *  # noqa
+    from sphinx_astropy.conf.v2 import *  # noqa
 except ImportError:
     print('ERROR: the documentation requires the sphinx-astropy package to be installed')
     sys.exit(1)
@@ -52,7 +52,7 @@ if sys.version_info[:2] >= (3, 13) and sphinx.version_info[:2] < (8, 2):
 highlight_language = 'python3'
 
 # If your documentation needs a minimal Sphinx version, state it here.
-#needs_sphinx = '1.2'
+needs_sphinx = '3.0'
 
 # To perform a Sphinx version check that needs to be more specific than
 # major.minor, call `check_sphinx_version("x.y.z")` here.
@@ -87,40 +87,46 @@ release = __version__
 
 # -- Options for HTML output --------------------------------------------------
 
-# A NOTE ON HTML THEMES
-# The global astropy configuration uses a custom theme, 'bootstrap-astropy',
-# which is installed along with astropy. A different theme can be used or
-# the options for this theme can be modified by overriding some of the
-# variables set in the global configuration. The variables set in the
-# global configuration are listed below, commented out.
-
-
-# Add any paths that contain custom themes here, relative to this directory.
-# To use a different custom theme, add the directory containing the theme.
-#html_theme_path = []
-
-# The theme to use for HTML and HTML Help pages.  See the documentation for
-# a list of builtin themes. To override the custom theme, set this to the
-# name of a builtin theme or the name of a custom theme in html_theme_path.
-#html_theme = None
 html_static_path = ['_static']  # html_theme = None
 html_style = 'specreduce.css'
 
-
-html_theme_options = {
-    'logotext1': 'spec',  # white,  semi-bold
-    'logotext2': 'reduce',  # orange, light
-    'logotext3': ':docs'   # white,  light
+html_theme_options.update(
+    {
+        "github_url": "https://github.com/astropy/specreduce",
+        "use_edit_page_button": False,
+        "navigation_with_keys": False,
+        "logo": {
+            "text": f"{project}",
+            "image_light": "_static/logo_icon.png",
+            "image_dark": "_static/logo_icon.png",
+        },
     }
+)
+
+html_context = {
+    "default_mode": "light",
+    "version_slug": os.environ.get("READTHEDOCS_VERSION") or "",
+    "to_be_indexed": ["stable", "latest"],
+    "github_user": "astropy",
+    "github_repo": "specreduce",
+    "github_version": "main",
+    "doc_path": "docs",
+    "edit_page_url_template": "{{ astropy_custom_edit_url(github_user, github_repo, github_version, doc_path, file_name, default_edit_page_url_template) }}",
+    "default_edit_page_url_template": "https://github.com/{github_user}/{github_repo}/edit/{github_version}/{doc_path}{file_name}",
+    # Tell Jinja2 templates the build is running on Read the Docs
+    "READTHEDOCS": os.environ.get("READTHEDOCS", "") == "True",
+}
+
+#html_theme_options = {
+#    'logotext1': 'spec',  # white,  semi-bold
+#    'logotext2': 'reduce',  # orange, light
+#    'logotext3': ':docs'   # white,  light
+#    }
 
 # Custom sidebar templates, maps document names to template names.
 #html_sidebars = {}
-html_sidebars['**'] = ['localtoc.html']
-html_sidebars['index'] = ['globaltoc.html', 'localtoc.html']
-
-# The name of an image file (relative to this directory) to place at the top
-# of the sidebar.
-#html_logo = ''
+#html_sidebars['**'] = ['localtoc.html']
+#html_sidebars['index'] = ['globaltoc.html', 'localtoc.html']
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
