@@ -85,6 +85,7 @@ filterwarnings = [
     "ignore:.*utcfromtimestamp:DeprecationWarning",
     # DeprecationWarning from gwcs 0.18.3 in oldestdeps
     "ignore:.*pkg_resources.*:DeprecationWarning",
+    "ignore:The Spectrum1D class is deprecated and may be removed",
 ]
 
 [tool.coverage]
