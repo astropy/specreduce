@@ -1,7 +1,7 @@
 .. _wavelength_calibration:
 
-Wavelength Calibration
-======================
+1D Wavelength Calibration
+=========================
 
 Wavelength calibration is currently supported for 1D spectra. Given a list of spectral
 lines with known wavelengths and estimated pixel positions on an input calibration
@@ -21,11 +21,11 @@ example below, the line positions (``pixel_centers``) have already been extracte
 ``lamp_spectrum``::
 
     import astropy.units as u
-	 from specreduce import WavelengthCalibration1D
-	 pixel_centers = [10, 22, 31, 43]
-	 wavelengths = [5340, 5410, 5476, 5543]*u.AA
-	 test_cal = WavelengthCalibration1D(lamp_spectrum, line_pixels=pixel_centers,
-										line_wavelengths=wavelengths)
+    from specreduce import WavelengthCalibration1D
+    pixel_centers = [10, 22, 31, 43]
+    wavelengths = [5340, 5410, 5476, 5543]*u.AA
+    test_cal = WavelengthCalibration1D(lamp_spectrum, line_pixels=pixel_centers,
+        line_wavelengths=wavelengths)
     calibrated_spectrum = test_cal.apply_to_spectrum(science_spectrum)
 
 The example above uses the default model (`~astropy.modeling.functional_models.Linear1D`)
