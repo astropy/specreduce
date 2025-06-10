@@ -2,18 +2,32 @@ Tracing
 =======
 
 The `specreduce.tracing` module defines the spatial position (trace) of a spectrum across a 2D
-detector image. Tracing is a necessary step that identifies where the spectrum falls on each
-column and row of the detector, enabling accurate extraction of the 1D spectrum. The trace can be
-determined either semi-automatically or manually depending on the data quality and spectral
-characteristics.
+detector image. In spectroscopic data reduction, tracing is a critical step that identifies and maps 
+where the spectrum falls on each column and row of the detector. This mapping enables accurate 
+extraction of the one-dimensional spectrum from the two-dimensional image data. The trace effectively 
+accounts for any curvature or tilt in how the spectrum is projected onto the detector, which can 
+occur due to optical effects in the spectrograph or mechanical flexure during observations.
 
-The module provides three main trace types for different scenarios:
+The trace position can be determined either semi-automatically or manually depending on factors like:
 
-* `~specreduce.tracing.ArrayTrace` - Uses a pre-defined array of positions for maximum flexibility
-* `~specreduce.tracing.FlatTrace` - Assumes spectrum follows a straight horizontal/vertical line
-* `~specreduce.tracing.FitTrace` - Fits a polynomial function to automatically detected spectrum positions
+* Data quality and signal-to-noise ratio
+* Spectral characteristics and features
+* Presence of contaminating sources or artifacts
+* Wavelength coverage and dispersion direction
 
-Each trace class requires the 2D spectral image as input, along with trace-specific parameters.
+The module provides three main trace types to handle different observational scenarios:
+
+* `~specreduce.tracing.ArrayTrace` - Uses a pre-defined array of positions for maximum flexibility. 
+  Ideal for complex or unusual trace shapes that are difficult to model mathematically.
+
+* `~specreduce.tracing.FlatTrace` - Assumes the spectrum follows a straight horizontal/vertical line
+  across the detector. Best for well-aligned spectrographs with minimal optical distortion.
+
+* `~specreduce.tracing.FitTrace` - Fits a polynomial function to automatically detected spectrum 
+  positions. Suitable for typical spectra with smooth, continuous trace profiles.
+
+Each trace class requires the 2D spectral image as input, along with trace-specific parameters
+that control how the trace is determined and fitted to the data.
 
 Flat trace
 ----------
@@ -43,11 +57,24 @@ FitTrace
                                       window=10)        # pixel window for centroid
 
 
-.. note::
+Best Practices
+-------------
 
-    When using `~specreduce.tracing.FitTrace` with noisy or faint spectra:
-    
-    * Reduce the ``window`` parameter to minimize impact of background noise
-    * Lower the polynomial ``order`` to prevent overfitting
-    * Consider using `~specreduce.tracing.FlatTrace` for very faint spectra
-    * Mask cosmic rays or bad pixels before tracing
+When selecting and configuring a trace method, consider these guidelines:
+
+* For bright, well-defined spectra:
+    - `FitTrace` with default parameters usually works well
+    - Larger ``window`` values can improve centroid accuracy
+    - Higher polynomial orders can better follow any curvature
+
+* For noisy or faint spectra:
+    - Reduce the ``window`` parameter to minimize impact of background noise
+    - Lower the polynomial ``order`` to prevent overfitting
+    - Consider using `FlatTrace` for very faint spectra
+    - Mask cosmic rays or bad pixels before tracing
+    - Pre-process images to improve signal-to-noise if needed
+
+* For unusual or complex traces:
+    - Use `ArrayTrace` with manually determined positions
+    - Consider breaking the trace into segments
+    - Validate trace positions visually before extraction
