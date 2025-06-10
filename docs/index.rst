@@ -33,11 +33,6 @@ and visualization by `matplotlib <https://matplotlib.org/>`_. A few
 examples will be provided that feature ``specreduce`` in conjunction with these
 complementary packages.
 
-.. note::
-
-    Specreduce is currently an incomplete work-in-progress and is liable to
-    change. Please feel free to contribute code and suggestions through github.
-
 
 .. toctree::
     :maxdepth: 2
