@@ -1,4 +1,4 @@
-1.5.1 (unreleased)
+1.6.0 (unreleased)
 ------------------
 
 New Features
@@ -15,6 +15,8 @@ Bug Fixes
 Other changes
 ^^^^^^^^^^^^^
 
+- Set Python 3.11 as the minimum supported Python version and added test support
+  for Python 3.13. [#271]
 - Compatibility with specutils 2.0. [#260]
 
 1.5.1 (2024-03-08)

@@ -14,6 +14,7 @@ on:
   schedule:
     # run every Monday at 6am UTC
     - cron: '0 6 * * 1'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,20 +32,20 @@ jobs:
         - name: Codestyle
           linux: codestyle
 
-        - name: Python 3.10 on Linux with oldest supported dependencies
-          linux: py310-test-oldestdeps
-          toxargs: -v
-
-        - name: Python 3.11 on Windows with minimal dependencies
-          windows: py311-test
+        - name: Python 3.11 on Windows with oldest supported dependencies
+          windows: py311-test-oldestdeps
           toxargs: -v
 
         - name: Python 3.11 on OSX with minimal dependencies
           macos: py311-test
           toxargs: -v
+        
+        - name: Python 3.12 on Linux with minimal dependencies
+          linux: py312-test
+          toxargs: -v
 
-        - name: Python 3.12 on Linux with all dependencies, remote data, and coverage
-          linux: py312-test-alldeps-cov
+        - name: Python 3.13 on Linux with all dependencies, remote data, and coverage
+          linux: py313-test-alldeps-cov
           coverage: codecov
           toxargs: -v
           posargs: --remote-data=any
