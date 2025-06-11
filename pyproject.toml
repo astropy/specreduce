@@ -9,9 +9,9 @@ description = "Astropy coordinated package for Spectroscopic Reductions"
 readme = "README.rst"
 requires-python = ">=3.11"
 dependencies = [
-    "numpy",
-    "astropy",
-    "scipy",
+    "numpy>=1.24",
+    "astropy>=5.1",
+    "scipy>=1.10",
     "specutils>=1.9.1",
     "gwcs",
 ]
@@ -19,18 +19,18 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "pytest-astropy",
-    "photutils",
+    "photutils>=1.0",
     "tox",
 ]
 docs = [
     "sphinx-astropy",
-    "matplotlib",
-    "photutils",
+    "matplotlib>=3.7",
+    "photutils>=1.0",
     "synphot",
 ]
 all = [
-    "matplotlib",
-    "photutils",
+    "matplotlib>=3.7",
+    "photutils>=1.0",
     "synphot",
 ]
 
