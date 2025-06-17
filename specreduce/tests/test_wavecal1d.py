@@ -77,7 +77,8 @@ def test_init(mk_arc, mk_lines):
     with pytest.raises(ValueError, match="Only one of arc_spectra or obs_lines can be provided."):
         WavelengthCalibration1D(ref_pixel, arc_spectra=arc, obs_lines=obs_lines)
 
-    arc = Spectrum(flux=np.array([[1, 2]]) * u.DN, spectral_axis=np.array([1, 2]) * u.angstrom)
+    arc = Spectrum(flux=np.array([[1, 2, 3, 4, 5]]) * u.DN,
+                   spectral_axis=np.array([1, 2, 3, 4, 5]) * u.angstrom)
     with pytest.raises(ValueError, match="The arc spectrum must be one dimensional."):
         WavelengthCalibration1D(ref_pixel, arc_spectra=arc)
 
