@@ -391,7 +391,7 @@ class TiltCorrection:
         # necessary.
         ip = _ImageParser()
         im = ip._parse_image(flux, disp_axis=self.disp_axis, mask_treatment=self.mask_treatment)
-        flux = im.flux
+        flux = im.flux.value
 
         ny, nx = flux.data.shape
         ypix = np.arange(ny)
