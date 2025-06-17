@@ -20,6 +20,7 @@ dependencies = [
 test = [
     "pytest-astropy",
     "photutils>=1.0",
+    "matplotlib>=3.7",
     "tox",
 ]
 docs = [
