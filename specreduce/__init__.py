@@ -3,7 +3,6 @@
 from specreduce.core import *  # noqa
 from specreduce.wavelength_calibration import * # noqa
 
-
 try:
     from .version import version as __version__
 except ImportError:

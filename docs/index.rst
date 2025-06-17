@@ -50,7 +50,8 @@ Calibration
 .. toctree::
     :maxdepth: 1
 
-    wavelength_calibration.rst
+    tilt_correction/tilt_correction.rst
+    wavelength_calibration/wavelength_calibration.rst
     extinction.rst
     specphot_standards.rst
     mask_treatment/mask_treatment.rst
