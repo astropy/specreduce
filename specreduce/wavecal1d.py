@@ -12,11 +12,11 @@ from numpy.ma.core import MaskedArray
 from scipy import optimize
 from scipy.interpolate import interp1d
 from scipy.spatial import KDTree
-from specutils import Spectrum1D
 from matplotlib.pyplot import Axes, Figure, setp, subplots
 
 from specreduce.calibration_data import load_pypeit_calibration_lines
 from specreduce.line_matching import find_arc_lines
+from specreduce.compat import Spectrum
 
 __all__ = ["WavelengthCalibration1D"]
 
@@ -49,7 +49,7 @@ class WavelengthCalibration1D:
         unit: u.Unit = u.angstrom,
         degree: int = 3,
         line_lists: Sequence | None = None,
-        arc_spectra: Spectrum1D | Sequence[Spectrum1D] | None = None,
+        arc_spectra: Spectrum | Sequence[Spectrum] | None = None,
         obs_lines: ndarray | Sequence[ndarray] | None = None,
         pix_bounds: tuple[int, int] | None = None,
         line_list_bounds: tuple[float, float] = (0, np.inf),
@@ -103,7 +103,7 @@ class WavelengthCalibration1D:
         self.ref_pixel = ref_pixel
         self.nframes = 0
 
-        self.arc_spectra: list[Spectrum1D] | None = None
+        self.arc_spectra: list[Spectrum] | None = None
         self.bounds_pix: tuple[int, int] | None = pix_bounds
         self.bounds_wav: tuple[float, float] | None = None
         self._cat_lines: list[MaskedArray] | None = None
@@ -124,7 +124,7 @@ class WavelengthCalibration1D:
             raise ValueError("Only one of arc_spectra or obs_lines can be provided.")
 
         if arc_spectra is not None:
-            self.arc_spectra = [arc_spectra] if isinstance(arc_spectra, Spectrum1D) else arc_spectra
+            self.arc_spectra = [arc_spectra] if isinstance(arc_spectra, Spectrum) else arc_spectra
             self.nframes = len(self.arc_spectra)
             for s in self.arc_spectra:
                 if s.data.ndim > 1:
@@ -444,11 +444,11 @@ class WavelengthCalibration1D:
 
     def resample(
         self,
-        spectrum: Spectrum1D,
+        spectrum: Spectrum,
         nbins: int | None = None,
         wlbounds: tuple[float, float] | None = None,
         bin_edges: Sequence[float] | None = None,
-    ) -> Spectrum1D:
+    ) -> Spectrum:
         """Bin the given pixel-space 1D spectrum to a wavelength space conserving the flux.
 
         This method bins a pixel-space spectrum to a wavelength space using the computed
@@ -516,7 +516,7 @@ class WavelengthCalibration1D:
         flux_wl = (flux_wl * n) * spectrum.flux.unit
         ucty_wl = VarianceUncertainty(ucty_wl * n).represent_as(type(spectrum.uncertainty))
 
-        return Spectrum1D(flux_wl, bin_centers_wav * u.angstrom, uncertainty=ucty_wl)
+        return Spectrum(flux_wl, bin_centers_wav * u.angstrom, uncertainty=ucty_wl)
 
     def pix_to_wav(self, pix: MaskedArray | ndarray | float) -> ndarray | float:
         """Map pixel values into wavelength values.
