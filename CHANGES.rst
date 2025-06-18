@@ -1,25 +1,23 @@
-1.6.0 (unreleased)
+1.6.0 (2025-06-18)
 ------------------
-
-New Features
-^^^^^^^^^^^^
-
-API Changes
-^^^^^^^^^^^
 
 Bug Fixes
 ^^^^^^^^^
 - When all-zero bin encountered in fit_trace with peak_method=gaussian, the bin peak
-  will be set to NaN in this caseto work better with DogBoxLSQFitter. [#257]
+  will be set to NaN in this case to work better with DogBoxLSQFitter. [#257]
+- Reverted the changes to ``background.Background.bgk_spectrum`` introduced in 1.5.0 [#266].
 
 Other changes
 ^^^^^^^^^^^^^
 
+- Compatibility with specutils 2.0. [#260]
 - Set Python 3.11 as the minimum supported Python version and added test support
   for Python 3.13. [#271]
-- Compatibility with specutils 2.0. [#260]
+- Changed the ``statistic`` parameter in ``utils.measure_cross_dispersion_profile`` to accept
+  either ``median`` or ``average`` instead of ``median`` or ``mean``. [#258]
 
-1.5.1 (2024-03-08)
+
+1.5.1 (2025-03-08)
 ------------------
 
 Bug Fixes
@@ -27,9 +25,9 @@ Bug Fixes
 
 - Changed Horne extraction to behave as before when using an interpolated spatial profile
   and not explicitly setting `bkgrd_prof` to `None`. The changed default behavior in 1.5.0
-  caused problems in codes using specreduce.
+  caused problems in codes using specreduce. [#256]
 
-1.5.0 (2024-03-06)
+1.5.0 (2025-03-06)
 ------------------
 
 New Features
@@ -47,9 +45,6 @@ New Features
   to ``apply``; otherwise, non-finite values are propagated. Boxcar extraction is
   now carried out as a weighed sum over the window. When no non-finite values are
   present, the extracted spectra remain unchanged from the previous behaviour.
-
-API Changes
-^^^^^^^^^^^
 
 Bug Fixes
 ^^^^^^^^^
