@@ -24,7 +24,9 @@ Supported trace types include:
 
 Each of these trace classes takes the 2D spectral image as input, as well as
 additional information needed to define or determine the trace (see the API docs
-above for required parameters for each of the available trace classes)::
+above for required parameters for each of the available trace classes)
+
+.. code-block:: python
 
   trace = specreduce.tracing.FlatTrace(image, 15)
 
@@ -45,15 +47,17 @@ defined by one or more windows, and can be generated with:
 * `Background.one_sided <specreduce.background.Background.one_sided>`
 * `Background.two_sided <specreduce.background.Background.two_sided>`
 
-The center of the window can either be passed as a float/integer or as a trace::
+The center of the window can either be passed as a float/integer or as a trace
+
+.. code-block:: python
 
   bg = specreduce.background.Background.one_sided(image, trace, separation=5, width=2)
 
+or, equivalently
 
-or, equivalently::
+.. code-block:: python
 
   bg = specreduce.background.Background.one_sided(image, 15, separation=5, width=2)
-
 
 The background image can be accessed via `~specreduce.background.Background.bkg_image`
 and the background-subtracted image via `~specreduce.background.Background.sub_image`
@@ -73,23 +77,29 @@ window, using one of the following implemented methods:
 * `~specreduce.extract.HorneExtract`
 
 Each of these takes the input image and trace as inputs (see the API above for
-other required and optional parameters)::
+other required and optional parameters)
+
+.. code-block:: python
 
   extract = specreduce.extract.BoxcarExtract(image-bg, trace, width=3)
 
-or::
+or
+
+.. code-block:: python
 
   extract = specreduce.extract.HorneExtract(image-bg, trace)
 
 For the Horne algorithm, the variance array is required. If the input image is
-an ``astropy.NDData`` object with ``image.uncertainty`` provided,
-then this will be used. Otherwise, the ``variance`` parameter must be set.::
+an ``~astropy.nddata.NDData`` object with ``image.uncertainty`` provided,
+then this will be used. Otherwise, the ``variance`` parameter must be set.
+
+.. code-block:: python
 
   extract = specreduce.extract.HorneExtract(image-bg, trace, variance=var_array)
 
 An optional mask array for the image may be supplied to HorneExtract as well. 
 This follows the same convention and can either be attached to ``image`` if it
-is an ``astropy.NDData`` object, or supplied as a keyword argument.
+is an ``~astropy.nddata.NDData`` object, or supplied as a keyword argument.
 
 The extraction methods automatically detect non-finite pixels in the input
 image and combine them with the user-supplied mask to prevent them from biasing the
@@ -102,17 +112,24 @@ differently as documented in the API.
 
 The previous examples in this section show how to initialize the BoxcarExtract
 or HorneExtract objects with their required parameters. To extract the 1D
-spectrum::
+spectrum
+
+.. code-block:: python
 
   spectrum = extract.spectrum
 
 The ``extract`` object contains all the set options.  The extracted 1D spectrum
 can be accessed via the ``spectrum`` property or by calling (e.g ``extract()``)
-the ``extract`` object (which also allows temporarily overriding any values)::
+the ``extract`` object (which also allows temporarily overriding any values)
+
+.. code-block:: python
 
   spectrum2 = extract(width=6)
 
-or, for example to override the original ``trace_object``::
+or, for example to override the original ``trace_object``
+
+.. code-block:: python
+
   spectrum2 = extract(trace_object=new_trace)
 
 Spatial profile options
@@ -138,16 +155,22 @@ and to use the defaults for bins and interpolation degree, or to override these
 defaults a dictionary can be passed in.
 
 For example, to use the ``interpolated_profile`` option with default bins and
-interpolation degree::
+interpolation degree
+
+.. code-block:: python
 
   interp_profile_extraction = extract(spatial_profile='interpolated_profile')
 
-Or, to override the default of 10 samples and use 20 samples::
+Or, to override the default of 10 samples and use 20 samples
+
+.. code-block:: python
 
   interp_profile_extraction = extract(spatial_profile={'name': 'interpolated_profile',
                                     'n_bins_interpolated_profile': 20)
 
-Or, to do a cubic interpolation instead of the default linear::
+Or, to do a cubic interpolation instead of the default linear
+
+.. code-block:: python
 
     interp_profile_extraction = extract(spatial_profile={'name': 'interpolated_profile',
                                     'interp_degree_interpolated_profile': 3)
@@ -163,7 +186,9 @@ wavelength units will be pixels. Wavelength and flux calibration steps are not
 included here.
 
 Putting all these steps together, a simple extraction process might look
-something like::
+something like
+
+.. code-block:: python
 
     from specreduce.tracing import FlatTrace
     from specreduce.background import Background
