@@ -90,7 +90,7 @@ or
   extract = specreduce.extract.HorneExtract(image-bg, trace)
 
 For the Horne algorithm, the variance array is required. If the input image is
-an ``~astropy.nddata.NDData`` object with ``image.uncertainty`` provided,
+an `~astropy.nddata.NDData` object with ``image.uncertainty`` provided,
 then this will be used. Otherwise, the ``variance`` parameter must be set.
 
 .. code-block:: python

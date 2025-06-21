@@ -22,7 +22,7 @@ or
   extract = specreduce.extract.HorneExtract(image-bg, trace)
 
 For the Horne algorithm, the variance array is required. If the input image is
-an ``astropy.NDData`` object with ``image.uncertainty`` provided,
+an `~astropy.nddata.NDData` object with ``image.uncertainty`` provided,
 then this will be used. Otherwise, the ``variance`` parameter must be set.
 
 .. code-block:: python
@@ -31,7 +31,7 @@ then this will be used. Otherwise, the ``variance`` parameter must be set.
 
 An optional mask array for the image may be supplied to HorneExtract as well.
 This follows the same convention and can either be attached to ``image`` if it
-is an ``astropy.NDData`` object, or supplied as a keyword argument.
+is an `~astropy.nddata.NDData` object, or supplied as a keyword argument.
 
 The extraction methods automatically detect non-finite pixels in the input
 image and combine them with the user-supplied mask to prevent them from biasing the
