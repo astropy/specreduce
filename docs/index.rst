@@ -9,8 +9,7 @@ specific instruments can be built. The scope of its functionality is limited to 
 reduction, currently encompassing the following tasks:
 
 #. **2D tilt model calculation and correction:** A 2D tilt model can be calculated from arc
-   spectra. Tilt correction removes the wavelength curvature along the cross-dispersion axis,
-
+   spectra. Tilt correction removes the wavelength curvature along the cross-dispersion axis.
 #. **1D wavelength calibration:** from arc spectra.
 #. **Spectrum trace determination:** Determining the trace of a spectrum dispersed in a 2D
    image, either by setting a flat
