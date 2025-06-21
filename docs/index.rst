@@ -1,9 +1,10 @@
+.. _docroot:
+
 ########################
 Specreduce Documentation
 ########################
 
-The `specreduce <https://specreduce.readthedocs.io/en/latest/index.html>`_ package
-aims to provide a data reduction toolkit for optical
+The :ref:`specreduce <docroot>` package aims to provide a data reduction toolkit for optical
 and infrared spectroscopy, on which applications such as pipeline processes for
 specific instruments can be built. The scope of its functionality is limited to basic spectroscopic
 reduction, currently encompassing the following tasks:
