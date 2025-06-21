@@ -1,22 +1,11 @@
 Tracing
 =======
 
-The `specreduce.tracing` module defines the spatial position (trace) of a spectrum across a 2D
-detector image. In spectroscopic data reduction, tracing is a critical step that identifies and maps 
-where the spectrum falls on each column and row of the detector. The trace effectively
-accounts for any curvature or tilt in how the spectrum is projected onto the detector, which can 
-occur due to optical effects in the spectrograph or mechanical flexure during observations.
-
-The trace position can be determined either semi-automatically or manually depending on:
-
-* Data quality and signal-to-noise ratio
-* Spectral characteristics and features
-* Presence of contaminating sources or artifacts
-
-The `~specreduce.tracing` module provides three main trace types to handle different scenarios:
-`~specreduce.tracing.FlatTrace`, `~specreduce.tracing.FitTrace`, and
-`~specreduce.tracing.ArrayTrace`. Each trace class requires the 2D spectral image as input, along
-with trace-specific parameters that control how the trace is determined and fitted to the data.
+The `specreduce.tracing` module provides three ``Trace`` classes that are used to define the
+spatial position (trace) of a spectrum across a 2D detector image: `~specreduce.tracing.FlatTrace`,
+`~specreduce.tracing.FitTrace`, and `~specreduce.tracing.ArrayTrace`. Each trace class requires
+the 2D spectral image as input, along with trace-specific parameters that control how the trace
+is determined.
 
 Flat trace
 ----------
@@ -28,7 +17,7 @@ pixel position:
 
 .. code-block:: python
 
-    trace = specreduce.tracing.FlatTrace(image, position=6)
+    trace = specreduce.tracing.FlatTrace(image, trace_pos=6)
 
 
 .. plot::
@@ -93,6 +82,47 @@ along the dispersion axis.
     plt.setp(ax, xlabel='Dispersion axis', ylabel='Cross-dispersion axis')
     fig.show()
 
+The method works by (optionally) binning the 2D spectrum along the dispersion axis, finding
+the PSF peak position along the cross-dispersion for each bin, and then fitting a 1D polynomial to
+the cross-dispersion and dispersion axis positions. Binning is optional, and the native image
+resolution is used by default. Binning can significantly increase the reliability of the fitting
+with low SNR spectra, and always increases the speed.
+
+The peak detection method can be chosen from ``max``, ``centroid``, and ``gaussian``. Of these
+methods, ``max`` is the fastest but yields an integer pixel precision.  Both ``centroid`` and
+``gaussian`` can be used when sub-pixel precision is required, and ``gaussian``, while being the
+slowest method of the three, is the best option if the data is significantly contaminated by
+non-finite values.
+
+.. plot::
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.stats import norm
+    from numpy.random import seed, normal
+    from astropy.modeling.models import Gaussian1D
+    from astropy.modeling.fitting import DogBoxLSQFitter
+    plt.rc('font', size=13)
+    seed(5)
+
+    fw = 10
+    nd, ncd = 31, 13
+    xd, xcd = np.arange(nd), np.arange(ncd)
+
+    psf = norm(5.4, 1.5).pdf(xcd) + normal(0, 0.01, ncd)
+    fitter = DogBoxLSQFitter()
+    m = fitter(Gaussian1D(), xcd, psf)
+
+    fig, ax = plt.subplots(figsize=(fw, fw*(ncd/nd)), constrained_layout=True)
+    ax.step(xcd, psf, where='mid', c='k')
+    ax.axvline(xcd[np.argmax(psf)], label='max')
+    ax.axvline(np.average(xcd, weights=psf), ls='--', label='centroid')
+    ax.axvline(m.mean.value, ls=':', label='gaussian')
+    ax.plot(xcd, m(xcd), ls=':')
+    ax.legend()
+    plt.setp(ax, yticks=[], ylabel='Flux', xlabel='Cross-dispersion axis [pix]', xlim=(0, ncd-1))
+    fig.show()
+
 ArrayTrace
 ----------
 
@@ -134,25 +164,3 @@ positions. The size of the array must match the number of dispersion-axis pixels
     ax.grid(alpha=0.25, lw=1, which='minor')
     plt.setp(ax, xlabel='Dispersion axis', ylabel='Cross-dispersion axis')
     fig.show()
-
-Best Practices
--------------
-
-When selecting and configuring a trace method, consider these guidelines:
-
-* For bright, well-defined spectra:
-    - `FitTrace` with default parameters usually works well
-    - Larger ``window`` values can improve centroid accuracy
-    - Higher polynomial orders can better follow any curvature
-
-* For noisy or faint spectra:
-    - Reduce the ``window`` parameter to minimize impact of background noise
-    - Lower the polynomial ``order`` to prevent overfitting
-    - Consider using `FlatTrace` for very faint spectra
-    - Mask cosmic rays or bad pixels before tracing
-    - Pre-process images to improve signal-to-noise if needed
-
-* For unusual or complex traces:
-    - Use `ArrayTrace` with manually determined positions
-    - Consider breaking the trace into segments
-    - Validate trace positions visually before extraction
