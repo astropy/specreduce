@@ -9,13 +9,14 @@ and infrared spectroscopy, on which applications such as pipeline processes for
 specific instruments can be built. The scope of its functionality is limited to basic spectroscopic
 reduction, currently encompassing the following tasks:
 
-#. **2D tilt model calculation and correction:** A 2D tilt model can be calculated from arc
-   spectra. Tilt correction removes the wavelength curvature along the cross-dispersion axis.
-#. **1D wavelength calibration:** from arc spectra.
 #. **Spectrum trace determination:** Determining the trace of a spectrum dispersed in a 2D
    image, either by setting a flat
    trace, providing a custom trace array, or fitting a spline, polynomial, or other model
    to the positions of the dispersed spectrum.
+#. **2D tilt correction:** Calculating a 2D tilt model from arc spectra and applying it to
+   correct the wavelength curvature along the cross-dispersion axis.
+#. **1D wavelength calibration:** Calculating a 1D wavelength solution from arc spectra and line
+   lists.
 #. **Background subtraction:** Generating a background based on a region on one or both sides of
    this trace, and making
    available the background image, 1D spectrum of the background, and the
