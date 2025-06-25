@@ -25,6 +25,8 @@ test = [
 ]
 docs = [
     "sphinx-astropy",
+    "sphinx-copybutton",
+    "matplotlib>=3.7",
     "photutils>=1.0",
     "synphot",
     "nbsphinx",
