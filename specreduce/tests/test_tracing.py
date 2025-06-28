@@ -460,7 +460,7 @@ class TestMasksTracing:
             # run FitTrace, with the testing-only flag _save_bin_peaks_testing set
             # to True to return the bin peak values before fitting the trace
             trace = FitTrace(imgg, peak_method=peak_method, _save_bin_peaks_testing=True)
-            x_bins, y_bins = trace._bin_peaks_testing
+            x_bins, y_bins = trace._bin_peaks
             np.testing.assert_allclose(y_bins, expected, atol=0.1)
 
             # check that final fit to all bins, accouting for fully-masked bins,
@@ -548,7 +548,7 @@ class TestMasksTracing:
                 mask_treatment="propagate",
                 _save_bin_peaks_testing=True,
             )
-            x_bins, y_bins = trace._bin_peaks_testing
+            x_bins, y_bins = trace._bin_peaks
             np.testing.assert_allclose(y_bins, expected)
 
             # check that final fit to all bins, accouting for fully-masked bins,

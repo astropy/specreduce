@@ -276,6 +276,7 @@ class FitTrace(Trace, _ImageParser):
     bins: int | None = None
     guess: float | None = None
     window: int | None = None
+    disp_bounds: tuple[float, float] | None = None
     trace_model: Model = field(default=models.Polynomial1D(degree=1))
     peak_method: Literal["gaussian", "centroid", "max"] = "max"
     _crossdisp_axis: int = 0
@@ -283,7 +284,7 @@ class FitTrace(Trace, _ImageParser):
     mask_treatment: Literal["apply", "propagate", "apply_nan_only"] = "apply"
     _valid_mask_treatment_methods = ("apply", "propagate", "apply_nan_only")
     # for testing purposes only, save bin peaks if requested
-    _save_bin_peaks_testing: bool = False
+    _save_bin_peaks_testing: bool = True
 
     def __post_init__(self):
 
@@ -322,7 +323,9 @@ class FitTrace(Trace, _ImageParser):
                 "trace_model must be one of " f"{', '.join([m.name for m in valid_models])}."
             )
 
-        cols = img.shape[self._disp_axis]
+        self.dlim = self.disp_bounds if self.disp_bounds is not None else (0, img.shape[
+            self._disp_axis])
+        cols = self.dlim[1]
         model_deg = self.trace_model.degree
         if self.bins is None:
             self.bins = cols
@@ -394,7 +397,7 @@ class FitTrace(Trace, _ImageParser):
                 "for invalid values or use a larger window value."
             )
 
-        x_bins = np.linspace(0, img.shape[self._disp_axis], self.bins + 1, dtype=int)
+        x_bins = np.linspace(self.dlim[0], self.dlim[1], self.bins + 1, dtype=int)
         y_bins = np.tile(np.nan, self.bins)
 
         warn_bins = []
@@ -485,7 +488,7 @@ class FitTrace(Trace, _ImageParser):
 
         # for testing purposes only, save bin peaks if requested
         if self._save_bin_peaks_testing:
-            self._bin_peaks_testing = (x_bins, y_bins)
+            self._bin_peaks = (x_bins, y_bins)
 
         # filter non-finite bin peaks before filtering to all bin peaks
         y_finite = np.where(np.isfinite(y_bins))[0]
