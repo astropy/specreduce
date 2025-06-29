@@ -233,17 +233,22 @@ class FitTrace(Trace, _ImageParser):
         into which to divide the image. If not set, defaults to one bin
         per dispersion (wavelength) pixel in the given image. If set,
         requires at least 4 or N bins for a degree N ``trace_model``,
-        whichever is greater. [default: None]
+        whichever is greater. [default: ``None``]
     guess : int, optional
         A guess at the trace's location in the cross-dispersion
         (spatial) direction. If set, overrides the normal max peak
         finder. Good for tracing a fainter source if multiple traces
-        are present. [default: None]
+        are present. [default: ``None``]
     window : int, optional
         Fit the trace to a region with size ``window * 2`` around the
         guess position. Useful for tracing faint sources if multiple
         traces are present, but potentially bad if the trace is
-        substantially bent or warped. [default: None]
+        substantially bent or warped. [default: ``None``]
+    disp_bounds
+        The lower and upper bounds of the pixel range along the dispersion
+        axis that is used when fitting the trace model. If ``None``,
+        defaults to the entire range of pixels along the dispersion axis.
+        [default: ``None``]
     trace_model : one of `~astropy.modeling.polynomial.Chebyshev1D`,\
             `~astropy.modeling.polynomial.Legendre1D`,\
             `~astropy.modeling.polynomial.Polynomial1D`,\
