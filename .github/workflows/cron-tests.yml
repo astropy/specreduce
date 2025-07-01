@@ -22,7 +22,7 @@ concurrency:
 jobs:
   tests:
     if: (github.repository == 'astropy/specreduce' && (github.event_name == 'schedule' || github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'Extra CI')))
-    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@8c0fde6f7e926df6ed7057255d29afa9c1ad5320  # v1.16.0
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@86823142467dd2afcd1bbac57d3a664cf468eb3b  # v2.1.0
     with:
       submodules: false
       coverage: ''
