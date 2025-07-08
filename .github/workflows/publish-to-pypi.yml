@@ -8,7 +8,7 @@ on:
 
 jobs:
   publish:
-    uses: OpenAstronomy/github-actions-workflows/.github/workflows/publish_pure_python.yml@8c0fde6f7e926df6ed7057255d29afa9c1ad5320  # v1.16.0
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/publish_pure_python.yml@86823142467dd2afcd1bbac57d3a664cf468eb3b  # v2.1.0
     # NOTE: Uncomment "if" if you do not want this to run for every PR.
     # if: ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags')) || contains(github.event.pull_request.labels.*.name, 'Build wheels'))
     with:
