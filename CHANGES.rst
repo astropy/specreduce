@@ -1,3 +1,12 @@
+1.7.0 (unreleased)
+------------------
+
+New Features
+^^^^^^^^^^^^
+
+- Added a ``disp_bounds`` argument to ``tracing.FitTrace``. The argument allows for adjusting the
+  dispersion-axis window from which the trace peaks are estimated.
+
 1.6.0 (2025-06-18)
 ------------------
 
