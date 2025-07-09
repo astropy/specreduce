@@ -476,10 +476,9 @@ Processing Steps
       what redshift?)
 
 
-----
 
 Mentioned but not defined
--------------------------
+=========================
 
 - WCS & Database archive
 - Cloud archiving
