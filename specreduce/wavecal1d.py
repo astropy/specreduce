@@ -502,7 +502,12 @@ class WavelengthCalibration1D:
             raise ValueError("Number of bins must be positive.")
 
         flux = spectrum.flux.value
-        ucty = spectrum.uncertainty.represent_as(VarianceUncertainty).array
+        if spectrum.uncertainty is not None:
+            ucty = spectrum.uncertainty.represent_as(VarianceUncertainty).array
+            ucty_type = type(spectrum.uncertainty)
+        else:
+            ucty = np.zeros_like(flux)
+            ucty_type = VarianceUncertainty
         npix = flux.size
         nbins = npix if nbins is None else nbins
         if wlbounds is None:
@@ -535,8 +540,7 @@ class WavelengthCalibration1D:
                 flux_wl[i] = (bin_edges_pix[i + 1] - bin_edges_pix[i]) * flux[i1] * dldx[i1]
                 ucty_wl[i] = (bin_edges_pix[i + 1] - bin_edges_pix[i]) * ucty[i1] * dldx[i1]
         flux_wl = (flux_wl * n) * spectrum.flux.unit
-        ucty_wl = VarianceUncertainty(ucty_wl * n).represent_as(type(spectrum.uncertainty))
-
+        ucty_wl = VarianceUncertainty(ucty_wl * n).represent_as(ucty_type)
         return Spectrum(flux_wl, bin_centers_wav * u.angstrom, uncertainty=ucty_wl)
 
     def pix_to_wav(self, pix: MaskedArray | ndarray | float) -> ndarray | float:
