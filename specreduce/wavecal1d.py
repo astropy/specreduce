@@ -395,6 +395,7 @@ class WavelengthCalibration1D:
         model = self._p2w
 
         obs_lines = self.observed_lines
+
         def minfun(x):
             total_distance = 0.0
             for t, l in zip(self._trees, obs_lines):
@@ -627,7 +628,7 @@ class WavelengthCalibration1D:
             self._obs_lines.append(lst)
 
     @property
-    def catalog_lines(self) -> None |list[MaskedArray]:
+    def catalog_lines(self) -> None | list[MaskedArray]:
         """Catalog line wavelengths as a list of masked arrays."""
         return self._cat_lines
 
