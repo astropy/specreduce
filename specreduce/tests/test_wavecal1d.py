@@ -290,8 +290,8 @@ def test_remove_unmatched_lines(mk_good_wc_with_transform):
 
 def test_plot_lines_with_valid_input():
     wc = WavelengthCalibration1D(ref_pixel)
-    wc._obs_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
-    wc._cat_lines = wc._obs_lines
+    wc.observed_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
+    wc._cat_lines = wc.observed_lines
     fig = wc._plot_lines(kind="observed", frames=0, figsize=(8, 4), plot_values=True)
     assert isinstance(fig, Figure)
     assert fig.axes[0].has_data()
@@ -347,11 +347,11 @@ def test_plot_catalog_lines(mk_wc):
 
 def test_plot_observed_lines(mk_good_wc_with_transform, mk_arc):
     wc = mk_good_wc_with_transform
-    wc._obs_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
+    wc.observed_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
     wc.arc_spectra = [mk_arc]
     for frames in [None, 0]:
         fig = wc.plot_observed_lines(
-            frames=frames, figsize=(10, 5), plot_values=True, plot_spectra=True
+            frames=frames, figsize=(10, 5), plot_labels=True, plot_spectra=True
         )
         assert isinstance(fig, Figure)
         assert fig.axes[0].has_data()
