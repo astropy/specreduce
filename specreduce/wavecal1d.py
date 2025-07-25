@@ -763,24 +763,29 @@ class WavelengthCalibration1D:
             linelists = self.catalog_lines
             lc = "C1"
 
+        labels = []
         if linelists is not None:
             for iax, (ax, frame) in enumerate(zip(axs, frames)):
+                labels.append([])
                 lines = linelists[frame]
                 ax.vlines(transform(lines[lines.mask].data), 0, 1, ls=":", color=lc)
                 ax.vlines(transform(lines[~lines.mask].data), 0, 1, color=lc)
                 if plot_values[iax]:
                     for i, l in enumerate(transform(lines.data)):
                         if np.isfinite(l):
-                            ax.text(
-                                l,
-                                0.25 + 0.25 * (i % 3),
-                                f"{l:.0f}",
-                                rotation=90,
-                                ha="right",
-                                va="center",
-                                bbox=dict(alpha=0.8, fc="w", lw=0),
-                                size=value_fontsize,
+                            labels[-1].append(
+                                ax.text(
+                                    l,
+                                    0.95,  # 0.25 + 0.25 * (i % 3),
+                                    f"{l:.0f}",
+                                    rotation=90,
+                                    ha="right",
+                                    va="top",
+                                    bbox=dict(alpha=0.8, fc="w", lw=0),
+                                    size=value_fontsize,
+                                )
                             )
+                            labels[-1][-1].zorder = i
 
         if (kind == "observed" and not map_x) or (kind == "catalog" and map_x):
             xlabel = "Pixel"
@@ -799,6 +804,13 @@ class WavelengthCalibration1D:
                 ax.set_xticklabels([])
         xlims = np.array([ax.get_xlim() for ax in axs])
         setp(axs, xlim=(xlims[:, 0].min(), xlims[:, 1].max()), yticks=[])
+
+        if linelists is not None:
+            fig.canvas.draw()
+            for i in range(len(frames)):
+                if plot_values[i]:
+                    unclutter_text_boxes(labels[i])
+
         return fig
 
     def plot_catalog_lines(
@@ -900,7 +912,8 @@ class WavelengthCalibration1D:
             frames = np.atleast_1d(frames)
 
         if axes is None:
-            fig, axes = subplots(frames.size, 1, figsize=figsize, constrained_layout=True)
+            fig, axes = subplots(frames.size, 1, figsize=figsize, constrained_layout=True,
+                                 sharex='all', sharey='all')
         elif isinstance(axes, Axes):
             fig = axes.figure
             axes = [axes]
@@ -910,7 +923,6 @@ class WavelengthCalibration1D:
 
         transform = self.pix_to_wav if map_to_wav else lambda x: x
         xlabel = f"Wavelength [{self._unit_str}]" if map_to_wav else "Pixel"
-
         ypad = 1.3
 
         for iax, iframe in enumerate(frames):
@@ -947,19 +959,11 @@ class WavelengthCalibration1D:
             if plot_labels:
                 fig.canvas.draw()
                 unclutter_text_boxes(labels)
-                tr = ax.transData.inverted()
-                ymax = max(
-                    [
-                        tr.transform_bbox(label.get_window_extent()).max[1]
-                        for label in labels
-                        if label.figure is not None
-                    ]
-                )
-            else:
-                ymax = ypad
 
-            setp(ax, xlabel=xlabel, yticks=[], ylim=(-0.02, ymax + 0.02))
             ax.autoscale(True, "x", tight=True)
+
+        setp(axes[-1], xlabel=xlabel)
+        setp(axes, yticks=[], ylim=(-0.02, 1.5))
         return fig
 
     def plot_fit(
