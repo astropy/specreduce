@@ -394,9 +394,10 @@ class WavelengthCalibration1D:
             self._init_model()
         model = self._p2w
 
+        obs_lines = self.observed_lines
         def minfun(x):
             total_distance = 0.0
-            for t, l in zip(self._trees, self._obs_lines):
+            for t, l in zip(self._trees, obs_lines):
                 transformed_lines = model.evaluate(l, -self.ref_pixel, *x)[:, None]
                 total_distance += np.clip(t.query(transformed_lines)[0], 0, max_distance).sum()
             return total_distance
@@ -593,9 +594,12 @@ class WavelengthCalibration1D:
             return self._w2p(wav)
 
     @property
-    def observed_lines(self) -> list[MaskedArray]:
+    def observed_lines(self) -> None | list[MaskedArray]:
         """Pixel positions of the observed lines as a list of masked arrays."""
-        return [lines[:, 0] for lines in self._obs_lines]
+        if self._obs_lines is None:
+            return None
+        else:
+            return [lines[:, 0] for lines in self._obs_lines]
 
     @observed_lines.setter
     def observed_lines(self, line_lists: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
@@ -618,11 +622,12 @@ class WavelengthCalibration1D:
             if lst.ndim == 1:
                 lst = np.tile(lst[:, None], [1, 2])
                 lst[:, 1] = np.arange(lst.shape[0])
+                lst.mask[:, :] = lst.mask.any(axis=1)[:, None]
 
             self._obs_lines.append(lst)
 
     @property
-    def catalog_lines(self) -> list[MaskedArray]:
+    def catalog_lines(self) -> None |list[MaskedArray]:
         """Catalog line wavelengths as a list of masked arrays."""
         return self._cat_lines
 
@@ -692,7 +697,7 @@ class WavelengthCalibration1D:
 
     def remove_ummatched_lines(self):
         """Remove unmatched lines from observation and catalog line data."""
-        self._obs_lines = [np.ma.masked_array(lst.compressed()) for lst in self._obs_lines]
+        self.observed_lines = [lst.compressed().reshape([-1, 2]) for lst in self._obs_lines]
         self._cat_lines = [np.ma.masked_array(lst.compressed()) for lst in self._cat_lines]
 
     def rms(self, space: Literal["pixel", "wavelength"] = "wavelength") -> float:
@@ -751,11 +756,11 @@ class WavelengthCalibration1D:
 
         if kind == "observed":
             transform = self.pix_to_wav if map_x else lambda x: x
-            linelists = self._obs_lines
+            linelists = self.observed_lines
             lc = "C0"
         else:
             transform = self.wav_to_pix if map_x else lambda x: x
-            linelists = self._cat_lines
+            linelists = self.catalog_lines
             lc = "C1"
 
         if linelists is not None:
