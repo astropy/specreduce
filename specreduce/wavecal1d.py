@@ -234,13 +234,26 @@ class WavelengthCalibration1D:
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            line_lists = [
-                find_arc_lines(sp, fwhm, noise_factor=noise_factor) for sp in self.arc_spectra
-            ]
-        self.observed_lines = [
-            np.ma.masked_array(np.transpose([ll["centroid"].value, ll["amplitude"].value]))
-            for ll in line_lists
-        ]
+            line_lists = []
+            for i, arc in enumerate(self.arc_spectra):
+                lines = find_arc_lines(arc, fwhm, noise_factor=noise_factor)
+
+                # Find the line amplitudes. We could also use the fitted amplitudes
+                # returned by `find_arc_lines`, but these can be unreliable, even when
+                # the centroids would be fine. The amplitudes are used only for plotting,
+                # so selecting the maximum flux near the line centroid is the best approach.
+                amplitudes = np.zeros(len(lines))
+                for j, line in enumerate(lines["centroid"].value):
+                    line = int(np.floor(line))
+                    if line < 0 or line >= arc.shape[0]:
+                        raise ValueError(
+                            "Error in arc line identification. Try increasing ``noise_factor``."
+                        )
+                    amplitudes[j] = arc.flux.value[line - 2 : line + 2].max()
+                line_lists.append(
+                    np.ma.masked_array(np.transpose([lines["centroid"].value, amplitudes]))
+                )
+            self.observed_lines = line_lists
 
     def fit_lines(
         self,
