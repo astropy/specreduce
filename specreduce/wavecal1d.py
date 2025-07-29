@@ -364,8 +364,9 @@ class WavelengthCalibration1D:
         if match_cat:
             if self._cat_lines is None:
                 raise ValueError("Cannot fit without catalog lines set.")
-            tree = KDTree(np.concatenate([c.compressed() for c in self.catalog_line_locations])[:,
-                          None])
+            tree = KDTree(
+                np.concatenate([c.compressed() for c in self.catalog_line_locations])[:, None]
+            )
             ix = tree.query(wavelengths[:, None])[1]
             wavelengths = tree.data[ix][:, 0]
 
@@ -373,9 +374,9 @@ class WavelengthCalibration1D:
         if match_obs:
             if self._obs_lines is None:
                 raise ValueError("Cannot fit without observed lines set.")
-            tree = KDTree(np.concatenate([c.compressed() for c in
-                                          self.observed_line_locations])[:,
-                          None])
+            tree = KDTree(
+                np.concatenate([c.compressed() for c in self.observed_line_locations])[:, None]
+            )
             ix = tree.query(pixels[:, None])[1]
             pixels = tree.data[ix][:, 0]
 
@@ -447,7 +448,7 @@ class WavelengthCalibration1D:
             self._init_model()
         model = self._p2w
 
-        obs_lines = self.observed_lines
+        obs_lines = self.observed_line_locations
 
         def minfun(x):
             total_distance = 0.0
@@ -656,7 +657,7 @@ class WavelengthCalibration1D:
         if self._obs_lines is None:
             return None
         else:
-            return [l[:, 0] for l in self._obs_lines]
+            return [line[:, 0] for line in self._obs_lines]
 
     @cached_property
     def observed_line_amplitudes(self) -> None | list[MaskedArray]:
@@ -664,7 +665,7 @@ class WavelengthCalibration1D:
         if self._obs_lines is None:
             return None
         else:
-            return [l[:, 1] for l in self._obs_lines]
+            return [line[:, 1] for line in self._obs_lines]
 
     @observed_lines.setter
     def observed_lines(self, line_lists: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
@@ -673,9 +674,9 @@ class WavelengthCalibration1D:
         self._obs_lines = []
         for lst in line_lists:
             self._obs_lines.append(_format_linelist(lst))
-        if hasattr(self, 'observed_line_locations'):
+        if hasattr(self, "observed_line_locations"):
             del self.observed_line_locations
-        if hasattr(self, 'observed_line_amplitudes'):
+        if hasattr(self, "observed_line_amplitudes"):
             del self.observed_line_amplitudes
 
     @property
@@ -689,7 +690,7 @@ class WavelengthCalibration1D:
         if self._cat_lines is None:
             return None
         else:
-            return [l[:, 0] for l in self._cat_lines]
+            return [line[:, 0] for line in self._cat_lines]
 
     @cached_property
     def catalog_line_amplitudes(self) -> None | list[MaskedArray]:
@@ -697,7 +698,7 @@ class WavelengthCalibration1D:
         if self._obs_lines is None:
             return None
         else:
-            return [l[:, 1] for l in self._cat_lines]
+            return [line[:, 1] for line in self._cat_lines]
 
     @catalog_lines.setter
     def catalog_lines(self, line_lists: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
@@ -706,9 +707,9 @@ class WavelengthCalibration1D:
         self._cat_lines = []
         for lst in line_lists:
             self._cat_lines.append(_format_linelist(lst))
-        if hasattr(self, 'catalog_line_locations'):
+        if hasattr(self, "catalog_line_locations"):
             del self.catalog_line_locations
-        if hasattr(self, 'catalog_line_amplitudes'):
+        if hasattr(self, "catalog_line_amplitudes"):
             del self.catalog_line_amplitudes
 
     @property
@@ -814,8 +815,9 @@ class WavelengthCalibration1D:
             frames = np.atleast_1d(frames)
 
         if axes is None:
-            fig, axes = subplots(frames.size, 1, figsize=figsize, constrained_layout=True,
-                                 sharex='all')
+            fig, axes = subplots(
+                frames.size, 1, figsize=figsize, constrained_layout=True, sharex="all"
+            )
         elif isinstance(axes, Axes):
             fig = axes.figure
             axes = [axes]
@@ -846,7 +848,7 @@ class WavelengthCalibration1D:
             if spectra is not None:
                 spc = self.arc_spectra[iframe]
                 vmax = spc.flux.value.max()
-                ax.plot(transform(spc.spectral_axis.value), spc.flux.value / vmax, 'k')
+                ax.plot(transform(spc.spectral_axis.value), spc.flux.value / vmax, "k")
             else:
                 vmax = 1.0
 
@@ -858,7 +860,7 @@ class WavelengthCalibration1D:
                     c, a = linelists[iframe].data[i]
                     ls = "-" if linelists[iframe].mask[i, 0] == 0 else ":"
 
-                    ax.plot(transform([c, c]), [a/vmax + 0.1, 1.27], c=lc, ls=ls, zorder=-100)
+                    ax.plot(transform([c, c]), [a / vmax + 0.1, 1.27], c=lc, ls=ls, zorder=-100)
                     if plot_labels:
                         labels[-1].append(
                             ax.text(
@@ -902,7 +904,7 @@ class WavelengthCalibration1D:
                     ymax = -np.inf
                     for lb in labels[i]:
                         ymax = max(ymax, tr_to_data.transform(lb.get_window_extent().p1)[1])
-                    setp(axes[i], ylim=(-0.04, ymax*1.04))
+                    setp(axes[i], ylim=(-0.04, ymax * 1.04))
 
                     # Remove the overlapping labels prioritizing the high-amplitude lines.
                     unclutter_text_boxes(labels[i])
@@ -998,8 +1000,15 @@ class WavelengthCalibration1D:
             The matplotlib figure containing the observed lines plot.
         """
 
-        fig = self._plot_lines("observed", frames=frames, axes=axes, figsize=figsize,
-                         plot_labels=plot_labels, map_x=map_to_wav, label_kwargs=label_kwargs)
+        fig = self._plot_lines(
+            "observed",
+            frames=frames,
+            axes=axes,
+            figsize=figsize,
+            plot_labels=plot_labels,
+            map_x=map_to_wav,
+            label_kwargs=label_kwargs,
+        )
 
         for ax in fig.axes:
             ax.autoscale(True, "x", tight=True)
@@ -1013,7 +1022,7 @@ class WavelengthCalibration1D:
         obs_to_wav: bool = False,
         cat_to_pix: bool = False,
         label_kwargs: dict | None = None,
-            xlim: None | tuple[float, float] = None,
+        xlim: None | tuple[float, float] = None,
     ) -> Figure:
         """Plot the fitted catalog and observed lines for the specified arc spectra.
 
