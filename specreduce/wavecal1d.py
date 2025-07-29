@@ -1,24 +1,71 @@
 import warnings
+from functools import cached_property
 from typing import Sequence, Callable, Literal
 
 import astropy.units as u
-import numpy as np
 import gwcs
+import numpy as np
+
 from astropy.modeling import models, Model, fitting
 from astropy.nddata import VarianceUncertainty
 from gwcs import coordinate_frames as cf
+from matplotlib.pyplot import Axes, Figure, setp, subplots
 from numpy import ndarray
 from numpy.ma.core import MaskedArray
 from scipy import optimize
 from scipy.interpolate import interp1d
 from scipy.spatial import KDTree
-from matplotlib.pyplot import Axes, Figure, setp, subplots
 
 from specreduce.calibration_data import load_pypeit_calibration_lines
-from specreduce.line_matching import find_arc_lines
 from specreduce.compat import Spectrum
+from specreduce.line_matching import find_arc_lines
 
 __all__ = ["WavelengthCalibration1D"]
+
+
+def _format_linelist(lst):
+    """Formats a line list for further processing.
+
+    This function ensures that the provided line list adheres to certain shape and
+    dimensionality constraints. It converts the input into a standardized format
+    while applying necessary modifications such as tiling and masking.
+
+    Parameters
+    ----------
+    lst
+        Input array of centroids or centroids with amplitudes. Must be either:
+            - A 1D array with a shape [n] for centroids.
+            - A 2D array with a shape [n, 2] for centroids and amplitudes.
+
+    Returns
+    -------
+    numpy.ma.MaskedArray
+        Formatted and standardized line list array with shape [n, 2], where each row
+        contains a centroid and an amplitude. The mask is appropriately filled for
+        invalid entries.
+
+    Raises
+    ------
+    ValueError
+        If the input line list does not meet the specified dimensional or shape
+        requirements.
+    """
+    lst = MaskedArray(lst, copy=True)
+
+    if (lst.ndim > 2) or (lst.ndim == 2 and lst.shape[1] > 2):
+        raise ValueError(
+            "Line lists must be 1D with a shape [n] (centroids) or "
+            "2D with a shape [n, 2] (centroids and amplitudes)."
+        )
+
+    if lst.mask is np.False_:
+        lst.mask = np.zeros(lst.shape[0], dtype=bool)
+
+    if lst.ndim == 1:
+        lst = np.tile(lst[:, None], [1, 2])
+        lst[:, 1] = 0.0
+        lst.mask[:, :] = lst.mask.any(axis=1)[:, None]
+    return lst
 
 
 def unclutter_text_boxes(labels):
@@ -212,7 +259,7 @@ class WavelengthCalibration1D:
             lines_wav[i] = lst[(lst >= line_list_bounds[0]) & (lst <= line_list_bounds[1])]
 
         self.catalog_lines = lines_wav
-        self._trees = [KDTree(lst.data[:, None]) for lst in self._cat_lines]
+        self._trees = [KDTree(lst.compressed()[:, None]) for lst in self.catalog_line_locations]
 
     def find_lines(self, fwhm: float, noise_factor: float = 1.0) -> None:
         """Find lines in the provided arc spectra.
@@ -284,17 +331,20 @@ class WavelengthCalibration1D:
             wavelengths corresponding to the given pixel positions.
         match_obs
             If True, snap the input ``pixels`` values to the nearest
-            pixel values found in `self._obs_lines` (if available). This helps
+            pixel values found in `self.observed_line_locations` (if available). This helps
             ensure the fit uses the precise centroids detected by `find_lines`
             or provided initially.
         match_cat
             If True, snap the input ``wavelengths`` values to the
-            nearest wavelength values found in `self._cat_lines` (if available).
+            nearest wavelength values found in `self.catalog_line_locations` (if available).
             This ensures the fit uses the precise catalog wavelengths.
         refine_fit
             If True (default), automatically call the ``refine_fit`` method
             immediately after the global optimization to improve the solution
             using a least-squares fit on matched lines.
+        refine_max_distance
+            The maximum allowed distance between the catalog and observed lines for them to be
+            considered a match.
         """
         pixels = np.asarray(pixels)
         wavelengths = np.asarray(wavelengths)
@@ -314,7 +364,8 @@ class WavelengthCalibration1D:
         if match_cat:
             if self._cat_lines is None:
                 raise ValueError("Cannot fit without catalog lines set.")
-            tree = KDTree(np.concatenate([c.data for c in self._cat_lines])[:, None])
+            tree = KDTree(np.concatenate([c.compressed() for c in self.catalog_line_locations])[:,
+                          None])
             ix = tree.query(wavelengths[:, None])[1]
             wavelengths = tree.data[ix][:, 0]
 
@@ -322,7 +373,9 @@ class WavelengthCalibration1D:
         if match_obs:
             if self._obs_lines is None:
                 raise ValueError("Cannot fit without observed lines set.")
-            tree = KDTree(np.concatenate([c.data[:, 0] for c in self._obs_lines])[:, None])
+            tree = KDTree(np.concatenate([c.compressed() for c in
+                                          self.observed_line_locations])[:,
+                          None])
             ix = tree.query(pixels[:, None])[1]
             pixels = tree.data[ix][:, 0]
 
@@ -438,14 +491,12 @@ class WavelengthCalibration1D:
         Parameters
         ----------
 
-        degree : int, optional
-            The degree of the polynomial model used for fitting. Higher values
-            allow for more complex polynomial models. Default is 4.
-
-        max_match_distance : float, optional
+        max_match_distance
             Maximum allowable distance used to identify matched pixel and wavelength
             data points. Points exceeding the bound will not be considered in the fit.
-            Default is 5.0.
+
+        max_iter
+            Maximum number of fitting iterations.
         """
 
         model = self._p2w[1]
@@ -453,8 +504,8 @@ class WavelengthCalibration1D:
         rms = np.nan
         for i in range(max_iter):
             self.match_lines(max_match_distance)
-            matched_pix = np.ma.concatenate(self.observed_lines).compressed()
-            matched_wav = np.ma.concatenate(self._cat_lines).compressed()
+            matched_pix = np.ma.concatenate(self.observed_line_locations).compressed()
+            matched_wav = np.ma.concatenate(self.catalog_line_locations).compressed()
             rms_new = np.sqrt(((matched_wav - self.pix_to_wav(matched_pix)) ** 2).mean())
             if rms_new == rms:
                 break
@@ -596,52 +647,69 @@ class WavelengthCalibration1D:
 
     @property
     def observed_lines(self) -> None | list[MaskedArray]:
+        """Pixel positions and amplitudes of the observed lines as a list of masked arrays."""
+        return self._obs_lines
+
+    @cached_property
+    def observed_line_locations(self) -> None | list[MaskedArray]:
         """Pixel positions of the observed lines as a list of masked arrays."""
         if self._obs_lines is None:
             return None
         else:
-            return [lines[:, 0] for lines in self._obs_lines]
+            return [l[:, 0] for l in self._obs_lines]
+
+    @cached_property
+    def observed_line_amplitudes(self) -> None | list[MaskedArray]:
+        """Amplitudes of the observed lines as a list of masked arrays."""
+        if self._obs_lines is None:
+            return None
+        else:
+            return [l[:, 1] for l in self._obs_lines]
 
     @observed_lines.setter
     def observed_lines(self, line_lists: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
         if not isinstance(line_lists, Sequence):
             line_lists = [line_lists]
-
         self._obs_lines = []
         for lst in line_lists:
-            lst = MaskedArray(lst, copy=True)
-
-            if (lst.ndim > 2) or (lst.ndim == 2 and lst.shape[1] > 2):
-                raise ValueError(
-                    "Observed line lists must be 1D with a shape [n] (centroids) or "
-                    "2D with a shape [n, 2] (centroids and amplitudes)."
-                )
-
-            if lst.mask is np.False_:
-                lst.mask = np.zeros(lst.shape[0], dtype=bool)
-
-            if lst.ndim == 1:
-                lst = np.tile(lst[:, None], [1, 2])
-                lst[:, 1] = np.arange(lst.shape[0])
-                lst.mask[:, :] = lst.mask.any(axis=1)[:, None]
-
-            self._obs_lines.append(lst)
+            self._obs_lines.append(_format_linelist(lst))
+        if hasattr(self, 'observed_line_locations'):
+            del self.observed_line_locations
+        if hasattr(self, 'observed_line_amplitudes'):
+            del self.observed_line_amplitudes
 
     @property
     def catalog_lines(self) -> None | list[MaskedArray]:
         """Catalog line wavelengths as a list of masked arrays."""
         return self._cat_lines
 
+    @cached_property
+    def catalog_line_locations(self) -> None | list[MaskedArray]:
+        """Pixel positions of the catalog lines as a list of masked arrays."""
+        if self._cat_lines is None:
+            return None
+        else:
+            return [l[:, 0] for l in self._cat_lines]
+
+    @cached_property
+    def catalog_line_amplitudes(self) -> None | list[MaskedArray]:
+        """Amplitudes of the catalog lines as a list of masked arrays."""
+        if self._obs_lines is None:
+            return None
+        else:
+            return [l[:, 1] for l in self._cat_lines]
+
     @catalog_lines.setter
-    def catalog_lines(self, lines_wav: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
-        if not isinstance(lines_wav, Sequence):
-            lines_wav = [lines_wav]
+    def catalog_lines(self, line_lists: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
+        if not isinstance(line_lists, Sequence):
+            line_lists = [line_lists]
         self._cat_lines = []
-        for lst in lines_wav:
-            if isinstance(lst, MaskedArray) and lst.mask is not np.False_:
-                self._cat_lines.append(lst)
-            else:
-                self._cat_lines.append(np.ma.masked_array(lst, mask=np.zeros(lst.size, bool)))
+        for lst in line_lists:
+            self._cat_lines.append(_format_linelist(lst))
+        if hasattr(self, 'catalog_line_locations'):
+            del self.catalog_line_locations
+        if hasattr(self, 'catalog_line_amplitudes'):
+            del self.catalog_line_amplitudes
 
     @property
     def gwcs(self) -> gwcs.wcs.WCS:
@@ -669,13 +737,13 @@ class WavelengthCalibration1D:
         Parameters
         ----------
         max_distance
-            The maximum allowed distance between the query points and the KD-tree
-            data points for them to be considered a match.
+            The maximum allowed distance between the catalog and observed lines for them to be
+            considered a match.
         """
 
         for iframe, tree in enumerate(self._trees):
             l, ix = tree.query(
-                self._p2w(self._obs_lines[iframe].data[:, 0])[:, None],
+                self._p2w(self.observed_line_locations[iframe])[:, None],
                 distance_upper_bound=max_distance,
             )
             m = np.isfinite(l)
@@ -692,8 +760,8 @@ class WavelengthCalibration1D:
                     r[np.argmin(l[s])] = True
                     m[s] = r
 
-            self._cat_lines[iframe].mask[:] = True
-            self._cat_lines[iframe].mask[ix[m]] = False
+            self._cat_lines[iframe].mask[:, :] = True
+            self._cat_lines[iframe].mask[ix[m], :] = False
             self._obs_lines[iframe].mask[:, :] = ~m[:, None]
 
     def remove_ummatched_lines(self):
@@ -716,8 +784,8 @@ class WavelengthCalibration1D:
         float
         """
         self.match_lines()
-        mpix = np.ma.concatenate(self.observed_lines).compressed()
-        mwav = np.ma.concatenate(self.catalog_lines).compressed()
+        mpix = np.ma.concatenate(self.observed_line_locations).compressed()
+        mwav = np.ma.concatenate(self.catalog_line_locations).compressed()
         if space == "wavelength":
             return np.sqrt(((mwav - self.pix_to_wav(mpix)) ** 2).mean())
         elif space == "pixel":
@@ -729,28 +797,34 @@ class WavelengthCalibration1D:
         self,
         kind: Literal["observed", "catalog"],
         frames: int | Sequence[int] | None = None,
-        axs: Axes | Sequence[Axes] | None = None,
+        axes: Axes | Sequence[Axes] | None = None,
         figsize: tuple[float, float] | None = None,
-        plot_values: bool | Sequence[bool] = True,
+        plot_labels: bool | Sequence[bool] = True,
         map_x: bool = False,
-        value_fontsize: int | str | None = "small",
+        label_kwargs: dict | None = None,
     ) -> Figure:
+
+        largs = dict(backgroundcolor="w", rotation=90, size="small")
+        if label_kwargs is not None:
+            largs.update(label_kwargs)
+
         if frames is None:
             frames = np.arange(self.nframes)
         else:
             frames = np.atleast_1d(frames)
 
-        if axs is None:
-            fig, axs = subplots(frames.size, 1, figsize=figsize, constrained_layout=True)
-        elif isinstance(axs, Axes):
-            fig = axs.figure
-            axs = [axs]
+        if axes is None:
+            fig, axes = subplots(frames.size, 1, figsize=figsize, constrained_layout=True,
+                                 sharex='all')
+        elif isinstance(axes, Axes):
+            fig = axes.figure
+            axes = [axes]
         else:
-            fig = axs[0].figure
-        axs = np.atleast_1d(axs)
+            fig = axes[0].figure
+        axes = np.atleast_1d(axes)
 
-        if isinstance(plot_values, bool):
-            plot_values = np.full(frames.size, plot_values, dtype=bool)
+        if isinstance(plot_labels, bool):
+            plot_labels = np.full(frames.size, plot_labels, dtype=bool)
 
         if map_x and self._p2w is None:
             raise ValueError("Cannot map between pixels and wavelengths without a fitted model.")
@@ -758,35 +832,46 @@ class WavelengthCalibration1D:
         if kind == "observed":
             transform = self.pix_to_wav if map_x else lambda x: x
             linelists = self.observed_lines
+            spectra = self.arc_spectra
             lc = "C0"
         else:
             transform = self.wav_to_pix if map_x else lambda x: x
             linelists = self.catalog_lines
+            spectra = None
             lc = "C1"
 
+        ypad = 1.3
         labels = []
-        if linelists is not None:
-            for iax, (ax, frame) in enumerate(zip(axs, frames)):
+        for iframe, (ax, frame) in enumerate(zip(axes, frames)):
+            if spectra is not None:
+                spc = self.arc_spectra[iframe]
+                vmax = spc.flux.value.max()
+                ax.plot(transform(spc.spectral_axis.value), spc.flux.value / vmax, 'k')
+            else:
+                vmax = 1.0
+
+            if linelists is not None:
                 labels.append([])
-                lines = linelists[frame]
-                ax.vlines(transform(lines[lines.mask].data), 0, 1, ls=":", color=lc)
-                ax.vlines(transform(lines[~lines.mask].data), 0, 1, color=lc)
-                if plot_values[iax]:
-                    for i, l in enumerate(transform(lines.data)):
-                        if np.isfinite(l):
-                            labels[-1].append(
-                                ax.text(
-                                    l,
-                                    0.95,  # 0.25 + 0.25 * (i % 3),
-                                    f"{l:.0f}",
-                                    rotation=90,
-                                    ha="right",
-                                    va="top",
-                                    bbox=dict(alpha=0.8, fc="w", lw=0),
-                                    size=value_fontsize,
-                                )
+
+                # Loop over individual lines in the line list.
+                for i in range(linelists[iframe].shape[0]):
+                    c, a = linelists[iframe].data[i]
+                    ls = "-" if linelists[iframe].mask[i, 0] == 0 else ":"
+
+                    ax.plot(transform([c, c]), [a/vmax + 0.1, 1.27], c=lc, ls=ls, zorder=-100)
+                    if plot_labels:
+                        labels[-1].append(
+                            ax.text(
+                                transform(c),
+                                ypad,
+                                f"{transform(c):.0f}",
+                                ha="center",
+                                va="top",
+                                **largs,
                             )
-                            labels[-1][-1].zorder = i
+                        )
+                        labels[-1][-1].set_clip_on(True)
+                        labels[-1][-1].zorder = a
 
         if (kind == "observed" and not map_x) or (kind == "catalog" and map_x):
             xlabel = "Pixel"
@@ -794,22 +879,32 @@ class WavelengthCalibration1D:
             xlabel = f"Wavelength {self._unit_str}"
 
         if kind == "catalog":
-            axs[0].xaxis.set_label_position("top")
-            axs[0].xaxis.tick_top()
-            setp(axs[0], xlabel=xlabel)
-            for ax in axs[1:]:
+            axes[0].xaxis.set_label_position("top")
+            axes[0].xaxis.tick_top()
+            setp(axes[0], xlabel=xlabel)
+            for ax in axes[1:]:
                 ax.set_xticklabels([])
         else:
-            setp(axs[-1], xlabel=xlabel)
-            for ax in axs[:-1]:
+            setp(axes[-1], xlabel=xlabel)
+            for ax in axes[:-1]:
                 ax.set_xticklabels([])
-        xlims = np.array([ax.get_xlim() for ax in axs])
-        setp(axs, xlim=(xlims[:, 0].min(), xlims[:, 1].max()), yticks=[])
+
+            xlims = np.array([ax.get_xlim() for ax in axes])
+            setp(axes, xlim=(xlims[:, 0].min(), xlims[:, 1].max()), yticks=[])
 
         if linelists is not None:
             fig.canvas.draw()
             for i in range(len(frames)):
-                if plot_values[i]:
+                if plot_labels[i]:
+
+                    # Calculate the label bounding box upper limits and adjust the y-axis limits.
+                    tr_to_data = axes[i].transData.inverted()
+                    ymax = -np.inf
+                    for lb in labels[i]:
+                        ymax = max(ymax, tr_to_data.transform(lb.get_window_extent().p1)[1])
+                    setp(axes[i], ylim=(-0.04, ymax*1.04))
+
+                    # Remove the overlapping labels prioritizing the high-amplitude lines.
                     unclutter_text_boxes(labels[i])
 
         return fig
@@ -819,9 +914,9 @@ class WavelengthCalibration1D:
         frames: int | Sequence[int] | None = None,
         axes: Axes | Sequence[Axes] | None = None,
         figsize: tuple[float, float] | None = None,
-        plot_values: bool = True,
+        plot_labels: bool = True,
         map_to_pix: bool = False,
-        value_fontsize: int | str | None = "small",
+        label_kwargs: dict | None = None,
     ) -> Figure:
         """Plot the catalog lines.
 
@@ -840,13 +935,16 @@ class WavelengthCalibration1D:
             Specifies the dimensions of the figure as (width, height). If None, the default
             dimensions are used.
 
-        plot_values
+        plot_labels
             If True, the numerical values associated with the catalog data will be displayed
             in the plot. If False, only the graphical representation of the lines will be shown.
 
         map_to_pix
             Indicates whether the catalog data should be mapped to pixel coordinates
             before plotting. If True, the data is converted to pixel coordinates.
+
+        label_kwargs
+            Specifies the keyword arguments for the line label text objects.
 
         Returns
         -------
@@ -857,11 +955,11 @@ class WavelengthCalibration1D:
         return self._plot_lines(
             "catalog",
             frames=frames,
-            axs=axes,
+            axes=axes,
             figsize=figsize,
-            plot_values=plot_values,
+            plot_labels=plot_labels,
             map_x=map_to_pix,
-            value_fontsize=value_fontsize,
+            label_kwargs=label_kwargs,
         )
 
     def plot_observed_lines(
@@ -870,7 +968,6 @@ class WavelengthCalibration1D:
         axes: Axes | Sequence[Axes] | None = None,
         figsize: tuple[float, float] | None = None,
         plot_labels: bool = True,
-        plot_spectra: bool = True,
         map_to_wav: bool = False,
         label_kwargs: dict | None = None,
     ) -> Figure:
@@ -890,8 +987,6 @@ class WavelengthCalibration1D:
         plot_labels
             If True, plots the numerical values of the observed lines at their respective
             locations on the graph. Default is True.
-        plot_spectra
-            If True, includes the arc spectra on the plot for comparison. Default is True.
         map_to_wav
             Determines whether to map the x-axis values to wavelengths. Default is False.
         label_kwargs
@@ -903,68 +998,11 @@ class WavelengthCalibration1D:
             The matplotlib figure containing the observed lines plot.
         """
 
-        largs = dict(backgroundcolor="w", rotation=90, size="small")
-        if label_kwargs is not None:
-            largs.update(label_kwargs)
+        fig = self._plot_lines("observed", frames=frames, axes=axes, figsize=figsize,
+                         plot_labels=plot_labels, map_x=map_to_wav, label_kwargs=label_kwargs)
 
-        if frames is None:
-            frames = np.arange(self.nframes)
-        else:
-            frames = np.atleast_1d(frames)
-
-        if axes is None:
-            fig, axes = subplots(frames.size, 1, figsize=figsize, constrained_layout=True,
-                                 sharex='all', sharey='all')
-        elif isinstance(axes, Axes):
-            fig = axes.figure
-            axes = [axes]
-        else:
-            fig = axes[0].figure
-        axes = np.atleast_1d(axes)
-
-        transform = self.pix_to_wav if map_to_wav else lambda x: x
-        xlabel = f"Wavelength [{self._unit_str}]" if map_to_wav else "Pixel"
-        ypad = 1.3
-
-        for iax, iframe in enumerate(frames):
-            ax = axes.flat[iax]
-            if plot_spectra and self.arc_spectra is not None:
-                spc = self.arc_spectra[iframe]
-                vmax = spc.flux.value.max()
-                ax.plot(transform(spc.spectral_axis.value), spc.flux.value / vmax)
-            else:
-                vmax = 1.0
-
-            labels = []
-            for i in range(self._obs_lines[iframe].shape[0]):
-                c, a = self._obs_lines[iframe].data[i]
-                if self._obs_lines[iframe].mask[i, 0] is True:
-                    ls = ":"
-                else:
-                    ls = "-"
-
-                ax.plot(transform([c, c]), [a / vmax + 0.02, 1.27], "0.75", ls=ls)
-                if plot_labels:
-                    labels.append(
-                        ax.text(
-                            transform(c),
-                            ypad,
-                            f"{transform(c):.0f}",
-                            ha="center",
-                            va="bottom",
-                            **largs,
-                        )
-                    )
-                    labels[-1].zorder = a / vmax
-
-            if plot_labels:
-                fig.canvas.draw()
-                unclutter_text_boxes(labels)
-
+        for ax in fig.axes:
             ax.autoscale(True, "x", tight=True)
-
-        setp(axes[-1], xlabel=xlabel)
-        setp(axes, yticks=[], ylim=(-0.02, 1.5))
         return fig
 
     def plot_fit(
@@ -974,7 +1012,8 @@ class WavelengthCalibration1D:
         plot_values: bool = True,
         obs_to_wav: bool = False,
         cat_to_pix: bool = False,
-        value_fontsize: int | str | None = "small",
+        label_kwargs: dict | None = None,
+            xlim: None | tuple[float, float] = None,
     ) -> Figure:
         """Plot the fitted catalog and observed lines for the specified arc spectra.
 
@@ -998,6 +1037,9 @@ class WavelengthCalibration1D:
         cat_to_pix
             If `True`, transforms catalog data points to pixel values before plotting.
 
+        label_kwargs
+            Specifies the keyword arguments for the line label text objects.
+
         Returns
         -------
         matplotlib.figure.Figure
@@ -1012,15 +1054,16 @@ class WavelengthCalibration1D:
         self.plot_catalog_lines(
             frames,
             axs[::2],
-            plot_values=plot_values,
+            plot_labels=plot_values,
             map_to_pix=cat_to_pix,
-            value_fontsize=value_fontsize,
+            label_kwargs=label_kwargs,
         )
         self.plot_observed_lines(
             frames,
             axs[1::2],
             plot_labels=plot_values,
             map_to_wav=obs_to_wav,
+            label_kwargs=label_kwargs,
         )
 
         xlims = np.array([ax.get_xlim() for ax in axs[::2]])
@@ -1066,8 +1109,8 @@ class WavelengthCalibration1D:
             fig = ax.figure
 
         self.match_lines()
-        mpix = np.ma.concatenate(self.observed_lines).compressed()
-        mwav = np.ma.concatenate(self.catalog_lines).compressed()
+        mpix = np.ma.concatenate(self.observed_line_locations).compressed()
+        mwav = np.ma.concatenate(self.catalog_line_locations).compressed()
 
         if space == "wavelength":
             twav = self.pix_to_wav(mpix)
