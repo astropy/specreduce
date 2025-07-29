@@ -259,6 +259,9 @@ class WavelengthCalibration1D:
             lines_wav[i] = lst[(lst >= line_list_bounds[0]) & (lst <= line_list_bounds[1])]
 
         self.catalog_lines = lines_wav
+        self._create_trees()
+
+    def _create_trees(self):
         self._trees = [KDTree(lst.compressed()[:, None]) for lst in self.catalog_line_locations]
 
     def find_lines(self, fwhm: float, noise_factor: float = 1.0) -> None:
@@ -744,7 +747,7 @@ class WavelengthCalibration1D:
 
         for iframe, tree in enumerate(self._trees):
             l, ix = tree.query(
-                self._p2w(self.observed_line_locations[iframe])[:, None],
+                self._p2w(self.observed_line_locations[iframe].data)[:, None],
                 distance_upper_bound=max_distance,
             )
             m = np.isfinite(l)
@@ -768,7 +771,8 @@ class WavelengthCalibration1D:
     def remove_ummatched_lines(self):
         """Remove unmatched lines from observation and catalog line data."""
         self.observed_lines = [lst.compressed().reshape([-1, 2]) for lst in self._obs_lines]
-        self._cat_lines = [np.ma.masked_array(lst.compressed()) for lst in self._cat_lines]
+        self.catalog_lines = [lst.compressed().reshape([-1, 2]) for lst in self._cat_lines]
+        self._create_trees()
 
     def rms(self, space: Literal["pixel", "wavelength"] = "wavelength") -> float:
         """Compute the RMS of the residuals between matched lines in the pixel or wavelength space.
@@ -861,7 +865,7 @@ class WavelengthCalibration1D:
                     ls = "-" if linelists[iframe].mask[i, 0] == 0 else ":"
 
                     ax.plot(transform([c, c]), [a / vmax + 0.1, 1.27], c=lc, ls=ls, zorder=-100)
-                    if plot_labels:
+                    if plot_labels[iframe]:
                         labels[-1].append(
                             ax.text(
                                 transform(c),
@@ -891,8 +895,8 @@ class WavelengthCalibration1D:
             for ax in axes[:-1]:
                 ax.set_xticklabels([])
 
-            xlims = np.array([ax.get_xlim() for ax in axes])
-            setp(axes, xlim=(xlims[:, 0].min(), xlims[:, 1].max()), yticks=[])
+        xlims = np.array([ax.get_xlim() for ax in axes])
+        setp(axes, xlim=(xlims[:, 0].min(), xlims[:, 1].max()), yticks=[])
 
         if linelists is not None:
             fig.canvas.draw()
@@ -904,7 +908,7 @@ class WavelengthCalibration1D:
                     ymax = -np.inf
                     for lb in labels[i]:
                         ymax = max(ymax, tr_to_data.transform(lb.get_window_extent().p1)[1])
-                    setp(axes[i], ylim=(-0.04, ymax * 1.04))
+                    setp(axes[i], ylim=(-0.04, ymax * 1.06))
 
                     # Remove the overlapping labels prioritizing the high-amplitude lines.
                     unclutter_text_boxes(labels[i])
@@ -916,7 +920,7 @@ class WavelengthCalibration1D:
         frames: int | Sequence[int] | None = None,
         axes: Axes | Sequence[Axes] | None = None,
         figsize: tuple[float, float] | None = None,
-        plot_labels: bool = True,
+        plot_labels: bool | Sequence[bool] = True,
         map_to_pix: bool = False,
         label_kwargs: dict | None = None,
     ) -> Figure:
@@ -969,7 +973,7 @@ class WavelengthCalibration1D:
         frames: int | Sequence[int] | None = None,
         axes: Axes | Sequence[Axes] | None = None,
         figsize: tuple[float, float] | None = None,
-        plot_labels: bool = True,
+        plot_labels: bool | Sequence[bool] = True,
         map_to_wav: bool = False,
         label_kwargs: dict | None = None,
     ) -> Figure:
@@ -1018,11 +1022,10 @@ class WavelengthCalibration1D:
         self,
         frames: Sequence[int] | int | None = None,
         figsize: tuple[float, float] | None = None,
-        plot_values: bool = True,
+        plot_labels: bool = True,
         obs_to_wav: bool = False,
         cat_to_pix: bool = False,
         label_kwargs: dict | None = None,
-        xlim: None | tuple[float, float] = None,
     ) -> Figure:
         """Plot the fitted catalog and observed lines for the specified arc spectra.
 
@@ -1036,8 +1039,9 @@ class WavelengthCalibration1D:
             Defines the width and height of the figure in inches. If `None`, the
             default size is used.
 
-        plot_values
-            Whether or not to display value annotations over the plotted lines.
+        plot_labels
+            If `True`, print line locations over the plotted lines. Can also be a list with
+            the same length as ``frames``.
 
         obs_to_wav
             If `True`, transform the x-axis of observed lines to the wavelength domain
@@ -1062,15 +1066,15 @@ class WavelengthCalibration1D:
         fig, axs = subplots(2 * frames.size, 1, constrained_layout=True, figsize=figsize)
         self.plot_catalog_lines(
             frames,
-            axs[::2],
-            plot_labels=plot_values,
+            axs[0::2],
+            plot_labels=plot_labels,
             map_to_pix=cat_to_pix,
             label_kwargs=label_kwargs,
         )
         self.plot_observed_lines(
             frames,
             axs[1::2],
-            plot_labels=plot_values,
+            plot_labels=plot_labels,
             map_to_wav=obs_to_wav,
             label_kwargs=label_kwargs,
         )

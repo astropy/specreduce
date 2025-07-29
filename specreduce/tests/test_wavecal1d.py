@@ -379,12 +379,12 @@ def test_plot_fit(mk_arc, mk_good_wc_with_transform):
     wc = mk_good_wc_with_transform
     wc.arc_spectra = [mk_arc]
     for frames in [None, 0]:
-        fig = wc.plot_fit(frames=frames, figsize=(12, 6), plot_values=True)
+        fig = wc.plot_fit(frames=frames, figsize=(12, 6), plot_labels=True)
         assert isinstance(fig, Figure)
         assert len(fig.axes) == 2
         assert fig.axes[0].has_data()
         assert fig.axes[1].has_data()
-    wc.plot_fit(frames=frames, figsize=(12, 6), plot_values=True, obs_to_wav=True)
+    wc.plot_fit(frames=frames, figsize=(12, 6), plot_labels=True, obs_to_wav=True)
 
 
 def test_plot_residuals(mk_good_wc_with_transform):
