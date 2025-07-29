@@ -41,8 +41,7 @@ def _format_linelist(lst):
     -------
     numpy.ma.MaskedArray
         Formatted and standardized line list array with shape [n, 2], where each row
-        contains a line centroid and amplitude. The mask is appropriately filled for
-        invalid entries.
+        contains a line centroid and amplitude.
 
     Raises
     ------
@@ -68,7 +67,18 @@ def _format_linelist(lst):
     return lst
 
 
-def unclutter_text_boxes(labels):
+def _unclutter_text_boxes(labels: Sequence) -> None:
+    """Remove overlapping labels from the plot.
+
+    Removes overlapping text labels from a set of matplotlib label objects. The function iterates
+    over all combinations of labels, checks for overlaps among their bounding boxes, and removes
+    the label with the lower z-order in case of an overlap.
+
+    Parameters
+    ----------
+    labels
+        A list of matplotlib.text.Text objects.
+    """
     to_remove = set()
     for i in range(len(labels)):
         for j in range(i + 1, len(labels)):
@@ -183,10 +193,12 @@ class WavelengthCalibration1D:
         self._p2w_dldx: Model | None = None  # delta lambda / delta pixel
 
         # Read and store the observational data if given. The user can provide either a list of arc
-        # spectra as Spectrum1D objects or a list of line pixel position arrays. Attempts to give
+        # spectra as Spectrum1D objects or a list of line pixel position arrays. An attempt to give
         # both raises an error.
         if arc_spectra is not None and obs_lines is not None:
             raise ValueError("Only one of arc_spectra or obs_lines can be provided.")
+        if arc_spectra is None and obs_lines is None:
+            raise ValueError("Must provide either arc_spectra or obs_lines.")
 
         if arc_spectra is not None:
             self.arc_spectra = [arc_spectra] if isinstance(arc_spectra, Spectrum) else arc_spectra
@@ -224,18 +236,16 @@ class WavelengthCalibration1D:
     ):
         """Read and processes line lists and organize them for further use.
 
-        This function handles line lists provided in various forms, applies wavelength bounds
-        filtering, and processes the data for efficient spatial querying using KDTree structures.
-        It also accounts for whether the input wavelengths are in air or vacuum.
-
         Parameters
         ----------
         line_lists
             A collection of line lists that can either be arrays of wavelengths or ``pypeit``
             lamp names.
+
         line_list_bounds
             A tuple specifying the minimum and maximum wavelength bounds. Only wavelengths
             within this range are retained.
+
         wave_air
              If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
         """
@@ -261,20 +271,23 @@ class WavelengthCalibration1D:
         self.catalog_lines = lines_wav
         self._create_trees()
 
-    def _create_trees(self):
+    def _create_trees(self) -> None:
+        """Initialize the KDTree instances for the current set of catalog line locations."""
         self._trees = [KDTree(lst.compressed()[:, None]) for lst in self.catalog_line_locations]
 
     def find_lines(self, fwhm: float, noise_factor: float = 1.0) -> None:
         """Find lines in the provided arc spectra.
 
-        This method determines the spectral lines within each spectrum of the arc spectra
-        based on the provided initial guess for the line Full Width at Half Maximum (FWHM).
+        Determines the spectral lines within each spectrum of the arc spectra based on the
+        provided initial guess for the line Full Width at Half Maximum (FWHM).
 
         Parameters
         ----------
         fwhm
             Initial guess for the FWHM for the spectral lines, used as a parameter in
-            the ``find_arc_lines`` function to locate and identify spectral arc lines.
+            the `~specreduce.line_matching.find_arc_lines` function to locate and identify spectral
+            arc lines.
+
         noise_factor
             The factor to multiply the uncertainty by to determine the noise threshold
             in the `~specutils.fitting.find_lines_threshold` routine.
@@ -329,22 +342,27 @@ class WavelengthCalibration1D:
         ----------
         pixels
             A sequence of pixel positions corresponding to known spectral lines.
+
         wavelengths
             A sequence of the same size as ``pixels``, containing the known
             wavelengths corresponding to the given pixel positions.
+
         match_obs
             If True, snap the input ``pixels`` values to the nearest
             pixel values found in `self.observed_line_locations` (if available). This helps
             ensure the fit uses the precise centroids detected by `find_lines`
             or provided initially.
+
         match_cat
             If True, snap the input ``wavelengths`` values to the
             nearest wavelength values found in `self.catalog_line_locations` (if available).
             This ensures the fit uses the precise catalog wavelengths.
+
         refine_fit
             If True (default), automatically call the ``refine_fit`` method
             immediately after the global optimization to improve the solution
             using a least-squares fit on matched lines.
+
         refine_max_distance
             The maximum allowed distance between the catalog and observed lines for them to be
             considered a match.
@@ -416,9 +434,8 @@ class WavelengthCalibration1D:
         and wavelengths using a global optimization algorithm (differential
         evolution). This method does not require pre-matched pixel-wavelength
         pairs. It works by finding model parameters that minimize the
-        distance between the predicted wavelengths of observed lines
-        (``self._obs_lines``) and their nearest theoretical counterparts
-        (``self._cat_lines`` accessed via KDTree).
+        distance between the predicted wavelengths of observed lines and their nearest
+        catalog counterparts accessed via KDTree).
 
         Optionally, this initial solution can be immediately refined using a
         least-squares fit on automatically matched lines.
@@ -428,23 +445,27 @@ class WavelengthCalibration1D:
         wavelength_bounds
             Bounds (min, max) for the wavelength value at the ``ref_pixel``.
             Used as a constraint in the optimization.
+
         dispersion_bounds
             Bounds (min, max) for the dispersion (d_wavelength / d_pixel)
             at the ``ref_pixel``. Used as a constraint in the optimization.
+
         popsize
             Population size for the ``scipy.optimize.differential_evolution``
             optimizer. Larger values increase the likelihood of finding the
             global minimum but also increase computation time.
+
         max_distance
             Maximum distance (in wavelength units) allowed when associating
             an observed line with a theoretical line during the optimization's
             cost function evaluation. Points beyond this distance contribute
             this maximum value to the cost, preventing outliers from having
             excessive influence.
+
         refine_fit
             If True (default), automatically call the ``refine_fit`` method
             immediately after the global optimization to improve the solution
-            using a least-squares fit on matched lines.
+            using a least squares fit on matched lines.
         """
 
         if self._p2w is None:
@@ -522,7 +543,7 @@ class WavelengthCalibration1D:
         self._calculate_p2w_inverse()
         self.match_lines(max_match_distance)
 
-    def _calculate_p2w_derivative(self):
+    def _calculate_p2w_derivative(self) -> None:
         """Calculate (d wavelength) / (d pixel) for the pixel-to-wavelength transformation."""
         if self._p2w is not None:
             self._p2w_dldx = models.Shift(self._p2w.offset_0) | _diff_poly1d(self._p2w[1])
@@ -550,13 +571,16 @@ class WavelengthCalibration1D:
         ----------
         spectrum
             A Spectrum1D instance containing the flux to be resampled over the wavelength space.
+
         nbins
             The number of bins for resampling. If not provided, it defaults to the size of the
             input spectrum.
+
         wlbounds
             A tuple specifying the starting and ending wavelengths for resampling. If not
             provided, the wavelength bounds are inferred from the object's methods and the
             entire flux array is used.
+
         bin_edges
             Explicit bin edges in the wavelength space. If provided, ``nbins`` and ``wlbounds``
             are ignored.
@@ -808,7 +832,38 @@ class WavelengthCalibration1D:
         map_x: bool = False,
         label_kwargs: dict | None = None,
     ) -> Figure:
+        """
+        Plot lines with optional features such as wavelength mapping and label customization.
 
+        Parameters
+        ----------
+        kind
+            Specifies the line list to plot.
+
+        frames
+            Frame indices to plot. If None, all frames are plotted.
+
+        axes
+            Axes object(s) where the lines should be plotted. If None, new Axes are generated.
+
+        figsize
+            Size of the figure to use if creating new Axes. Ignored if axes are provided.
+
+        plot_labels
+            Flag(s) indicating whether to display labels for the lines. If a single value is
+            provided, it is applied to all frames.
+
+        map_x
+            If True, maps the x-axis values between pixel and wavelength space.
+
+        label_kwargs
+            Additional keyword arguments to customize the label style.
+
+        Returns
+        -------
+        Figure
+            The Figure object containing the plotted spectral lines.
+        """
         largs = dict(backgroundcolor="w", rotation=90, size="small")
         if label_kwargs is not None:
             largs.update(label_kwargs)
@@ -911,7 +966,7 @@ class WavelengthCalibration1D:
                     setp(axes[i], ylim=(-0.04, ymax * 1.06))
 
                     # Remove the overlapping labels prioritizing the high-amplitude lines.
-                    unclutter_text_boxes(labels[i])
+                    _unclutter_text_boxes(labels[i])
 
         return fig
 
@@ -985,16 +1040,21 @@ class WavelengthCalibration1D:
             Specifies the frame(s) for which the plot is to be generated. If None, all frames
             are plotted. When an integer is provided, a single frame is used. For a sequence
             of integers, multiple frames are plotted.
+
         axes
             Axes object(s) to plot the spectral lines on. If None, new axes are created.
+
         figsize
             Dimensions of the figure to be created, specified as a tuple (width, height). Ignored
             if ``axes`` is provided.
+
         plot_labels
             If True, plots the numerical values of the observed lines at their respective
-            locations on the graph. Default is True.
+            locations on the graph.
+
         map_to_wav
-            Determines whether to map the x-axis values to wavelengths. Default is False.
+            Determines whether to map the x-axis values to wavelengths.
+
         label_kwargs
             Specifies the keyword arguments for the line label text objects.
 
@@ -1106,11 +1166,13 @@ class WavelengthCalibration1D:
         ----------
         ax
             Matplotlib Axes object to plot on. If None, a new figure and axes are created.
+
         space
             The reference space used for plotting residuals. Options are 'pixel' for residuals
             in pixel space or 'wavelength' for residuals in wavelength space.
+
         figsize
-            The size of the figure in inches, if a new figure is created. Default is None.
+            The size of the figure in inches, if a new figure is created.
 
         Returns
         -------
