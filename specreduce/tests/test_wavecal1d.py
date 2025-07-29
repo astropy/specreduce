@@ -303,7 +303,7 @@ def test_rms(mk_good_wc_with_transform):
 def test_remove_unmatched_lines(mk_good_wc_with_transform):
     wc = mk_good_wc_with_transform
     wc.match_lines()
-    wc.remove_ummatched_lines()
+    wc.remove_unmatched_lines()
     assert wc.catalog_lines[0].size == wc.observed_lines[0].size
 
 

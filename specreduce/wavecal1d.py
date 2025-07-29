@@ -41,7 +41,7 @@ def _format_linelist(lst):
     -------
     numpy.ma.MaskedArray
         Formatted and standardized line list array with shape [n, 2], where each row
-        contains a centroid and an amplitude. The mask is appropriately filled for
+        contains a line centroid and amplitude. The mask is appropriately filled for
         invalid entries.
 
     Raises
@@ -183,7 +183,7 @@ class WavelengthCalibration1D:
         self._p2w_dldx: Model | None = None  # delta lambda / delta pixel
 
         # Read and store the observational data if given. The user can provide either a list of arc
-        # spectra as Spectrum1D objects, or a list of line pixel position arrays. Attempts to give
+        # spectra as Spectrum1D objects or a list of line pixel position arrays. Attempts to give
         # both raises an error.
         if arc_spectra is not None and obs_lines is not None:
             raise ValueError("Only one of arc_spectra or obs_lines can be provided.")
@@ -232,7 +232,7 @@ class WavelengthCalibration1D:
         ----------
         line_lists
             A collection of line lists that can either be arrays of wavelengths or ``pypeit``
-            lamp names .
+            lamp names.
         line_list_bounds
             A tuple specifying the minimum and maximum wavelength bounds. Only wavelengths
             within this range are retained.
@@ -752,7 +752,7 @@ class WavelengthCalibration1D:
             )
             m = np.isfinite(l)
 
-            # Check for observed lines that match to a same catalog line.
+            # Check for observed lines that match a catalog line.
             # Remove all but the nearest match. This isn't an optimal solution,
             # we could also iterate the match by removing the currently matched
             # lines, but this works for now.
@@ -768,7 +768,7 @@ class WavelengthCalibration1D:
             self._cat_lines[iframe].mask[ix[m], :] = False
             self._obs_lines[iframe].mask[:, :] = ~m[:, None]
 
-    def remove_ummatched_lines(self):
+    def remove_unmatched_lines(self):
         """Remove unmatched lines from observation and catalog line data."""
         self.observed_lines = [lst.compressed().reshape([-1, 2]) for lst in self._obs_lines]
         self.catalog_lines = [lst.compressed().reshape([-1, 2]) for lst in self._cat_lines]
