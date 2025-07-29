@@ -77,8 +77,10 @@ def test_init(mk_arc, mk_lines):
     with pytest.raises(ValueError, match="Only one of arc_spectra or obs_lines can be provided."):
         WavelengthCalibration1D(ref_pixel, arc_spectra=arc, obs_lines=obs_lines)
 
-    arc = Spectrum(flux=np.array([[1, 2, 3, 4, 5]]) * u.DN,
-                   spectral_axis=np.array([1, 2, 3, 4, 5]) * u.angstrom)
+    arc = Spectrum(
+        flux=np.array([[1, 2, 3, 4, 5]]) * u.DN,
+        spectral_axis=np.array([1, 2, 3, 4, 5]) * u.angstrom,
+    )
     with pytest.raises(ValueError, match="The arc spectrum must be one dimensional."):
         WavelengthCalibration1D(ref_pixel, arc_spectra=arc)
 
@@ -146,15 +148,28 @@ def test_observed_lines(mk_lines):
     obs_lines, cat_lines = mk_lines
     wc = WavelengthCalibration1D(ref_pixel, obs_lines=obs_lines, pix_bounds=pix_bounds)
     assert len(wc.observed_lines) == 1
-    np.testing.assert_allclose(wc.observed_lines[0].data, obs_lines)
+    assert wc.observed_lines[0].shape == (len(obs_lines), 2)
+    assert wc.observed_lines[0].mask.shape == (len(obs_lines), 2)
+    np.testing.assert_allclose(wc.observed_lines[0].data[:, 0], obs_lines)
+    assert np.all(wc.observed_lines[0].mask[:, 0] == 0)
 
     wc.observed_lines = obs_lines
     assert len(wc.observed_lines) == 1
-    np.testing.assert_allclose(wc.observed_lines[0].data, obs_lines)
+    assert wc.observed_lines[0].mask.shape == (len(obs_lines), 2)
+    np.testing.assert_allclose(wc.observed_lines[0].data[:, 0], obs_lines)
+    assert np.all(wc.observed_lines[0].mask[:, 0] == 0)
 
     wc.observed_lines = wc.observed_lines
     assert len(wc.observed_lines) == 1
-    np.testing.assert_allclose(wc.observed_lines[0].data, obs_lines)
+    assert wc.observed_lines[0].mask.shape == (len(obs_lines), 2)
+    np.testing.assert_allclose(wc.observed_lines[0].data[:, 0], obs_lines)
+    assert np.all(wc.observed_lines[0].mask[:, 0] == 0)
+
+    # Line locations and amplitudes
+    assert wc.observed_line_locations[0].shape == (len(obs_lines),)
+    np.testing.assert_allclose(wc.observed_line_locations[0], obs_lines)
+    assert wc.observed_line_amplitudes[0].shape == (len(obs_lines),)
+    np.testing.assert_allclose(wc.observed_line_amplitudes[0], 0.0)
 
 
 def test_catalog_lines(mk_lines):
@@ -165,15 +180,19 @@ def test_catalog_lines(mk_lines):
         ref_pixel, obs_lines=obs_lines, line_lists=cat_lines, pix_bounds=pix_bounds
     )
     assert len(wc.catalog_lines) == 1
-    np.testing.assert_allclose(wc.catalog_lines[0].data, cat_lines)
+    assert wc.catalog_lines[0].shape == (len(cat_lines), 2)
+    np.testing.assert_allclose(wc.catalog_lines[0].data[:, 0], cat_lines)
+    assert np.all(wc.catalog_lines[0].data[:, 1] == 0)
 
     wc.catalog_lines = cat_lines
     assert len(wc.catalog_lines) == 1
-    np.testing.assert_allclose(wc.catalog_lines[0].data, cat_lines)
+    np.testing.assert_allclose(wc.catalog_lines[0].data[:, 0], cat_lines)
+    assert np.all(wc.catalog_lines[0].data[:, 1] == 0)
 
     wc.catalog_lines = wc.catalog_lines
     assert len(wc.catalog_lines) == 1
-    np.testing.assert_allclose(wc.catalog_lines[0].data, cat_lines)
+    np.testing.assert_allclose(wc.catalog_lines[0].data[:, 0], cat_lines)
+    assert np.all(wc.catalog_lines[0].data[:, 1] == 0)
 
 
 def test_fit_lines_raises_error_for_mismatched_sizes():
@@ -292,25 +311,25 @@ def test_plot_lines_with_valid_input():
     wc = WavelengthCalibration1D(ref_pixel)
     wc.observed_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
     wc._cat_lines = wc.observed_lines
-    fig = wc._plot_lines(kind="observed", frames=0, figsize=(8, 4), plot_values=True)
+    fig = wc._plot_lines(kind="observed", frames=0, figsize=(8, 4), plot_labels=True)
     assert isinstance(fig, Figure)
     assert fig.axes[0].has_data()
 
-    fig = wc._plot_lines(kind="catalog", frames=0, figsize=(8, 4), plot_values=True)
+    fig = wc._plot_lines(kind="catalog", frames=0, figsize=(8, 4), plot_labels=True)
     assert isinstance(fig, Figure)
     assert fig.axes[0].has_data()
 
     fig, ax = plt.subplots(1, 1)
-    fig = wc._plot_lines(kind="catalog", frames=0, axs=ax, plot_values=True)
+    fig = wc._plot_lines(kind="catalog", frames=0, axes=ax, plot_labels=True)
     assert isinstance(fig, Figure)
     assert fig.axes[0].has_data()
 
     fig, axs = plt.subplots(1, 2)
-    fig = wc._plot_lines(kind="catalog", frames=0, axs=axs, plot_values=True)
+    fig = wc._plot_lines(kind="catalog", frames=0, axes=axs, plot_labels=True)
     assert isinstance(fig, Figure)
     assert fig.axes[0].has_data()
 
-    fig = wc._plot_lines(kind="observed", frames=0, axs=axs, plot_values=True)
+    fig = wc._plot_lines(kind="observed", frames=0, axes=axs, plot_labels=True)
     assert isinstance(fig, Figure)
     assert fig.axes[0].has_data()
 
@@ -329,18 +348,18 @@ def test_plot_lines_calls_transform_correctly(mk_good_wc_with_transform):
 
 def test_plot_catalog_lines(mk_wc):
     wc = mk_wc
-    wc._cat_lines = [np.ma.masked_array([400, 500, 600], mask=[False, True, False])]
-    fig = wc.plot_catalog_lines(frames=0, figsize=(10, 6), plot_values=True, map_to_pix=False)
+    wc.catalog_lines = [np.ma.masked_array([400, 500, 600], mask=[False, True, False])]
+    fig = wc.plot_catalog_lines(frames=0, figsize=(10, 6), plot_labels=True, map_to_pix=False)
     assert isinstance(fig, Figure)
     assert fig.axes[0].has_data()
 
     fig, ax = plt.subplots(1, 1)
-    fig = wc.plot_catalog_lines(frames=0, axes=ax, plot_values=True)
+    fig = wc.plot_catalog_lines(frames=0, axes=ax, plot_labels=True)
     assert isinstance(fig, Figure)
     assert fig.axes[0].has_data()
 
     fig, axs = plt.subplots(1, 2)
-    fig = wc.plot_catalog_lines(frames=[0], axes=axs, plot_values=False)
+    fig = wc.plot_catalog_lines(frames=[0], axes=axs, plot_labels=False)
     assert isinstance(fig, Figure)
     assert fig.axes[0].has_data()
 
@@ -350,9 +369,7 @@ def test_plot_observed_lines(mk_good_wc_with_transform, mk_arc):
     wc.observed_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
     wc.arc_spectra = [mk_arc]
     for frames in [None, 0]:
-        fig = wc.plot_observed_lines(
-            frames=frames, figsize=(10, 5), plot_labels=True, plot_spectra=True
-        )
+        fig = wc.plot_observed_lines(frames=frames, figsize=(10, 5), plot_labels=True)
         assert isinstance(fig, Figure)
         assert fig.axes[0].has_data()
         assert len(fig.axes) == 1
