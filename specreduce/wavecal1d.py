@@ -790,7 +790,7 @@ class WavelengthCalibration1D:
             self._cat_lines[iframe].mask[ix[m], :] = False
             self._obs_lines[iframe].mask[:, :] = ~m[:, None]
 
-    def remove_unmatched_lines(self):
+    def remove_unmatched_lines(self) -> None:
         """Remove unmatched lines from observation and catalog line data."""
         self.observed_lines = [lst.compressed().reshape([-1, 2]) for lst in self._obs_lines]
         self.catalog_lines = [lst.compressed().reshape([-1, 2]) for lst in self._cat_lines]
