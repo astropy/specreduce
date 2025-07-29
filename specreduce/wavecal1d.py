@@ -283,8 +283,7 @@ class WavelengthCalibration1D:
         ----------
         fwhm
             Initial guess for the FWHM for the spectral lines, used as a parameter in
-            the `~specreduce.line_matching.find_arc_lines` function to locate and identify spectral
-            arc lines.
+            the ``find_arc_lines`` function to locate and identify spectral arc lines.
 
         noise_factor
             The factor to multiply the uncertainty by to determine the noise threshold
@@ -347,13 +346,13 @@ class WavelengthCalibration1D:
 
         match_obs
             If True, snap the input ``pixels`` values to the nearest
-            pixel values found in `self.observed_line_locations` (if available). This helps
+            pixel values found in ``self.observed_line_locations`` (if available). This helps
             ensure the fit uses the precise centroids detected by `find_lines`
             or provided initially.
 
         match_cat
             If True, snap the input ``wavelengths`` values to the
-            nearest wavelength values found in `self.catalog_line_locations` (if available).
+            nearest wavelength values found in ``self.catalog_line_locations`` (if available).
             This ensures the fit uses the precise catalog wavelengths.
 
         refine_fit
