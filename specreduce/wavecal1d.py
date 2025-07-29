@@ -197,8 +197,6 @@ class WavelengthCalibration1D:
         # both raises an error.
         if arc_spectra is not None and obs_lines is not None:
             raise ValueError("Only one of arc_spectra or obs_lines can be provided.")
-        if arc_spectra is None and obs_lines is None:
-            raise ValueError("Must provide either arc_spectra or obs_lines.")
 
         if arc_spectra is not None:
             self.arc_spectra = [arc_spectra] if isinstance(arc_spectra, Spectrum) else arc_spectra
