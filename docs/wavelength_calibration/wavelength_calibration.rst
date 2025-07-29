@@ -47,19 +47,12 @@ The typical workflow involves these steps:
 5.  **Applying the Solution**: Use the fitted model (often accessed as a `~gwcs.wcs.WCS` object) to
     calibrate science spectra or resample spectra onto a linear wavelength grid.
 
-Tutorials
----------
+.. Tutorials
+.. ---------
 
-The following tutorials provide hands-on examples demonstrating the usage of the 
-`~specreduce.wavecal1d.WavelengthCalibration1D` class. These step-by-step guides cover 
-both basic and advanced functionality to help you get started with wavelength calibration.
-
-.. toctree::
-   :maxdepth: 1
-
-   wavecal1d_example_01.ipynb
-   wavecal1d_example_02.ipynb
-   wavecal1d_example_03.ipynb
+.. The following tutorials provide hands-on examples demonstrating the usage of the
+   `~specreduce.wavecal1d.WavelengthCalibration1D` class. These step-by-step guides cover
+   both basic and advanced functionality to help you get started with wavelength calibration.
 
 Quickstart
 ----------
