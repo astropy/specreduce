@@ -64,7 +64,9 @@ def _format_linelist(lst):
         lst = np.tile(lst[:, None], [1, 2])
         lst[:, 1] = 0.0
         lst.mask[:, :] = lst.mask.any(axis=1)[:, None]
-    return lst
+
+    sids = np.argsort(lst.data[:, 0])
+    return lst[sids]
 
 
 def _unclutter_text_boxes(labels: Sequence) -> None:
