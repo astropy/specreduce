@@ -16,7 +16,7 @@ the spectrograph.
 
 The ``specreduce`` library provides the `~specreduce.wavecal1d.WavelengthCalibration1D` class
 to  facilitate this process for one-dimensional spectra. Tools for calibrating 2D spectra will
-be introduced soon.
+be introduced in a later version.
 
 1D Wavelength Calibration
 -------------------------
@@ -25,7 +25,7 @@ The `~specreduce.wavecal1d.WavelengthCalibration1D` class encapsulates the data 
 needed to perform  1D wavelength calibration. The class supports multiple workflows with varying
 levels of user interaction. It can be used:
 
-*  manually,
+*  manually in an interactive script or notebook,
 *  as part of an interactive pipeline, or
 *  as part of a fully automated pipeline.
 
@@ -68,22 +68,22 @@ polynomial for the fit.
 You must provide *either* a list of arc spectra (or a single arc spectrum) *or* a list of known
 observed line positions:
 
-*   **Using an Arc Spectrum**: Provide the arc spectrum as a `specutils.Spectrum1D`
+*   **Using an Arc Spectrum**: Provide the arc spectrum as a `specutils.Spectrum`
     object via the ``arc_spectra`` argument. You also need to provide a ``line_lists`` argument,
     which can be a list of known catalog wavelengths or the name(s) of standard line lists
     recognized by `specreduce` (e.g., ``"HeI"``).
 
     .. code-block:: python
 
-        wc = WavelengthCalibration1D(ref_pix=512,
-                                     arc_spectra=arc_hei,
+        wc = WavelengthCalibration1D(ref_pixel=512,
+                                     arc_spectra=arc_he,
                                      line_lists=["HeI"])
 
 *   **Using multiple Arc Spectra**:
 
     .. code-block:: python
 
-        wc = WavelengthCalibration1D(ref_pix=512,
+        wc = WavelengthCalibration1D(ref_pixel=512,
                                      arc_spectra=[arc_he, arc_hg_ar],
                                      line_lists=[["HeI"], ["HgI", "ArI"]])
 
@@ -101,7 +101,7 @@ observed line positions:
         # Pixel range of the detector
         pixel_bounds = (0, 1024)
 
-        wc = WavelengthCalibration1D(ref_pix=512,
+        wc = WavelengthCalibration1D(ref_pixel=512,
                                      obs_lines=obs_he,
                                      line_lists=["HeI"],
                                      pix_bounds=pixel_bounds)
@@ -114,7 +114,7 @@ observed line positions:
         obs_hg_ar = np.array([234.2, 534.1, 768.2, 879.6])
         pixel_bounds = (0, 1024)
 
-        wc = WavelengthCalibration1D(ref_pix=512,
+        wc = WavelengthCalibration1D(ref_pixel=512,
                                      obs_lines=[obs_he, obs_hg_ar],
                                      line_lists=[["HeI"], ["HgI", "ArI"]],
                                      pix_bounds=pixel_bounds)
@@ -132,9 +132,10 @@ If you initialized the class with ``arc_spectra``, you need to detect the lines 
     wc.find_lines(fwhm=3.5, noise_factor=5)
 
     # Access the found lines (pixel positions)
-    print(wc.observed_lines)
+    print(wc.observed_line_locations)
 
-This populates the `~specreduce.wavecal1d.WavelengthCalibration1D.observed_lines` attribute.
+This populates the `~specreduce.wavecal1d.WavelengthCalibration1D.observed_line_locations`
+attribute.
 
 3. Matching and Fitting the Solution
 ************************************
@@ -230,7 +231,7 @@ Once satisfied with the fit, you can use the wavelength solution:
 
 *   **Get WCS Object**: Access the `~gwcs.wcs.WCS` object representing the solution via the
     :attr:`~specreduce.wavecal1d.WavelengthCalibration1D.gwcs` attribute. This is particularly
-    useful for attaching the calibration to a :class:`~specutils.Spectrum1D` object.
+    useful for attaching the calibration to a :class:`~specutils.Spectrum` object.
 
 *   **Rebin Spectrum**: Resample a spectrum onto a new wavelength grid using
     :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.resample`. The rebinning is
