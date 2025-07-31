@@ -619,7 +619,7 @@ class WavelengthCalibration1D:
         weights = np.zeros(npix)
 
         dldx = self._p2w_dldx(np.arange(npix))
-        n = flux.sum() / (dldx * flux).sum()
+        n = np.nansum(flux) / np.nansum((dldx * flux))
         for i in range(nbins):
             i1, i2 = bin_edge_ix[i : i + 2]
             weights[:] = 0
@@ -905,7 +905,7 @@ class WavelengthCalibration1D:
         for iframe, (ax, frame) in enumerate(zip(axes, frames)):
             if spectra is not None:
                 spc = self.arc_spectra[iframe]
-                vmax = spc.flux.value.max()
+                vmax = np.nanmax(spc.flux.value)
                 ax.plot(transform(spc.spectral_axis.value), spc.flux.value / vmax, "k")
             else:
                 vmax = 1.0
