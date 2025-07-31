@@ -918,11 +918,12 @@ class WavelengthCalibration1D:
 
                     ax.plot(transform([c, c]), [a / vmax + 0.1, 1.27], c=lc, ls=ls, zorder=-100)
                     if plot_labels[iframe]:
+                        lloc = transform(c)
                         labels[-1].append(
                             ax.text(
-                                transform(c),
+                                lloc,
                                 ypad,
-                                f"{transform(c):.0f}",
+                                np.round(lloc, 4 - 1 - int(np.floor(np.log10(lloc)))),
                                 ha="center",
                                 va="top",
                                 **largs,
