@@ -180,6 +180,11 @@ class WavelengthCalibration1D:
         self.ref_pixel = ref_pixel
         self.nframes = 0
 
+        if degree < 1:
+            raise ValueError("Degree must be at least 1.")
+        if ref_pixel < 0:
+            raise ValueError("Reference pixel must be positive.")
+
         self.arc_spectra: list[Spectrum] | None = None
         self.bounds_pix: tuple[int, int] | None = pix_bounds
         self.bounds_wav: tuple[float, float] | None = None
@@ -423,6 +428,7 @@ class WavelengthCalibration1D:
         self,
         wavelength_bounds: tuple[float, float],
         dispersion_bounds: tuple[float, float],
+        higher_order_limits: Sequence[float] | None = None,
         popsize: int = 30,
         max_distance: float = 100,
         refine_fit: bool = True,
@@ -448,6 +454,11 @@ class WavelengthCalibration1D:
         dispersion_bounds
             Bounds (min, max) for the dispersion (d_wavelength / d_pixel)
             at the ``ref_pixel``. Used as a constraint in the optimization.
+
+        higher_order_limits
+            Limit for the absolute value of the higher-order coefficients.
+            The optimization bounds for each coefficient will be set to
+            [-limit, limit].
 
         popsize
             Population size for the ``scipy.optimize.differential_evolution``
@@ -481,13 +492,21 @@ class WavelengthCalibration1D:
             return total_distance
 
         # Define bounds for differential_evolution.
-        # Assumes first 3 coefficients correspond to wavelength, dispersion, and curvature.
-        bounds = np.concatenate(
-            [
-                [wavelength_bounds, dispersion_bounds, [-1e-3, 1e-3]],
-                np.zeros((model[1].degree - 2, 2)),
-            ]
-        )
+        bounds = [np.asarray(wavelength_bounds), np.asarray(dispersion_bounds)]
+
+        if higher_order_limits is not None:
+            if len(higher_order_limits) != model[1].degree - 1:
+                raise ValueError(
+                    "The number of higher-order limits must match the degree of the polynomial "
+                    "model minus one."
+                )
+            for v in higher_order_limits:
+                bounds.append(np.asarray([v, v]))
+        else:
+            for i in range(2, model[1].degree + 1):
+                bounds.append(np.array([-1, 1]) * 10**(np.log10(np.mean(dispersion_bounds)) - 2))
+        bounds = np.array(bounds)
+
         self._fit = fit = optimize.differential_evolution(
             minfun,
             bounds=bounds,
