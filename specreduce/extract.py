@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from astropy import units as u
 from astropy.modeling import Model, models, fitting
-from astropy.nddata import NDData, VarianceUncertainty
+from astropy.nddata import NDData, VarianceUncertainty, StdDevUncertainty
 from numpy import ndarray
 from scipy.integrate import trapezoid
 from scipy.interpolate import RectBivariateSpline
@@ -194,6 +194,139 @@ class BoxcarExtract(SpecreduceOperation):
     def spectrum(self):
         return self.__call__()
 
+    def _variance2d_from_image(self, image):
+        """
+        Extract a 2-D variance array from the input image, if available.
+
+        This method attempts to read per-pixel variance information from the
+        ``image`` object in units of ``image.unit**2``. The following sources
+        are checked in order of precedence:
+
+        1. ``image.uncertainty``:
+           - If it is an ``astropy.nddata.StdDevUncertainty``, the quantity is
+             squared to obtain variance.
+           - If it has a ``quantity`` attribute, that is squared.
+           - If it has an ``array`` attribute, it is interpreted as standard
+             deviation in the same units as ``image.unit`` and squared.
+        2. ``image.variance``:
+           - If it has a unit, it is converted to ``image.unit**2``.
+           - Otherwise it is assumed to be in the same units as ``image.unit``
+             squared.
+
+        Returns
+        -------
+        var2d : `~astropy.units.Quantity` or None
+            2-D array of variance values with shape matching ``image.data`` and
+            units of ``image.unit**2``. Returns ``None`` if no variance or
+            uncertainty information can be found.
+
+        Raises
+        ------
+        ValueError
+            If a variance array is found but does not match the shape of
+            ``image.data``.
+
+        Notes
+        -----
+        - This function assumes variances are uncorrelated between pixels.
+        - If neither ``uncertainty`` nor ``variance`` is present, the calling
+          code should decide whether to estimate variances from detector
+          characteristics or proceed without uncertainties.
+        """
+        var2d = None
+        img_unit = getattr(image, "unit", None)
+
+        # From image.uncertainty
+        unc = getattr(image, "uncertainty", None)
+        if unc is not None:
+            try:
+                # Prefer explicit uncertainty_type if available
+                utype = getattr(unc, "uncertainty_type", None)
+
+                if utype in ("var", "variance"):
+                    # Already variance
+                    arr = getattr(unc, "array", unc)
+                    var2d = u.Quantity(
+                        np.asanyarray(arr),
+                        img_unit**2 if img_unit is not None else u.dimensionless_unscaled,
+                        copy=False,
+                    )
+                    if img_unit is not None:
+                        var2d = var2d.to(img_unit**2)
+
+                elif utype in ("std", "stddev", "std_dev"):
+                    # Standard deviation -> square to get variance
+                    arr = getattr(unc, "array", unc)
+                    q = u.Quantity(
+                        np.asanyarray(arr),
+                        img_unit if img_unit is not None else u.dimensionless_unscaled,
+                        copy=False,
+                    )
+                    var2d = q**2
+                    if img_unit is not None:
+                        var2d = var2d.to(img_unit**2)
+
+                elif utype in ("ivar", "inverse_variance", "invvar"):
+                    # Inverse variance -> invert to get variance
+                    arr = getattr(unc, "array", unc)
+                    ivq = u.Quantity(
+                        np.asanyarray(arr),
+                        (1.0 / (img_unit**2)) if img_unit is not None else u.dimensionless_unscaled,
+                        copy=False,
+                    )
+                    with np.errstate(divide="ignore", invalid="ignore"):
+                        var2d = 1.0 / ivq
+                        if img_unit is not None:
+                            var2d = var2d.to(img_unit**2)
+
+                else:
+                    # Fallbacks when uncertainty_type is absent
+                    if hasattr(unc, "quantity"):
+                        q = u.Quantity(unc.quantity, copy=False)
+                        var2d = q**2
+                    elif isinstance(unc, StdDevUncertainty):
+                        q = u.Quantity(np.asanyarray(unc.array), img_unit, copy=False)
+                        var2d = q**2
+                    elif hasattr(unc, "array"):
+                        # Assume stddev if type is unknown
+                        q = u.Quantity(np.asanyarray(unc.array), img_unit, copy=False)
+                        var2d = q**2
+                    else:
+                        q = u.Quantity(np.asanyarray(unc), img_unit, copy=False)
+                        var2d = q**2
+
+                    if img_unit is not None:
+                        var2d = var2d.to(img_unit**2)
+
+            except Exception:
+                var2d = None
+
+        # From image.variance (only if not already set)
+        if var2d is None:
+            v = getattr(image, "variance", None)
+            if v is not None:
+                vq = u.Quantity(v, copy=False) if hasattr(v, "unit") else u.Quantity(
+                    np.asanyarray(v), img_unit**2 if img_unit is not None else u.dimensionless_unscaled, copy=False
+                )
+                if img_unit is not None:
+                    vq = vq.to(img_unit**2, equivalencies=u.dimensionless_angles())
+                var2d = vq
+
+        if var2d is None:
+            return None
+
+        # Ensure shape matches image.data
+        data = getattr(image, "data", None)
+        if data is None:
+            raise ValueError("image has no .data attribute to compare shapes against")
+
+        if var2d.shape != np.shape(data):
+            raise ValueError(
+                f"variance shape {var2d.shape} does not match image data shape {np.shape(data)}"
+            )
+
+        return u.Quantity(var2d, copy=False)
+
     def __call__(
         self,
         image: ImageLike | None = None,
@@ -245,6 +378,7 @@ class BoxcarExtract(SpecreduceOperation):
         # latter case, the flux is calculated as the average of the non-masked pixels inside
         # the window multiplied by the window width.
         window_weights = _ap_weight_image(trace, width, disp_axis, cdisp_axis, self.image.shape)
+        var2d_q = self._variance2d_from_image(self.image)
 
         if self.mask_treatment == "apply":
             image_cleaned = np.where(~self.image.mask, self.image.data * window_weights, 0.0)
@@ -254,11 +388,37 @@ class BoxcarExtract(SpecreduceOperation):
                 / weights.sum(axis=cdisp_axis)
                 * window_weights.sum(axis=cdisp_axis)
             )
+            if var2d_q is not None:
+                a = np.where(~self.image.mask, window_weights, 0.0)
+                S = window_weights.sum(axis=cdisp_axis)
+                W = a.sum(axis=cdisp_axis)
+                W = np.where(W == 0.0, np.nan, W)
+                num_var = (a**2 * var2d_q).sum(axis=cdisp_axis)
+                var1d_q = ((S / W) ** 2) * num_var
+            else:
+                var1d_q = None
+
         else:
             image_windowed = np.where(window_weights, self.image.data * window_weights, 0.0)
             spectrum = np.sum(image_windowed, axis=cdisp_axis)
+            if var2d_q is not None:
+                var1d_q = (window_weights**2 * var2d_q).sum(axis=cdisp_axis)
+            else:
+                var1d_q = None
 
-        return Spectrum(spectrum * self.image.unit, spectral_axis=self.image.spectral_axis)
+
+        if var1d_q is not None:
+            unc = StdDevUncertainty(np.sqrt(var1d_q).to(self.image.unit))
+            return Spectrum(
+                spectrum * self.image.unit,
+                spectral_axis=self.image.spectral_axis,
+                uncertainty=unc,
+            )
+        else:
+            return Spectrum(
+                spectrum * self.image.unit,
+                spectral_axis=self.image.spectral_axis,
+            )
 
 
 @dataclass
@@ -464,7 +624,9 @@ class HorneExtract(SpecreduceOperation):
 
         variance = VarianceUncertainty(variance)
 
-        unit = getattr(image, "unit", u.Unit(unit) if unit is not None else u.Unit("DN"))
+        img_unit = getattr(image, "unit", None)
+        unit = u.Unit(unit) if unit is not None else img_unit
+        unit = unit if unit is not None else u.Unit("DN")
 
         spectral_axis = getattr(image, "spectral_axis", np.arange(img.shape[disp_axis]) * u.pix)
 
@@ -473,7 +635,7 @@ class HorneExtract(SpecreduceOperation):
     def _fit_gaussian_spatial_profile(
         self, img: ndarray, disp_axis: int, crossdisp_axis: int, or_mask: ndarray, bkgrd_prof: Model
     ):
-        """Fit a 1D Gaussian spatial profile to spectrum in `img`.
+        """Fit a 1D Gaussian spatial profile to spectrum in `img` with error propagation.
 
         Fits an 1D Gaussian profile to spectrum in `img`. Takes the weighted mean
         of  ``img`` along the cross-dispersion axis all ignoring masked pixels
@@ -486,6 +648,26 @@ class HorneExtract(SpecreduceOperation):
 
         # co-add signal in each image row, ignore masked pixels
         coadd = np.ma.masked_array(img, mask=or_mask).mean(disp_axis)
+
+        # build per-row uncertainties for the masked mean:
+        # var(mean) = sum_j var_ij / N_i^2 over valid pixels
+        var2d_q = self._var2d_as_quantity()
+        var2d = np.asarray(var2d_q.value)
+
+        valid = ~or_mask  # True where pixel is unmasked
+        N_per_row = valid.sum(axis=disp_axis)
+        sum_var_per_row = np.where(
+            N_per_row > 0,
+            np.sum(np.where(valid, var2d, 0.0), axis=disp_axis),
+            0.0,
+        )
+        with np.errstate(invalid="ignore", divide="ignore"):
+            var_mean_per_row = np.where(
+                N_per_row > 0,
+                sum_var_per_row / (N_per_row.astype(float) ** 2),
+                np.nan,
+            )
+        sigma_row = np.sqrt(var_mean_per_row)
 
         # use the sum of brightest row as an inital guess for Gaussian amplitude,
         # the the location of the brightest row as an initial guess for the mean
@@ -503,7 +685,43 @@ class HorneExtract(SpecreduceOperation):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fitter = fitting.LMLSQFitter()
-            fit_ext_kernel = fitter(ext_prof, xd_pixels[~coadd.mask], coadd.compressed())
+            # prepare x, y, and weights = 1/sigma
+            good = ~coadd.mask
+            x_fit = xd_pixels[good]
+            y_fit = coadd.compressed()
+            sigma_fit = sigma_row[good]
+
+            finite = np.isfinite(sigma_fit) & (sigma_fit > 0.0)
+            x_fit = x_fit[finite]
+            y_fit = y_fit[finite]
+            w_fit = 1.0 / sigma_fit[finite]
+
+            fit_ext_kernel = fitter(ext_prof, x_fit, y_fit, weights=w_fit)
+
+            # capture covariance and 1-sigma parameter errors if available
+        fit_info = getattr(fitter, "fit_info", {}) or {}
+        cov = fit_info.get("param_cov", fit_info.get("cov_x", None))
+        param_stderr = None
+        if cov is not None:
+            try:
+                names = fit_ext_kernel.param_names
+                diag = np.diag(cov)
+                diag = np.where(np.isfinite(diag) & (diag >= 0.0), diag, np.nan)
+                errs = np.sqrt(diag)
+                param_stderr = {name: err for name, err in zip(names, errs)}
+            except Exception:
+                param_stderr = None
+
+        # attach diagnostics to the model and stash on self
+        if not hasattr(fit_ext_kernel, "meta") or fit_ext_kernel.meta is None:
+            fit_ext_kernel.meta = {}
+        fit_ext_kernel.meta["param_cov"] = cov
+        fit_ext_kernel.meta["param_stderr"] = param_stderr
+
+        self._last_fit_cov = cov
+        self._last_fit_param_stderr = param_stderr
+        self._last_profile_sigma = sigma_row
+
         return fit_ext_kernel
 
     def _fit_spatial_profile(
@@ -564,6 +782,34 @@ class HorneExtract(SpecreduceOperation):
             samples[i, :] = bin_median / bin_median.sum()
 
         return RectBivariateSpline(x=bin_centers, y=np.arange(nrows), z=samples, kx=kx, ky=ky)
+
+    def _var2d_as_quantity(self) -> u.Quantity:
+        """
+        Return the per-pixel variance from self.image as a Quantity
+        with units of (image.unit)**2.
+
+        This assumes self.image was created by _parse_image, which
+        ensures that:
+
+        - self.image.uncertainty exists
+        - It is a VarianceUncertainty or equivalent
+        - Its .array attribute has the same shape as self.image.data
+        - Units are consistent with self.image.unit
+
+        Returns
+        -------
+        var2d : `~astropy.units.Quantity`
+            2-D variance array with units (image.unit)**2.
+
+        Raises
+        ------
+        ValueError
+            If variance is missing or has no .array attribute.
+        """
+        v = getattr(self.image, "uncertainty", None)
+        if v is None or getattr(v, "array", None) is None:
+            raise ValueError("No per-pixel variance available on image.uncertainty")
+        return u.Quantity(v.array, self.image.unit**2, copy=False)
 
     def __call__(
         self,
@@ -673,6 +919,7 @@ class HorneExtract(SpecreduceOperation):
             bkgrd_prof = models.Polynomial1D(2)
 
         self.image = self._parse_image(image, variance, mask, unit, disp_axis)
+        var2d_q = self._var2d_as_quantity()
         variance = self.image.uncertainty.represent_as(VarianceUncertainty).array
         mask = self.image.mask.astype(bool) | (~np.isfinite(self.image.data))
         unit = self.image.unit
@@ -727,8 +974,9 @@ class HorneExtract(SpecreduceOperation):
         norms = np.full(ndisp, np.nan)
         valid = ~mask
 
-        if profile_type == "gaussian":
-            norms[:] = fit_ext_kernel.amplitude_0 * fit_ext_kernel.stddev_0 * np.sqrt(2 * np.pi)
+        ### remove gaussian norms preset; we will normalize profile explicitly ###
+        # if profile_type == "gaussian":
+        #     norms[:] = fit_ext_kernel.amplitude_0 * fit_ext_kernel.stddev_0 * np.sqrt(2 * np.pi)
 
         for idisp in range(ndisp):
             if not np.any(valid[:, idisp]):
@@ -740,14 +988,38 @@ class HorneExtract(SpecreduceOperation):
             else:
                 fitted_col = interp_spatial_prof(idisp, xd_pixels)
                 kernel_vals[:, idisp] = fitted_col
-                norms[idisp] = trapezoid(fitted_col, dx=1)[0]
+                # no norms here; P will be normalized per column below
 
-        with np.errstate(divide="ignore", invalid="ignore"):
-            num = np.sum(np.where(valid, img * kernel_vals / variance, 0.0), axis=crossdisp_axis)
-            den = np.sum(np.where(valid, kernel_vals**2 / variance, 0.0), axis=crossdisp_axis)
-            extraction = (num / den) * norms
+        # Normalize spatial profile per wavelength column
+        sumP = np.sum(kernel_vals * valid, axis=crossdisp_axis, keepdims=True)
+        sumP = np.where(sumP == 0, 1.0, sumP)  # avoid division by zero
+        kernel_vals = kernel_vals / sumP
 
-        return Spectrum(extraction * unit, spectral_axis=self.image.spectral_axis)
+        # Get variance as Quantity with correct units
+        var2d_q = self._var2d_as_quantity()
+
+        # Replace masked/invalid pixels in profile and data
+        D_eff = np.where(valid, img, 0.0)
+        P_use = np.where(valid, kernel_vals, 0.0)
+
+        # Compute inverse variance (set to 0 where invalid)
+        inv_var = 1.0 / np.where(valid, var2d_q, np.nan)
+        inv_var = np.where(~np.isfinite(inv_var) | (inv_var <= 0),
+                        0.0 / var2d_q.unit, inv_var)
+
+        # Horne 1986 numerator and denominator
+        num = np.sum((P_use * D_eff) * inv_var, axis=crossdisp_axis)
+        den = np.sum((P_use * P_use) * inv_var, axis=crossdisp_axis)
+
+        # Flux and variance in 1D
+        flux1d = num / den
+        var1d_q = 1.0 / den
+
+        # Build Spectrum with propagated uncertainty
+        unc = StdDevUncertainty(np.sqrt(var1d_q))
+
+        unc = StdDevUncertainty(np.sqrt(var1d_q))
+        return Spectrum(flux1d * unit, spectral_axis=self.image.spectral_axis, uncertainty=unc)
 
 
 def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):
