@@ -49,16 +49,14 @@ def _format_linelist(lst):
         If the input line list does not meet the specified dimensional or shape
         requirements.
     """
-    lst = MaskedArray(lst, copy=True)
+    lst: MaskedArray = MaskedArray(lst, copy=True)
+    lst.mask = np.ma.getmaskarray(lst)
 
     if (lst.ndim > 2) or (lst.ndim == 2 and lst.shape[1] > 2):
         raise ValueError(
             "Line lists must be 1D with a shape [n] (centroids) or "
             "2D with a shape [n, 2] (centroids and amplitudes)."
         )
-
-    if lst.mask is np.False_:
-        lst.mask = np.zeros(lst.shape[0], dtype=bool)
 
     if lst.ndim == 1:
         lst = np.tile(lst[:, None], [1, 2])
