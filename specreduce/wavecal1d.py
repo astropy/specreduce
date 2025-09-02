@@ -8,7 +8,7 @@ import numpy as np
 
 from astropy.modeling import models, Model, fitting
 from astropy.nddata import VarianceUncertainty
-from gwcs import coordinate_frames as cf
+from gwcs import coordinate_frames
 from matplotlib.pyplot import Axes, Figure, setp, subplots
 from numpy import ndarray
 from numpy.ma.core import MaskedArray
@@ -760,7 +760,7 @@ class WavelengthCalibration1D:
     @property
     def gwcs(self) -> gwcs.wcs.WCS:
         """GWCS object defining the mapping between pixel and spectral coordinate frames."""
-        pixel_frame = cf.CoordinateFrame(
+        pixel_frame = coordinate_frames.CoordinateFrame(
             1,
             "SPECTRAL",
             (0,),
@@ -769,7 +769,7 @@ class WavelengthCalibration1D:
             ],
             unit=[u.pix],
         )
-        spectral_frame = cf.SpectralFrame(
+        spectral_frame = coordinate_frames.SpectralFrame(
             axes_names=("wavelength",),
             unit=[self.unit],
         )
