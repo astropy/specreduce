@@ -11,7 +11,8 @@ from astropy.nddata import VarianceUncertainty
 from gwcs import coordinate_frames
 from matplotlib.pyplot import Axes, Figure, setp, subplots
 from numpy import ndarray
-from numpy.ma.core import MaskedArray
+from numpy.typing import ArrayLike
+from numpy.ma import MaskedArray
 from scipy import optimize
 from scipy.interpolate import interp1d
 from scipy.spatial import KDTree
@@ -23,12 +24,8 @@ from specreduce.line_matching import find_arc_lines
 __all__ = ["WavelengthCalibration1D"]
 
 
-def _format_linelist(lst):
-    """Formats a line list for further processing.
-
-    This function ensures that the provided line list adheres to certain shape and
-    dimensionality constraints. It converts the input into a standardized format
-    while applying necessary modifications such as tiling and masking.
+def _format_linelist(lst: ArrayLike) -> MaskedArray:
+    """Force a line list into a MaskedArray with a shape of (n, 2) where n is the number of lines.
 
     Parameters
     ----------
@@ -59,12 +56,11 @@ def _format_linelist(lst):
         )
 
     if lst.ndim == 1:
-        lst = np.tile(lst[:, None], [1, 2])
+        lst = MaskedArray(np.tile(lst[:, None], [1, 2]))
         lst[:, 1] = 0.0
         lst.mask[:, :] = lst.mask.any(axis=1)[:, None]
 
-    sids = np.argsort(lst.data[:, 0])
-    return lst[sids]
+    return lst[np.argsort(lst.data[:, 0])]
 
 
 def _unclutter_text_boxes(labels: Sequence) -> None:
@@ -123,9 +119,9 @@ class WavelengthCalibration1D:
         ref_pixel: float,
         unit: u.Unit = u.angstrom,
         degree: int = 3,
-        line_lists: Sequence | None = None,
+        line_lists: ArrayLike | None = None,
         arc_spectra: Spectrum | Sequence[Spectrum] | None = None,
-        obs_lines: ndarray | Sequence[ndarray] | None = None,
+        obs_lines: ArrayLike | Sequence[ArrayLike] | None = None,
         pix_bounds: tuple[int, int] | None = None,
         line_list_bounds: tuple[float, float] = (0, np.inf),
         wave_air: bool = False,
@@ -188,14 +184,14 @@ class WavelengthCalibration1D:
         self.bounds_wav: tuple[float, float] | None = None
         self._cat_lines: list[MaskedArray] | None = None
         self._obs_lines: list[MaskedArray] | None = None
-        self._trees: Sequence[KDTree] | None = None
+        self._trees: list[KDTree] | None = None
 
         self._fit: optimize.OptimizeResult | None = None
         self._wcs: gwcs.wcs.WCS | None = None
 
-        self._p2w: Model | None = None  # pixel -> wavelength model
+        self._p2w: None | Model = None  # pixel -> wavelength model
         self._w2p: Callable | None = None  # wavelength -> pixel model
-        self._p2w_dldx: Model | None = None  # delta lambda / delta pixel
+        self._p2w_dldx: None | Model = None  # delta lambda / delta pixel
 
         # Read and store the observational data if given. The user can provide either a list of arc
         # spectra as Spectrum1D objects or a list of line pixel position arrays. An attempt to give
@@ -228,7 +224,7 @@ class WavelengthCalibration1D:
                 raise ValueError("The number of line lists must match the number of arc spectra.")
             self._read_linelists(line_lists, line_list_bounds=line_list_bounds, wave_air=wave_air)
 
-    def _init_model(self):
+    def _init_model(self) -> None:
         self._p2w = models.Shift(-self.ref_pixel) | models.Polynomial1D(self.degree)
 
     def _read_linelists(
@@ -236,8 +232,8 @@ class WavelengthCalibration1D:
         line_lists: Sequence,
         line_list_bounds: tuple[float, float] = (0.0, np.inf),
         wave_air: bool = False,
-    ):
-        """Read and processes line lists and organize them for further use.
+    ) -> None:
+        """Read and processes line lists.
 
         Parameters
         ----------
@@ -322,8 +318,8 @@ class WavelengthCalibration1D:
 
     def fit_lines(
         self,
-        pixels: Sequence,
-        wavelengths: Sequence,
+        pixels: ArrayLike,
+        wavelengths: ArrayLike,
         match_obs: bool = False,
         match_cat: bool = False,
         refine_fit: bool = True,
@@ -343,10 +339,10 @@ class WavelengthCalibration1D:
         Parameters
         ----------
         pixels
-            A sequence of pixel positions corresponding to known spectral lines.
+            An array of pixel positions corresponding to known spectral lines.
 
         wavelengths
-            A sequence of the same size as ``pixels``, containing the known
+            An array of the same size as ``pixels``, containing the known
             wavelengths corresponding to the given pixel positions.
 
         match_obs
@@ -653,7 +649,7 @@ class WavelengthCalibration1D:
         ucty_wl = VarianceUncertainty(ucty_wl * n).represent_as(ucty_type)
         return Spectrum(flux_wl, bin_centers_wav * u.angstrom, uncertainty=ucty_wl)
 
-    def pix_to_wav(self, pix: MaskedArray | ndarray | float) -> ndarray | float:
+    def pix_to_wav(self, pix: float | ArrayLike) -> float | ndarray:
         """Map pixel values into wavelength values.
 
         Parameters
@@ -671,7 +667,7 @@ class WavelengthCalibration1D:
         else:
             return self._p2w(pix)
 
-    def wav_to_pix(self, wav: MaskedArray | ndarray | float) -> ndarray | float:
+    def wav_to_pix(self, wav: float | ArrayLike) -> float | ndarray:
         """Map wavelength values into pixel values.
 
         Parameters
@@ -711,7 +707,7 @@ class WavelengthCalibration1D:
             return [line[:, 1] for line in self._obs_lines]
 
     @observed_lines.setter
-    def observed_lines(self, line_lists: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
+    def observed_lines(self, line_lists: ArrayLike | list[ArrayLike]):
         if not isinstance(line_lists, Sequence):
             line_lists = [line_lists]
         self._obs_lines = []
@@ -744,7 +740,7 @@ class WavelengthCalibration1D:
             return [line[:, 1] for line in self._cat_lines]
 
     @catalog_lines.setter
-    def catalog_lines(self, line_lists: MaskedArray | ndarray | list[MaskedArray] | list[ndarray]):
+    def catalog_lines(self, line_lists: ArrayLike | list[ArrayLike]):
         if not isinstance(line_lists, Sequence):
             line_lists = [line_lists]
         self._cat_lines = []
