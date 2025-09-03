@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import astropy.units as u
-from astropy.nddata import NDData, VarianceUncertainty, StdDevUncertainty
+from astropy.nddata import NDData, CCDData, VarianceUncertainty, StdDevUncertainty
 
 from specreduce.extract import BoxcarExtract
 from specreduce.tracing import FlatTrace, ArrayTrace
@@ -234,3 +234,51 @@ def test_boxcar_some_zero_variances_row():
     arr = run_extract(img, mask_treatment="ignore")
     exp = expected_std_per_column("ignore", ny // 2, width)
     assert np.allclose(arr, exp, rtol=5e-3, atol=5e-3)
+
+
+# Extra coverage for policy and units
+
+def test_ccddata_without_uncertainty_runs_unweighted():
+    img = CCDData(data=data.copy(), unit=u.DN)  # no uncertainty on purpose
+    img.spectral_axis = np.arange(nx) * u.pix
+    arr_u = run_extract(img, mask_treatment="ignore")
+
+    # estimate sigma from the image the same way as the code path
+    arr = img.data.astype(float)
+    arr = arr.copy()
+    arr[~np.isfinite(arr)] = np.nan
+    baseline = np.nanmedian(arr, axis=0, keepdims=True)
+    resid = arr - baseline
+    sigma_hat = float(np.nanstd(resid, ddof=0))
+
+    exp = expected_std_per_column("ignore", ny // 2, width, sigma=sigma_hat)
+    assert np.allclose(arr_u, exp, rtol=5e-3, atol=5e-3)
+
+def test_missing_uncertainty_policy_freezes_across_calls():
+    img = CCDData(data=data.copy(), unit=u.DN)  # no uncertainty
+    img.spectral_axis = np.arange(nx) * u.pix
+    trace = FlatTrace(img, ny // 2)
+    ext = BoxcarExtract(image=img, trace_object=trace, width=width, disp_axis=1, crossdisp_axis=0)
+    spec1 = ext.spectrum  # first call establishes policy
+    trace.set_position(ny // 2 - 0.5)
+    spec2 = ext()         # second call should not flip to error
+    uq1 = getattr(spec1.uncertainty, "quantity", None)
+    uq2 = getattr(spec2.uncertainty, "quantity", None)
+    assert uq1 is not None and uq1.unit == u.DN
+    assert uq2 is not None and uq2.unit == u.DN
+
+
+def test_variance_unitless_is_interpreted_as_image_units_squared():
+    var_unitless = VarianceUncertainty(np.full((ny, nx), sigma_per_pixel**2))  # no units
+    img = make_image(var_unitless)
+    arr = run_extract(img, mask_treatment="ignore")
+    exp = expected_std_per_column("ignore", ny // 2, width)
+    assert np.allclose(arr, exp, rtol=5e-3, atol=5e-3)
+
+
+def test_uncertainty_units_are_stddev_units():
+    img = make_image(StdDevUncertainty(np.full((ny, nx), sigma_per_pixel) * u.DN))
+    trace = FlatTrace(img, ny // 2)
+    spec = BoxcarExtract(image=img, trace_object=trace, width=width, disp_axis=1, crossdisp_axis=0)()
+    uq = getattr(spec.uncertainty, "quantity", None)
+    assert uq is not None and uq.unit == u.DN
