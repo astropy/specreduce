@@ -9,7 +9,7 @@ physical wavelength (or frequency, or energy) corresponding to each pixel. **Wav
 calibration** is the process of determining this relationship, creating a mapping function or
 model  that converts pixel coordinates to wavelength values.
 
-This is often achieved by observing a calibration source with well-known emission or absorption
+This is often achieved by observing a calibration source with well-known emission
 lines at specific wavelengths (e.g., an arc lamp spectrum). By identifying the pixel positions of
 these known spectral features, we can fit a mathematical model that describes the dispersion of
 the spectrograph.
@@ -22,14 +22,7 @@ be introduced in a later version.
 -------------------------
 
 The `~specreduce.wavecal1d.WavelengthCalibration1D` class encapsulates the data and methods
-needed to perform  1D wavelength calibration. The class supports multiple workflows with varying
-levels of user interaction. It can be used:
-
-*  manually in an interactive script or notebook,
-*  as part of an interactive pipeline, or
-*  as part of a fully automated pipeline.
-
-The typical workflow involves these steps:
+needed to perform  1D wavelength calibration. The typical workflow involves:
 
 1.  **Initialization**: Create an instance of the class, providing either an observed arc lamp
     spectrum or pre-identified observed line  positions, along with a catalog of known line
@@ -71,7 +64,8 @@ observed line positions:
 *   **Using an Arc Spectrum**: Provide the arc spectrum as a `specutils.Spectrum`
     object via the ``arc_spectra`` argument. You also need to provide a ``line_lists`` argument,
     which can be a list of known catalog wavelengths or the name(s) of standard line lists
-    recognized by `specreduce` (e.g., ``"HeI"``).
+    recognized by `specreduce` (e.g., ``"HeI"``). You can query the available line lists by using
+    the `~specreduce.calibration_data.get_available_line_catalogs` function.
 
     .. code-block:: python
 
@@ -131,11 +125,13 @@ If you initialized the class with ``arc_spectra``, you need to detect the lines 
     # Find lines with an estimated FWHM and noise factor
     wc.find_lines(fwhm=3.5, noise_factor=5)
 
-    # Access the found lines (pixel positions)
-    print(wc.observed_line_locations)
-
 This populates the `~specreduce.wavecal1d.WavelengthCalibration1D.observed_line_locations`
 attribute.
+
+.. code-block:: python
+
+    # Access the found lines (pixel positions)
+    print(wc.observed_line_locations)
 
 3. Matching and Fitting the Solution
 ************************************
@@ -147,10 +143,13 @@ The core of the process is fitting the model that maps pixels to wavelengths.
     provided initially) and
     `~specreduce.wavecal1d.WavelengthCalibration1D.catalog_lines` (from ``line_lists``), but don't
     know the exact pixel-wavelength pairs, you can use
-    :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.fit_global`. This method uses a global
-    optimization algorithm to find the best-fit polynomial parameters by
+    :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.fit_global`. This method uses the
+    `differential evolution global optimization algorithm <https://en.wikipedia.org/wiki/Differential_evolution>`_
+    to find the best-fit polynomial parameters by
     minimizing the distance between predicted line wavelengths and the nearest catalog lines. You
-    need to provide estimated bounds for the wavelength and dispersion at the ``ref_pixel``.
+    need to provide estimated bounds for the wavelength and dispersion at the ``ref_pixel``. You can
+    also adjust the size of the differential evolution population using the ``popsize`` argument.
+    Larger populatin size leads to a more robust solution, but also increases the optimization time.
 
     .. code-block:: python
 
