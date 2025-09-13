@@ -1,0 +1,15 @@
+name: specreduce-dev
+channels:
+  - conda-forge
+dependencies:
+  - astropy
+  - gwcs
+  - numpy
+  - scipy
+  - specutils
+  - matplotlib
+  - pytest-astropy
+  - photutils
+  - tox
+  - sphinx-astropy
+  - synphot
