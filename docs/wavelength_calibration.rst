@@ -1,7 +1,7 @@
 .. _wavelength_calibration:
 
-Wavelength Calibration
-======================
+1D Wavelength Calibration
+=========================
 
 Wavelength calibration is currently supported for 1D spectra. Given a list of spectral
 lines with known wavelengths and estimated pixel positions on an input calibration
@@ -18,14 +18,16 @@ The `~specreduce.wavelength_calibration.WavelengthCalibration1D` class can be us
 to fit a dispersion model to a list of line positions and wavelengths. Future development
 will implement catalogs of known lamp spectra for use in matching observed lines. In the
 example below, the line positions (``pixel_centers``) have already been extracted from
-``lamp_spectrum``::
+``lamp_spectrum``
+
+.. code-block:: python
 
     import astropy.units as u
-	 from specreduce import WavelengthCalibration1D
-	 pixel_centers = [10, 22, 31, 43]
-	 wavelengths = [5340, 5410, 5476, 5543]*u.AA
-	 test_cal = WavelengthCalibration1D(lamp_spectrum, line_pixels=pixel_centers,
-										line_wavelengths=wavelengths)
+    from specreduce import WavelengthCalibration1D
+    pixel_centers = [10, 22, 31, 43]
+    wavelengths = [5340, 5410, 5476, 5543]*u.AA
+    test_cal = WavelengthCalibration1D(lamp_spectrum, line_pixels=pixel_centers,
+        line_wavelengths=wavelengths)
     calibrated_spectrum = test_cal.apply_to_spectrum(science_spectrum)
 
 The example above uses the default model (`~astropy.modeling.functional_models.Linear1D`)
@@ -34,7 +36,9 @@ spectrum (``science_spectrum``). Any other 1D ``astropy`` model can be provided 
 input ``model`` parameter to the `~specreduce.wavelength_calibration.WavelengthCalibration1D`.
 In the above example, the model fit and WCS construction is all done as part of the
 ``apply_to_spectrum()`` call, but you could also access the `~gwcs.wcs.WCS` object itself
-by calling::
+by calling
+
+.. code-block:: python
 
     test_cal.wcs
 
@@ -44,7 +48,9 @@ fit.
 
 You can also provide the input pixel locations and wavelengths of the lines as an
 `~astropy.table.QTable` with (at minimum) columns ``pixel_center`` and ``wavelength``,
-using the ``matched_line_list`` input argument::
+using the ``matched_line_list`` input argument
+
+.. code-block:: python
 
     from astropy.table import QTable
     pixels = [10, 20, 30, 40]*u.pix
