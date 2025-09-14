@@ -47,7 +47,7 @@ def _format_linelist(lst: ArrayLike) -> MaskedArray:
     lst: MaskedArray = MaskedArray(lst, copy=True)
     lst.mask = np.ma.getmaskarray(lst)
 
-    if (lst.ndim > 2) or (lst.ndim == 2 and lst.shape[1] > 2):
+    if lst.ndim > 2 or lst.ndim == 2 and lst.shape[1] > 2:
         raise ValueError(
             "Line lists must be 1D with a shape [n] (centroids) or "
             "2D with a shape [n, 2] (centroids and amplitudes)."
@@ -114,7 +114,7 @@ def _diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
 class WavelengthCalibration1D:
     def __init__(
         self,
-        ref_pixel: float,
+        ref_pixel: float | None = None,
         unit: u.Unit = u.angstrom,
         degree: int = 3,
         line_lists: ArrayLike | None = None,
@@ -174,7 +174,7 @@ class WavelengthCalibration1D:
 
         if degree < 1:
             raise ValueError("Degree must be at least 1.")
-        if ref_pixel < 0:
+        if ref_pixel is not None and ref_pixel < 0:
             raise ValueError("Reference pixel must be positive.")
 
         self.arc_spectra: list[Spectrum] | None = None
@@ -203,13 +203,19 @@ class WavelengthCalibration1D:
             for s in self.arc_spectra:
                 if s.data.ndim > 1:
                     raise ValueError("The arc spectrum must be one dimensional.")
+            if len(set([s.data.size for s in self.arc_spectra])) != 1:
+                raise ValueError("All arc spectra must have the same length.")
             self.bounds_pix = (0, self.arc_spectra[0].shape[0])
+            if self.ref_pixel is None:
+                self.ref_pixel = self.arc_spectra[0].data.size / 2
 
         elif obs_lines is not None:
             self.observed_lines = obs_lines
             self.nframes = len(self._obs_lines)
             if self.bounds_pix is None:
                 raise ValueError("Must give pixel bounds when providing observed line positions.")
+            if self.ref_pixel is None:
+                raise ValueError("Must give reference pixel when providing observed lines.")
 
         # Read the line lists if given. The user can provide an array of line wavelength positions
         # or a list of line list names (used by `load_pypeit_calibration_lines`) for each arc
@@ -291,28 +297,26 @@ class WavelengthCalibration1D:
         if self.arc_spectra is None:
             raise ValueError("Must provide arc spectra to find lines.")
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            line_lists = []
-            for i, arc in enumerate(self.arc_spectra):
-                lines = find_arc_lines(arc, fwhm, noise_factor=noise_factor)
+        line_lists = []
+        for i, arc in enumerate(self.arc_spectra):
+            lines = find_arc_lines(arc, fwhm, noise_factor=noise_factor)
 
-                # Find the line amplitudes. We could also use the fitted amplitudes
-                # returned by `find_arc_lines`, but these can be unreliable, even when
-                # the centroids would be fine. The amplitudes are used only for plotting,
-                # so selecting the maximum flux near the line centroid is the best approach.
-                amplitudes = np.zeros(len(lines))
-                for j, line in enumerate(lines["centroid"].value):
-                    line = int(np.floor(line))
-                    if line < 0 or line >= arc.shape[0]:
-                        raise ValueError(
-                            "Error in arc line identification. Try increasing ``noise_factor``."
-                        )
-                    amplitudes[j] = arc.flux.value[line - 2 : line + 2].max()
-                line_lists.append(
-                    np.ma.masked_array(np.transpose([lines["centroid"].value, amplitudes]))
-                )
-            self.observed_lines = line_lists
+            # Find the line amplitudes. We could also use the fitted amplitudes
+            # returned by `find_arc_lines`, but these can be unreliable, even when
+            # the centroids would be fine. The amplitudes are used only for plotting,
+            # so selecting the maximum flux near the line centroid is the best approach.
+            amplitudes = np.zeros(len(lines))
+            for j, line in enumerate(lines["centroid"].value):
+                line = int(np.floor(line))
+                if line < 0 or line >= arc.shape[0]:
+                    raise ValueError(
+                        "Error in arc line identification. Try increasing ``noise_factor``."
+                    )
+                amplitudes[j] = arc.flux.value[line - 2 : line + 2].max()
+            line_lists.append(
+                np.ma.masked_array(np.transpose([lines["centroid"].value, amplitudes]))
+            )
+        self.observed_lines = line_lists
 
     def fit_lines(
         self,
