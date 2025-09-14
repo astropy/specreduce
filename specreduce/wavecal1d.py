@@ -1,4 +1,3 @@
-import warnings
 from functools import cached_property
 from typing import Sequence, Callable, Literal
 
@@ -10,7 +9,6 @@ from astropy.modeling import models, Model, fitting
 from astropy.nddata import VarianceUncertainty
 from gwcs import coordinate_frames
 from matplotlib.pyplot import Axes, Figure, setp, subplots
-from numpy import ndarray
 from numpy.typing import ArrayLike
 from numpy.ma import MaskedArray
 from scipy import optimize
@@ -251,7 +249,7 @@ class WavelengthCalibration1D:
 
         lines_wav = []
         for lst in line_lists:
-            if isinstance(lst, ndarray):
+            if isinstance(lst, np.ndarray):
                 lines_wav.append(lst)
             else:
                 lines = []
@@ -649,7 +647,7 @@ class WavelengthCalibration1D:
         ucty_wl = VarianceUncertainty(ucty_wl * n).represent_as(ucty_type)
         return Spectrum(flux_wl, bin_centers_wav * u.angstrom, uncertainty=ucty_wl)
 
-    def pix_to_wav(self, pix: float | ArrayLike) -> float | ndarray:
+    def pix_to_wav(self, pix: float | ArrayLike) -> float | np.ndarray:
         """Map pixel values into wavelength values.
 
         Parameters
@@ -667,7 +665,7 @@ class WavelengthCalibration1D:
         else:
             return self._p2w(pix)
 
-    def wav_to_pix(self, wav: float | ArrayLike) -> float | ndarray:
+    def wav_to_pix(self, wav: float | ArrayLike) -> float | np.ndarray:
         """Map wavelength values into pixel values.
 
         Parameters
