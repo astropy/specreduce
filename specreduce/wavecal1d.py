@@ -232,6 +232,38 @@ class WavelengthCalibration1D:
     def _init_model(self) -> None:
         self._p2w = models.Shift(-self.ref_pixel) | models.Polynomial1D(self.degree)
 
+    def _line_match_distance(self, x: ArrayLike, max_distance: float = 100) -> float:
+        """Compute the sum of distances between catalog lines and transformed observed lines.
+
+        This function evaluates the pixel-to-wavelength model at the observed line positions,
+        queries the nearest catalog line (via KDTree), and sums the distances after clipping
+        them at `max_distance`. The result is suitable as a scalar objective for global
+        optimization of the wavelength solution.
+
+        Parameters
+        ----------
+        x
+            Pixel-to-wavelength model parameters (e.g., Polynomial1D coefficients c0..cN).
+        max_distance
+            Upper bound used to clip individual distances before summation.
+
+        Returns
+        -------
+        float
+            Sum of nearest-neighbor distances between transformed observed lines and catalog lines.
+
+        """
+        total_distance = 0.0
+        for t, l in zip(self._trees, self.observed_line_locations):
+            transformed_lines = self._p2w.evaluate(l, -self.ref_pixel, *x)[:, None]
+            total_distance += np.clip(t.query(transformed_lines)[0], 0, max_distance).sum()
+        return total_distance
+
+    def _reset_cached(self) -> None:
+        """Reset cached attributes."""
+        if hasattr(self, "gwcs"):
+            del self.gwcs
+
     def _read_linelists(
         self,
         line_lists: Sequence,
@@ -424,7 +456,7 @@ class WavelengthCalibration1D:
                 self.match_lines()
         self._reset_cached()
 
-    def fit_global(
+    def fit_dispersion(
         self,
         wavelength_bounds: tuple[float, float],
         dispersion_bounds: tuple[float, float],
@@ -432,97 +464,89 @@ class WavelengthCalibration1D:
         popsize: int = 30,
         max_distance: float = 100,
         refine_fit: bool = True,
+        refine_max_distance: float = 5.0,
     ) -> None:
-        """Calculate a wavelength solution using global optimization.
+        """Calculate a wavelength solution using all the catalog and observed lines.
 
-        Determines an initial functional relationship between pixel positions
-        and wavelengths using a global optimization algorithm (differential
-        evolution). This method does not require pre-matched pixel-wavelength
-        pairs. It works by finding model parameters that minimize the
-        distance between the predicted wavelengths of observed lines and their nearest
-        catalog counterparts accessed via KDTree).
-
-        Optionally, this initial solution can be immediately refined using a
-        least-squares fit on automatically matched lines.
+        This method estimates a wavelength solution without pre-matched pixel–wavelength
+        pairs, making it suitable for automated pipelines on stable, well-characterized
+        spectrographs. It uses differential evolution to optimize the polynomial parameters
+        that minimize the distance between the predicted wavelengths of the observed lines
+        and their nearest catalog lines. The resulting solution can optionally be refined
+        with a least-squares fit to automatically matched lines.
 
         Parameters
         ----------
         wavelength_bounds
-            Bounds (min, max) for the wavelength value at the ``ref_pixel``.
-            Used as a constraint in the optimization.
+            (min, max) bounds for the wavelength at ``ref_pixel``; used as an optimization
+            constraint.
 
         dispersion_bounds
-            Bounds (min, max) for the dispersion (d_wavelength / d_pixel)
-            at the ``ref_pixel``. Used as a constraint in the optimization.
+            (min, max) bounds for the dispersion d(wavelength)/d(pixel) at ``ref_pixel``; used
+            as an optimization constraint.
 
         higher_order_limits
-            Limit for the absolute value of the higher-order coefficients.
-            The optimization bounds for each coefficient will be set to
-            [-limit, limit].
+            Absolute limits for the higher-order polynomial coefficients. Each coefficient is
+            constrained to [-limit, limit]. If provided, the number of limits must equal
+            (polynomial degree - 1).
 
         popsize
-            Population size for the ``scipy.optimize.differential_evolution``
-            optimizer. Larger values increase the likelihood of finding the
-            global minimum but also increase computation time.
+            Population size for ``scipy.optimize.differential_evolution``. Larger values can
+            improve the chance of finding the global minimum at the cost of additional time.
 
         max_distance
-            Maximum distance (in wavelength units) allowed when associating
-            an observed line with a theoretical line during the optimization's
-            cost function evaluation. Points beyond this distance contribute
-            this maximum value to the cost, preventing outliers from having
-            excessive influence.
+            Maximum wavelength separation used when associating observed and catalog lines in
+            the optimization. Distances larger than this threshold are clipped to this value
+            in the cost function to limit the impact of outliers.
 
         refine_fit
-            If True (default), automatically call the ``refine_fit`` method
-            immediately after the global optimization to improve the solution
-            using a least squares fit on matched lines.
+            If True (default), call ``refine_fit`` after global optimization to improve the
+            solution using a least-squares fit on matched lines.
+
+        refine_max_distance
+            Maximum allowed separation between catalog and observed lines for them to
+            be considered a match during ``refine_fit``. Ignored if ``refine_fit`` is False.
         """
 
         if self._p2w is None:
             self._init_model()
-        model = self._p2w
-
-        obs_lines = self.observed_line_locations
-
-        def minfun(x):
-            total_distance = 0.0
-            for t, l in zip(self._trees, obs_lines):
-                transformed_lines = model.evaluate(l, -self.ref_pixel, *x)[:, None]
-                total_distance += np.clip(t.query(transformed_lines)[0], 0, max_distance).sum()
-            return total_distance
 
         # Define bounds for differential_evolution.
         bounds = [np.asarray(wavelength_bounds), np.asarray(dispersion_bounds)]
 
         if higher_order_limits is not None:
-            if len(higher_order_limits) != model[1].degree - 1:
+            if len(higher_order_limits) != self._p2w[1].degree - 1:
                 raise ValueError(
                     "The number of higher-order limits must match the degree of the polynomial "
                     "model minus one."
                 )
             for v in higher_order_limits:
-                bounds.append(np.asarray([v, v]))
+                bounds.append(np.asarray([-v, v]))
         else:
-            for i in range(2, model[1].degree + 1):
-                bounds.append(np.array([-1, 1]) * 10**(np.log10(np.mean(dispersion_bounds)) - 2))
+            for i in range(2, self._p2w[1].degree + 1):
+                bounds.append(
+                    np.array([-1, 1]) * 10 ** (np.log10(np.mean(dispersion_bounds)) - 2*i)
+                )
         bounds = np.array(bounds)
 
-        self._fit = fit = optimize.differential_evolution(
-            minfun,
+        self._fit = optimize.differential_evolution(
+            lambda x: self._line_match_distance(x, max_distance),
             bounds=bounds,
             popsize=popsize,
+            init="sobol",
         )
         self._p2w = models.Shift(-self.ref_pixel) | models.Polynomial1D(
-            self.degree, **{f"c{i}": fit.x[i] for i in range(fit.x.size)}
+            self.degree, **{f"c{i}": self._fit.x[i] for i in range(self._fit.x.size)}
         )
 
         # Update the model with the best-fit parameters found
         if refine_fit:
-            self.refine_fit()
+            self.refine_fit(refine_max_distance)
         else:
             self._calculate_p2w_derivative()
             self._calculate_p2w_inverse()
             self.match_lines()
+        self._reset_cached()
 
     def refine_fit(self, max_match_distance: float = 5.0, max_iter: int = 5) -> None:
         """Refine the fit of the pixel-to-wavelength transformation.
