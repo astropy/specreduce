@@ -187,7 +187,6 @@ class WavelengthCalibration1D:
         self._trees: list[KDTree] | None = None
 
         self._fit: optimize.OptimizeResult | None = None
-        self._wcs: gwcs.wcs.WCS | None = None
 
         self._p2w: None | Model = None  # pixel -> wavelength model
         self._w2p: Callable | None = None  # wavelength -> pixel model
@@ -781,7 +780,7 @@ class WavelengthCalibration1D:
         if hasattr(self, "catalog_line_amplitudes"):
             del self.catalog_line_amplitudes
 
-    @property
+    @cached_property
     def gwcs(self) -> gwcs.wcs.WCS:
         """GWCS object defining the mapping between pixel and spectral coordinate frames."""
         pixel_frame = coordinate_frames.CoordinateFrame(
@@ -798,8 +797,7 @@ class WavelengthCalibration1D:
             unit=[self.unit],
         )
         pipeline = [(pixel_frame, self._p2w), (spectral_frame, None)]
-        self._wcs = gwcs.wcs.WCS(pipeline)
-        return self._wcs
+        return gwcs.wcs.WCS(pipeline)
 
     def match_lines(self, max_distance: float = 5) -> None:
         """Match the observed lines to theoretical lines.
