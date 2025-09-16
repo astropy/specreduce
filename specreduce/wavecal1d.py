@@ -357,14 +357,13 @@ class WavelengthCalibration1D:
     ) -> None:
         """Fit the pixel-to-wavelength model using provided line pairs.
 
-        This method fits the pixel-to-wavelength transformation model using explicitly
-        provided pairs of pixel coordinates and their corresponding wavelengths using
-        a linear least squares fitter.
+        This method fits the pixel-to-wavelength transformation using explicitly provided pairs
+        of pixel coordinates and their corresponding wavelengths via a linear least-squares fit
 
-        Optionally, the provided pixel and wavelength values can be "snapped"
-        to the nearest values present in the internally stored observed line
-        list and catalog line list, respectively. This can correct for small
-        inaccuracies in the input pairs if the internal lists are populated.
+        Optionally, the provided pixel and wavelength values can be "snapped" to the nearest
+        values present in the internally stored observed line list and catalog line list,
+        respectively.  This allows the inputs to be approximate, as the snapping step selects
+        the nearest precise centroids and catalog values when available.
 
         Parameters
         ----------
@@ -432,8 +431,10 @@ class WavelengthCalibration1D:
         fitter = fitting.LinearLSQFitter()
         m = self._p2w[1]
         if m.degree > nlines:
-            warnings.warn("The degree of the polynomial model is higher than the number of lines. "
-                          "Fixing the higher-order coefficients to zero.")
+            warnings.warn(
+                "The degree of the polynomial model is higher than the number of lines. "
+                "Fixing the higher-order coefficients to zero."
+            )
             for i in range(nlines, m.degree + 1):
                 m.fixed[f"c{i}"] = True
         m = fitter(m, pixels - self.ref_pixel, wavelengths)
@@ -520,7 +521,7 @@ class WavelengthCalibration1D:
         else:
             for i in range(2, self._p2w[1].degree + 1):
                 bounds.append(
-                    np.array([-1, 1]) * 10 ** (np.log10(np.mean(dispersion_bounds)) - 2*i)
+                    np.array([-1, 1]) * 10 ** (np.log10(np.mean(dispersion_bounds)) - 2 * i)
                 )
         bounds = np.array(bounds)
 
