@@ -1,5 +1,6 @@
 import warnings
 from functools import cached_property
+from math import isclose
 from typing import Sequence, Callable, Literal
 
 import astropy.units as u
@@ -574,16 +575,15 @@ class WavelengthCalibration1D:
             matched_pix = np.ma.concatenate(self.observed_line_locations).compressed()
             matched_wav = np.ma.concatenate(self.catalog_line_locations).compressed()
             rms_new = np.sqrt(((matched_wav - self.pix_to_wav(matched_pix)) ** 2).mean())
-            if rms_new == rms:
+            if isclose(rms_new, rms):
                 break
-            else:
-                self._p2w = self._p2w[0].copy() | fitter(
-                    model, matched_pix - self.ref_pixel, matched_wav
-                )
-                rms = rms_new
+            self._p2w = self._p2w[0].copy() | fitter(
+                model, matched_pix - self.ref_pixel, matched_wav
+            )
+            rms = rms_new
         self._calculate_p2w_derivative()
         self._calculate_p2w_inverse()
-        self.match_lines(max_match_distance)
+        self._reset_cached()
 
     def _calculate_p2w_derivative(self) -> None:
         """Calculate (d wavelength) / (d pixel) for the pixel-to-wavelength transformation."""
