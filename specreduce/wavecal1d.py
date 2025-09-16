@@ -13,7 +13,7 @@ from gwcs import coordinate_frames
 from matplotlib.pyplot import Axes, Figure, setp, subplots
 from numpy.typing import ArrayLike
 from numpy.ma import MaskedArray
-from scipy import optimize
+from scipy import optimize, ndimage
 from scipy.interpolate import interp1d
 from scipy.spatial import KDTree
 
@@ -333,19 +333,12 @@ class WavelengthCalibration1D:
         line_lists = []
         for i, arc in enumerate(self.arc_spectra):
             lines = find_arc_lines(arc, fwhm, noise_factor=noise_factor)
-
-            # Find the line amplitudes. We could also use the fitted amplitudes
-            # returned by `find_arc_lines`, but these can be unreliable, even when
-            # the centroids would be fine. The amplitudes are used only for plotting,
-            # so selecting the maximum flux near the line centroid is the best approach.
-            amplitudes = np.zeros(len(lines))
-            for j, line in enumerate(lines["centroid"].value):
-                line = int(np.floor(line))
-                if line < 0 or line >= arc.shape[0]:
-                    raise ValueError(
-                        "Error in arc line identification. Try increasing ``noise_factor``."
-                    )
-                amplitudes[j] = arc.flux.value[line - 2 : line + 2].max()
+            ix = np.round(lines["centroid"].value).astype(int)
+            if np.any((ix < 0) | (ix >= arc.shape[0])):
+                raise ValueError(
+                    "Error in arc line identification. Try increasing ``noise_factor``."
+                )
+            amplitudes = ndimage.maximum_filter1d(arc.flux.value, 5)[ix]
             line_lists.append(
                 np.ma.masked_array(np.transpose([lines["centroid"].value, amplitudes]))
             )
