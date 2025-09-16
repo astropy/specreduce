@@ -189,7 +189,7 @@ class WavelengthCalibration1D:
         self._fit: optimize.OptimizeResult | None = None
 
         self._p2w: None | Model = None  # pixel -> wavelength model
-        self._w2p: Callable | None = None  # wavelength -> pixel model
+        self._w2p: None | Callable = None  # wavelength -> pixel model
         self._p2w_dldx: None | Model = None  # delta lambda / delta pixel
 
         # Read and store the observational data if given. The user can provide either a list of arc
@@ -267,7 +267,7 @@ class WavelengthCalibration1D:
     def _read_linelists(
         self,
         line_lists: Sequence,
-        line_list_bounds: tuple[float, float] = (0.0, np.inf),
+        line_list_bounds: None | tuple[float, float] = None,
         wave_air: bool = False,
     ) -> None:
         """Read and processes line lists.
@@ -301,8 +301,10 @@ class WavelengthCalibration1D:
                         .value
                     )
                 lines_wav.append(np.ma.masked_array(np.sort(np.concatenate(lines))))
-        for i, lst in enumerate(lines_wav):
-            lines_wav[i] = lst[(lst >= line_list_bounds[0]) & (lst <= line_list_bounds[1])]
+
+        if line_list_bounds is not None:
+            for i, lst in enumerate(lines_wav):
+                lines_wav[i] = lst[(lst >= line_list_bounds[0]) & (lst <= line_list_bounds[1])]
 
         self.catalog_lines = lines_wav
         self._create_trees()
