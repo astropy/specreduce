@@ -1,3 +1,4 @@
+import warnings
 from functools import cached_property
 from typing import Sequence, Callable, Literal
 
@@ -327,11 +328,11 @@ class WavelengthCalibration1D:
         refine_fit: bool = True,
         refine_max_distance: float = 5.0,
     ) -> None:
-        """Fit the wavelength solution model using provided line pairs.
+        """Fit the pixel-to-wavelength model using provided line pairs.
 
-        Fits the pixel-to-wavelength transformation model using explicitly
-        provided pairs of pixel coordinates and their corresponding wavelengths.
-        This method uses linear least squares fitting.
+        This method fits the pixel-to-wavelength transformation model using explicitly
+        provided pairs of pixel coordinates and their corresponding wavelengths using
+        a linear least squares fitter.
 
         Optionally, the provided pixel and wavelength values can be "snapped"
         to the nearest values present in the internally stored observed line
@@ -364,8 +365,8 @@ class WavelengthCalibration1D:
             using a least-squares fit on matched lines.
 
         refine_max_distance
-            The maximum allowed distance between the catalog and observed lines for them to be
-            considered a match.
+            Maximum allowed separation between catalog and observed lines for them to
+            be considered a match during ``refine_fit``. Ignored if ``refine_fit`` is False.
         """
         pixels = np.asarray(pixels)
         wavelengths = np.asarray(wavelengths)
@@ -404,6 +405,8 @@ class WavelengthCalibration1D:
         fitter = fitting.LinearLSQFitter()
         m = self._p2w[1]
         if m.degree > nlines:
+            warnings.warn("The degree of the polynomial model is higher than the number of lines. "
+                          "Fixing the higher-order coefficients to zero.")
             for i in range(nlines, m.degree + 1):
                 m.fixed[f"c{i}"] = True
         m = fitter(m, pixels - self.ref_pixel, wavelengths)
@@ -419,6 +422,7 @@ class WavelengthCalibration1D:
             self._calculate_p2w_inverse()
             if can_match:
                 self.match_lines()
+        self._reset_cached()
 
     def fit_global(
         self,
