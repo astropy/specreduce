@@ -132,8 +132,8 @@ def test_fit_lines(mk_matched_lines):
     assert wc._p2w is not None
     assert wc._p2w[1].degree == wc.degree
 
-    wc = WavelengthCalibration1D(ref_pixel, degree=5, pix_bounds=pix_bounds)
-    wc.fit_lines(pixels=lo[:3], wavelengths=lc[:3])
+    wc = WavelengthCalibration1D(ref_pixel, pix_bounds=pix_bounds)
+    wc.fit_lines(degree=5, pixels=lo[:3], wavelengths=lc[:3])
 
     wc = WavelengthCalibration1D(ref_pixel, pix_bounds=pix_bounds)
     with pytest.raises(ValueError, match="Cannot fit without catalog"):
@@ -227,7 +227,7 @@ def test_fit_global():
     wc = WavelengthCalibration1D(
         5, pix_bounds=pix_bounds, obs_lines=lines_obs, line_lists=lines_cat
     )
-    wc.fit_global(wavelength_bounds, dispersion_bounds, popsize=10)
+    wc.fit_dispersion(wavelength_bounds, dispersion_bounds, popsize=10)
     np.testing.assert_allclose(wc._fit.x, [650.0, 50.0, 0.0, 0.0], atol=1e-4)
     assert wc._fit is not None
     assert wc._fit.success
@@ -236,7 +236,7 @@ def test_fit_global():
     wc = WavelengthCalibration1D(
         5, pix_bounds=pix_bounds, obs_lines=lines_obs, line_lists=lines_cat
     )
-    wc.fit_global(wavelength_bounds, dispersion_bounds, popsize=10, refine_fit=False)
+    wc.fit_dispersion(wavelength_bounds, dispersion_bounds, popsize=10, refine_fit=False)
 
 
 def test_resample(mk_arc, mk_wc, mk_good_wc_with_transform):

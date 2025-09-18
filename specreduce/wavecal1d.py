@@ -118,12 +118,11 @@ class WavelengthCalibration1D:
         self,
         ref_pixel: float | None = None,
         unit: u.Unit = u.angstrom,
-        degree: int = 3,
         line_lists: ArrayLike | None = None,
         arc_spectra: Spectrum | Sequence[Spectrum] | None = None,
         obs_lines: ArrayLike | Sequence[ArrayLike] | None = None,
         pix_bounds: tuple[int, int] | None = None,
-        line_list_bounds: None |tuple[float, float] = None,
+        line_list_bounds: None | tuple[float, float] = None,
         wave_air: bool = False,
     ) -> None:
         """A class for wavelength calibration of one-dimensional spectral data.
@@ -140,9 +139,6 @@ class WavelengthCalibration1D:
 
         unit
             The unit of the wavelength calibration, by default ``astropy.units.Angstrom``.
-
-        degree
-            The polynomial degree for the wavelength solution, by default 3.
 
         line_lists
             Catalogs of spectral line wavelengths for wavelength calibration. Provide either an
@@ -170,12 +166,10 @@ class WavelengthCalibration1D:
         """
         self.unit = unit
         self._unit_str = unit.to_string("latex")
-        self.degree = degree
+        self.degree = None
         self.ref_pixel = ref_pixel
         self.nframes = 0
 
-        if degree < 1:
-            raise ValueError("Degree must be at least 1.")
         if ref_pixel is not None and ref_pixel < 0:
             raise ValueError("Reference pixel must be positive.")
 
@@ -229,8 +223,28 @@ class WavelengthCalibration1D:
                 raise ValueError("The number of line lists must match the number of arc spectra.")
             self._read_linelists(line_lists, line_list_bounds=line_list_bounds, wave_air=wave_air)
 
-    def _init_model(self) -> None:
-        self._p2w = models.Shift(-self.ref_pixel) | models.Polynomial1D(self.degree)
+    def _init_model(self, degree: int, coeffs: None | ArrayLike = None) -> None:
+        """Initialize the polynomial model with the given degree and an optional base model.
+
+        This method sets up a polynomial transformation based on the reference pixel and degree.
+        If coefficients are provided, they are copied to the initialized model up to the degree
+        specified.
+
+        Parameters
+        ----------
+        degree
+            Degree of the polynomial model to be initialized.
+
+        coeffs
+            Optional initial polynomial coefficients.
+        """
+        self.degree = degree
+
+        pars = {}
+        if coeffs is not None:
+            nc = min(degree+1, len(coeffs))
+            pars = {f"c{i}": c for i,c in enumerate(coeffs[:nc])}
+        self._p2w = models.Shift(-self.ref_pixel) | models.Polynomial1D(self.degree, **pars)
 
     def _line_match_distance(self, x: ArrayLike, max_distance: float = 100) -> float:
         """Compute the sum of distances between catalog lines and transformed observed lines.
@@ -350,10 +364,12 @@ class WavelengthCalibration1D:
         self,
         pixels: ArrayLike,
         wavelengths: ArrayLike,
+        degree: int = 3,
         match_obs: bool = False,
         match_cat: bool = False,
         refine_fit: bool = True,
         refine_max_distance: float = 5.0,
+        refined_fit_degree: int | None = None,
     ) -> None:
         """Fit the pixel-to-wavelength model using provided line pairs.
 
@@ -374,6 +390,9 @@ class WavelengthCalibration1D:
             An array of the same size as ``pixels``, containing the known
             wavelengths corresponding to the given pixel positions.
 
+        degree
+            The polynomial degree for the wavelength solution.
+
         match_obs
             If True, snap the input ``pixels`` values to the nearest
             pixel values found in ``self.observed_line_locations`` (if available). This helps
@@ -393,6 +412,10 @@ class WavelengthCalibration1D:
         refine_max_distance
             Maximum allowed separation between catalog and observed lines for them to
             be considered a match during ``refine_fit``. Ignored if ``refine_fit`` is False.
+
+        refined_fit_degree
+            The polynomial degree for the refined fit. Can be higher than ``degree``. If ``None``,
+            equals to ``degree``.
         """
         pixels = np.asarray(pixels)
         wavelengths = np.asarray(wavelengths)
@@ -405,8 +428,7 @@ class WavelengthCalibration1D:
         if self.bounds_pix is None:
             raise ValueError("Cannot fit without pixel bounds set.")
 
-        if self._p2w is None:
-            self._init_model()
+        self._init_model(degree)
 
         # Match the input wavelengths to catalog lines.
         if match_cat:
@@ -444,7 +466,7 @@ class WavelengthCalibration1D:
 
         can_match = self._cat_lines is not None and self._obs_lines is not None
         if refine_fit and can_match:
-            self.refine_fit(refine_max_distance)
+            self.refine_fit(refined_fit_degree, max_match_distance=refine_max_distance)
         else:
             self._calculate_p2w_derivative()
             self._calculate_p2w_inverse()
@@ -457,10 +479,12 @@ class WavelengthCalibration1D:
         wavelength_bounds: tuple[float, float],
         dispersion_bounds: tuple[float, float],
         higher_order_limits: Sequence[float] | None = None,
+        degree: int = 3,
         popsize: int = 30,
         max_distance: float = 100,
         refine_fit: bool = True,
         refine_max_distance: float = 5.0,
+        refined_fit_degree: int | None = None,
     ) -> None:
         """Calculate a wavelength solution using all the catalog and observed lines.
 
@@ -486,6 +510,9 @@ class WavelengthCalibration1D:
             constrained to [-limit, limit]. If provided, the number of limits must equal
             (polynomial degree - 1).
 
+        degree
+            The polynomial degree for the wavelength solution.
+
         popsize
             Population size for ``scipy.optimize.differential_evolution``. Larger values can
             improve the chance of finding the global minimum at the cost of additional time.
@@ -502,10 +529,13 @@ class WavelengthCalibration1D:
         refine_max_distance
             Maximum allowed separation between catalog and observed lines for them to
             be considered a match during ``refine_fit``. Ignored if ``refine_fit`` is False.
+
+        refined_fit_degree
+            The polynomial degree for the refined fit. Can be higher than ``degree``. If ``None``,
+            equals to ``degree``.
         """
 
-        if self._p2w is None:
-            self._init_model()
+        self._init_model(degree)
 
         # Define bounds for differential_evolution.
         bounds = [np.asarray(wavelength_bounds), np.asarray(dispersion_bounds)]
@@ -531,28 +561,32 @@ class WavelengthCalibration1D:
             popsize=popsize,
             init="sobol",
         )
-        self._p2w = models.Shift(-self.ref_pixel) | models.Polynomial1D(
-            self.degree, **{f"c{i}": self._fit.x[i] for i in range(self._fit.x.size)}
-        )
+        self._init_model(degree, coeffs=self._fit.x)
 
         # Update the model with the best-fit parameters found
         if refine_fit:
-            self.refine_fit(refine_max_distance)
+            self.refine_fit(refined_fit_degree, max_match_distance=refine_max_distance)
         else:
             self._calculate_p2w_derivative()
             self._calculate_p2w_inverse()
             self.match_lines()
         self._reset_cached()
 
-    def refine_fit(self, max_match_distance: float = 5.0, max_iter: int = 5) -> None:
-        """Refine the fit of the pixel-to-wavelength transformation.
+    def refine_fit(
+        self, degree: None | int = None, max_match_distance: float = 5.0, max_iter: int = 5
+    ) -> None:
+        """Refine the pixel-to-wavelength transformation fit.
 
-        Refines the fit of a polynomial model to data by performing a fitting operation
-        using matched pixel and wavelength data points. The method uses a linear least
-        squares fitter to optimize the model parameters based on the match.
+        Fits (or re-fits) the polynomial wavelength solution using the currently
+        matched pixel–wavelength pairs. Optionally adjusts the polynomial degree,
+        filters matches by a maximum pixel-space separation, and iterates the fit.
 
         Parameters
         ----------
+        degree
+            The polynomial degree for the wavelength solution. If ``None``, the degree
+            previously set by the `~WavelengthCalibration1D.fit_lines` or
+            `~WavelengthCalibration1D.fit_dispersion` method will be used.
 
         max_match_distance
             Maximum allowable distance used to identify matched pixel and wavelength
@@ -561,6 +595,10 @@ class WavelengthCalibration1D:
         max_iter
             Maximum number of fitting iterations.
         """
+
+        # Create a new model with the current parameters if degree is specified.
+        if degree is not None and degree != self.degree:
+            self._init_model(degree, coeffs=self._p2w[1].parameters)
 
         model = self._p2w[1]
         fitter = fitting.LinearLSQFitter()
@@ -709,6 +747,16 @@ class WavelengthCalibration1D:
             return np.ma.masked_array(pix, mask=wav.mask)
         else:
             return self._w2p(wav)
+
+    @property
+    def degree(self) -> None | int:
+        return self._degree
+
+    @degree.setter
+    def degree(self, degree: int | None):
+        if degree is not None and degree < 1:
+            raise ValueError("Degree must be at least 1.")
+        self._degree = degree
 
     @property
     def observed_lines(self) -> None | list[MaskedArray]:
