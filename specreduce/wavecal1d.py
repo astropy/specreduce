@@ -123,7 +123,7 @@ class WavelengthCalibration1D:
         arc_spectra: Spectrum | Sequence[Spectrum] | None = None,
         obs_lines: ArrayLike | Sequence[ArrayLike] | None = None,
         pix_bounds: tuple[int, int] | None = None,
-        line_list_bounds: tuple[float, float] = (0, np.inf),
+        line_list_bounds: None |tuple[float, float] = None,
         wave_air: bool = False,
     ) -> None:
         """A class for wavelength calibration of one-dimensional spectral data.
