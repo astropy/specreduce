@@ -634,7 +634,7 @@ class WavelengthCalibration1D:
         spectrum: Spectrum,
         nbins: int | None = None,
         wlbounds: tuple[float, float] | None = None,
-        bin_edges: Sequence[float] | None = None,
+        bin_edges: ArrayLike | None = None,
     ) -> Spectrum:
         """Bin the given pixel-space 1D spectrum to a wavelength space conserving the flux.
 
@@ -657,8 +657,9 @@ class WavelengthCalibration1D:
             entire flux array is used.
 
         bin_edges
-            Explicit bin edges in the wavelength space. If provided, ``nbins`` and ``wlbounds``
-            are ignored.
+            Explicit bin edges in the wavelength space. Should be an 1D array-like [e_0, e_1,
+            ..., e_n] with n = nbins + 1. The bins are created as [[e_0, e_1], [e_1, e_2], ...,
+            [e_n-1, n]]. If provided, ``nbins`` and ``wlbounds`` are ignored.
 
         Returns
         -------
@@ -680,12 +681,16 @@ class WavelengthCalibration1D:
         npix = flux.size
         nbins = npix if nbins is None else nbins
         if wlbounds is None:
-            l1 = self._p2w(0) - self._p2w_dldx(0)
-            l2 = self._p2w(npix) + self._p2w_dldx(npix)
+            l1, l2 = self._p2w(spectrum.spectral_axis.value[[0, -1]] + np.array([-0.5, 0.5]))
         else:
             l1, l2 = wlbounds
 
-        bin_edges_wav = bin_edges if bin_edges is not None else np.linspace(l1, l2, num=nbins + 1)
+        if bin_edges is not None:
+            bin_edges_wav = np.asarray(bin_edges)
+            nbins = bin_edges_wav.size - 1
+        else:
+            bin_edges_wav = np.linspace(l1, l2, num=nbins + 1)
+
         bin_edges_pix = np.clip(self._w2p(bin_edges_wav) + 0.5, 0, npix - 1e-12)
         bin_edge_ix = np.floor(bin_edges_pix).astype(int)
         bin_edge_w = bin_edges_pix - bin_edge_ix
@@ -694,23 +699,29 @@ class WavelengthCalibration1D:
         ucty_wl = np.zeros(nbins)
         weights = np.zeros(npix)
 
-        dldx = self._p2w_dldx(np.arange(npix))
-        n = np.nansum(flux) / np.nansum((dldx * flux))
+        dldx = np.diff(self._p2w(np.arange(spectrum.spectral_axis.value[0],
+                                           spectrum.spectral_axis.value[-1]+2) - 0.5))
+
         for i in range(nbins):
             i1, i2 = bin_edge_ix[i : i + 2]
-            weights[:] = 0
+            weights[:] = 0.0
             if i1 != i2:
                 weights[i1 + 1 : i2] = 1.0
                 weights[i1] = 1 - bin_edge_w[i]
                 weights[i2] = bin_edge_w[i + 1]
-                flux_wl[i] = (weights[i1 : i2 + 1] * flux[i1 : i2 + 1] * dldx[i1 : i2 + 1]).sum()
-                ucty_wl[i] = (weights[i1 : i2 + 1] * ucty[i1 : i2 + 1] * dldx[i1 : i2 + 1]).sum()
+                sl = slice(i1, i2 + 1)
+                w = weights[sl]
+                flux_wl[i] = (w * flux[sl] * dldx[sl]).sum()
+                ucty_wl[i] = (w ** 2 * ucty[sl] * dldx[sl]).sum()
             else:
-                flux_wl[i] = (bin_edges_pix[i + 1] - bin_edges_pix[i]) * flux[i1] * dldx[i1]
-                ucty_wl[i] = (bin_edges_pix[i + 1] - bin_edges_pix[i]) * ucty[i1] * dldx[i1]
-        flux_wl = (flux_wl * n) * spectrum.flux.unit
-        ucty_wl = VarianceUncertainty(ucty_wl * n).represent_as(ucty_type)
-        return Spectrum(flux_wl, bin_centers_wav * u.angstrom, uncertainty=ucty_wl)
+                fracw = bin_edges_pix[i + 1] - bin_edges_pix[i]
+                flux_wl[i] = fracw * flux[i1] * dldx[i1]
+                ucty_wl[i] = fracw**2 * ucty[i1] * dldx[i1]
+
+        bin_widths_wav = np.diff(bin_edges_wav)
+        flux_wl = flux_wl / bin_widths_wav * spectrum.flux.unit / self.unit
+        ucty_wl = VarianceUncertainty(ucty_wl / bin_widths_wav**2).represent_as(ucty_type)
+        return Spectrum(flux_wl, bin_centers_wav * self.unit, uncertainty=ucty_wl)
 
     def pix_to_wav(self, pix: float | ArrayLike) -> float | np.ndarray:
         """Map pixel values into wavelength values.
