@@ -13,9 +13,9 @@ from specreduce.wavecal1d import WavelengthCalibration1D, _diff_poly1d
 from specreduce.compat import Spectrum
 
 
-ref_pixel = 5
-pix_bounds = (0, 10)
-p2w = models.Shift(ref_pixel) | models.Polynomial1D(degree=3, c0=1, c1=2, c2=3)
+ref_pixel = 250
+pix_bounds = (0, 500)
+p2w = models.Shift(ref_pixel) | models.Polynomial1D(degree=3, c0=1, c1=0.2, c2=0.001)
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def mk_wc(mk_lines):
 def mk_good_wc_with_transform(mk_lines):
     obs_lines, cat_lines = mk_lines
     wc = WavelengthCalibration1D(
-        ref_pixel, line_lists=cat_lines, obs_lines=obs_lines, pix_bounds=(0, 10)
+        ref_pixel, line_lists=cat_lines, obs_lines=obs_lines, pix_bounds=pix_bounds
     )
     wc._p2w = p2w
     wc._calculate_p2w_inverse()
@@ -55,9 +55,9 @@ def mk_good_wc_with_transform(mk_lines):
 @pytest.fixture
 def mk_arc():
     return Spectrum(
-        flux=np.ones(10) * u.DN,
-        spectral_axis=np.arange(10) * u.angstrom,
-        uncertainty=StdDevUncertainty(np.ones(10)),
+        flux=np.ones(pix_bounds[1]) * u.DN,
+        spectral_axis=np.arange(pix_bounds[1]) * u.pix,
+        uncertainty=StdDevUncertainty(np.ones(pix_bounds[1])),
     )
 
 
@@ -242,13 +242,16 @@ def test_fit_global():
 def test_resample(mk_arc, mk_wc, mk_good_wc_with_transform):
     wc = mk_good_wc_with_transform
     spectrum = mk_arc
-    resampled = wc.resample(spectrum, nbins=10)
+    resampled = wc.resample(spectrum, nbins=50)
     assert resampled is not None
-    assert len(resampled.flux) == 10
-    assert resampled.flux.unit == u.DN
-    np.testing.assert_almost_equal(
-        spectrum.flux.value.sum(), resampled.flux.value.sum(), decimal=10
-    )
+    assert len(resampled.flux) == 50
+    assert resampled.flux.unit == u.DN / u.angstrom
+
+    pix_edges = np.arange(spectrum.spectral_axis.size+1) - 0.5
+    f0 = (spectrum.flux.value * np.diff(wc._p2w(pix_edges))).sum()
+    f1 = (resampled.flux.value * np.diff(resampled.spectral_axis.value)[0]).sum()
+
+    np.testing.assert_approx_equal(f0, f1, 5)
 
     wc = mk_wc
     with pytest.raises(ValueError, match="Wavelength solution not yet"):
