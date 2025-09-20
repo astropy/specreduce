@@ -1,7 +1,7 @@
 import specutils
 from astropy.utils import minversion
 
-__all__ = []
+__all__ = ["Spectrum"]
 
 SPECUTILS_LT_2 = not minversion(specutils, "2.0.dev")
 
