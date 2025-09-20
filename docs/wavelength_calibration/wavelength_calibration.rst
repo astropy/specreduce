@@ -149,7 +149,8 @@ The core of the process is fitting the model that maps pixels to wavelengths.
     minimizing the distance between predicted line wavelengths and the nearest catalog lines. You
     need to provide estimated bounds for the wavelength and dispersion at the ``ref_pixel``. You can
     also adjust the size of the differential evolution population using the ``popsize`` argument.
-    Larger populatin size leads to a more robust solution, but also increases the optimization time.
+    A larger population generally yields a more robust solution but increases the
+    optimization time.
 
     .. code-block:: python
 
@@ -160,7 +161,7 @@ The core of the process is fitting the model that maps pixels to wavelengths.
 
         wc.fit_global(wavelength_bounds, dispersion_bounds, popsize=30, refine_fit=True)
 
-    Setting ``refine_fit=True`` automatically runs a least-squares refinement after the global
+    Setting ``refine_fit=True`` automatically performs a least-squares refinement after the global
     fit finds an initial solution and matches lines.
 
 *   **Fitting Known Pairs for an Interactive Workflow**: If you have already established explicit
