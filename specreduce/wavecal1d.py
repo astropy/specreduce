@@ -142,7 +142,9 @@ class WavelengthCalibration1D:
 
         line_lists
             Catalogs of spectral line wavelengths for wavelength calibration. Provide either an
-            array of line wavelengths or a list of catalog names. If `None`, no line lists are used.
+            array of line wavelengths or a list of `PypeIt <https://github.com/pypeit/PypeIt>`_
+            catalog names. If `None`, no line lists are used. You can query the list of available
+            catalog names via `~specreduce.calibration_data.get_available_line_catalogs`.
 
         arc_spectra
             Arc spectra provided as ``Spectrum`` objects for wavelength fitting, by default
@@ -187,7 +189,7 @@ class WavelengthCalibration1D:
         self._p2w_dldx: None | Model = None  # delta lambda / delta pixel
 
         # Read and store the observational data if given. The user can provide either a list of arc
-        # spectra as Spectrum1D objects or a list of line pixel position arrays. An attempt to give
+        # spectra as Spectrum objects or a list of line pixel position arrays. An attempt to give
         # both raises an error.
         if arc_spectra is not None and obs_lines is not None:
             raise ValueError("Only one of arc_spectra or obs_lines can be provided.")
@@ -242,8 +244,8 @@ class WavelengthCalibration1D:
 
         pars = {}
         if coeffs is not None:
-            nc = min(degree+1, len(coeffs))
-            pars = {f"c{i}": c for i,c in enumerate(coeffs[:nc])}
+            nc = min(degree + 1, len(coeffs))
+            pars = {f"c{i}": c for i, c in enumerate(coeffs[:nc])}
         self._p2w = models.Shift(-self.ref_pixel) | models.Polynomial1D(self.degree, **pars)
 
     def _line_match_distance(self, x: ArrayLike, max_distance: float = 100) -> float:
@@ -289,15 +291,18 @@ class WavelengthCalibration1D:
         Parameters
         ----------
         line_lists
-            A collection of line lists that can either be arrays of wavelengths or ``pypeit``
-            lamp names.
+            A collection of line lists that can either be arrays of wavelengths or `PypeIt
+            <https://github.com/pypeit/PypeIt>`_
+            lamp names. You can query the list of available catalog names via
+            `~specreduce.calibration_data.get_available_line_catalogs`.
 
         line_list_bounds
             A tuple specifying the minimum and maximum wavelength bounds. Only wavelengths
             within this range are retained.
 
         wave_air
-             If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
+             If True, convert the vacuum wavelengths used by `PypeIt
+             <https://github.com/pypeit/PypeIt>`_ to air wavelengths.
         """
 
         lines_wav = []
@@ -631,7 +636,7 @@ class WavelengthCalibration1D:
 
     def resample(
         self,
-        spectrum: Spectrum,
+        spectrum: "Spectrum",
         nbins: int | None = None,
         wlbounds: tuple[float, float] | None = None,
         bin_edges: ArrayLike | None = None,
@@ -640,12 +645,13 @@ class WavelengthCalibration1D:
 
         This method bins a pixel-space spectrum to a wavelength space using the computed
         pixel-to-wavelength and wavelength-to-pixel transformations and their derivatives with
-        respect to the spectral axis. The binning is exact and conserves the total flux.
+        respect to the spectral axis. The binning is exact and conserves the integrated flux.
 
         Parameters
         ----------
         spectrum
-            A Spectrum1D instance containing the flux to be resampled over the wavelength space.
+            A Spectrum instance containing the flux to be resampled over the wavelength
+            space.
 
         nbins
             The number of bins for resampling. If not provided, it defaults to the size of the
@@ -672,6 +678,8 @@ class WavelengthCalibration1D:
             raise ValueError("Number of bins must be positive.")
 
         flux = spectrum.flux.value
+        pixels = spectrum.spectral_axis.value
+
         if spectrum.uncertainty is not None:
             ucty = spectrum.uncertainty.represent_as(VarianceUncertainty).array
             ucty_type = type(spectrum.uncertainty)
@@ -681,7 +689,7 @@ class WavelengthCalibration1D:
         npix = flux.size
         nbins = npix if nbins is None else nbins
         if wlbounds is None:
-            l1, l2 = self._p2w(spectrum.spectral_axis.value[[0, -1]] + np.array([-0.5, 0.5]))
+            l1, l2 = self._p2w(pixels[[0, -1]] + np.array([-0.5, 0.5]))
         else:
             l1, l2 = wlbounds
 
@@ -699,8 +707,7 @@ class WavelengthCalibration1D:
         ucty_wl = np.zeros(nbins)
         weights = np.zeros(npix)
 
-        dldx = np.diff(self._p2w(np.arange(spectrum.spectral_axis.value[0],
-                                           spectrum.spectral_axis.value[-1]+2) - 0.5))
+        dldx = np.diff(self._p2w(np.arange(pixels[0], pixels[-1] + 2) - 0.5))
 
         for i in range(nbins):
             i1, i2 = bin_edge_ix[i : i + 2]
@@ -712,7 +719,7 @@ class WavelengthCalibration1D:
                 sl = slice(i1, i2 + 1)
                 w = weights[sl]
                 flux_wl[i] = (w * flux[sl] * dldx[sl]).sum()
-                ucty_wl[i] = (w ** 2 * ucty[sl] * dldx[sl]).sum()
+                ucty_wl[i] = (w**2 * ucty[sl] * dldx[sl]).sum()
             else:
                 fracw = bin_edges_pix[i + 1] - bin_edges_pix[i]
                 flux_wl[i] = fracw * flux[i1] * dldx[i1]
