@@ -133,9 +133,8 @@ def test_fit_lines(mk_matched_lines):
     assert wc._p2w[1].degree == wc.degree
 
     wc = WavelengthCalibration1D(ref_pixel, pix_bounds=pix_bounds)
-    wc.fit_lines(degree=5, pixels=lo[:3], wavelengths=lc[:3])
-
-    wc = WavelengthCalibration1D(ref_pixel, pix_bounds=pix_bounds)
+    with pytest.warns(UserWarning, match="The degree of the polynomial"):
+        wc.fit_lines(degree=5, pixels=lo[:3], wavelengths=lc[:3])
     with pytest.raises(ValueError, match="Cannot fit without catalog"):
         wc.fit_lines(pixels=lo, wavelengths=lc, match_cat=True, match_obs=True)
     with pytest.raises(ValueError, match="Cannot fit without observed"):
