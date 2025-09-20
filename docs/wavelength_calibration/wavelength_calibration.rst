@@ -3,49 +3,39 @@
 Wavelength Calibration
 ======================
 
-In spectroscopy, the raw data from a detector typically records the intensity of light received
-at different detector positions (pixels). However, for scientific analysis, we need to know the
-physical wavelength (or frequency, or energy) corresponding to each pixel. **Wavelength
-calibration** is the process of determining this relationship, creating a mapping function or
-model  that converts pixel coordinates to wavelength values.
+In spectroscopy, the raw data from a detector typically records the intensity of light
+at different pixel positions. For scientific analysis, we need to know the physical
+wavelength (or frequency, or energy) corresponding to each pixel. **Wavelength
+calibration** is the process of determining this mapping, creating a model that
+converts pixel coordinates to wavelength values.
 
 This is often achieved by observing a calibration source with well-known emission
-lines at specific wavelengths (e.g., an arc lamp spectrum). By identifying the pixel positions of
-these known spectral features, we can fit a mathematical model that describes the dispersion of
-the spectrograph.
+lines (e.g., an arc lamp). By identifying the pixel positions of these lines, we can fit
+a mathematical model describing the spectrograph’s dispersion.
 
-The ``specreduce`` library provides the `~specreduce.wavecal1d.WavelengthCalibration1D` class
-to  facilitate this process for one-dimensional spectra. Tools for calibrating 2D spectra will
-be introduced in a later version.
+The ``specreduce`` library provides the
+:class:`~specreduce.wavecal1d.WavelengthCalibration1D` class to facilitate this process
+for one-dimensional spectra. Tools for calibrating 2D spectra will be added in later
+versions.
 
 1D Wavelength Calibration
 -------------------------
 
-The `~specreduce.wavecal1d.WavelengthCalibration1D` class encapsulates the data and methods
-needed to perform  1D wavelength calibration. The typical workflow involves:
+The :class:`~specreduce.wavecal1d.WavelengthCalibration1D` class encapsulates the data
+and methods needed for 1D wavelength calibration. A typical workflow involves:
 
-1.  **Initialization**: Create an instance of the class, providing either an observed arc lamp
-    spectrum or pre-identified observed line  positions, along with a catalog of known line
-    wavelengths. `~specreduce.wavecal1d.WavelengthCalibration1D` supports the use of multiple
-    arc spectra, and the initialization can also be done using a list of arc spectra (or a
-    list of line arrays identified from multiple arc spectra) and a list of catalogs for each arc
-    spectra.
-2.  **Line Identification (Optional)**: If arc spectra were provided, identify the pixel
-    locations of emission lines within them.
-3.  **Matching and Fitting**: Determine the correspondence between observed line pixels and
-    catalog wavelengths, and fit a model (a polynomial) to represent the
-    pixel-to-wavelength transformation. This can be done manually by providing matched pairs or
-    automatically using global optimization techniques.
-4.  **Inspection**: Evaluate the quality of the fit using residuals and diagnostic plots.
+1. **Initialization**: Create an instance of the class with either arc spectra or
+   pre-identified observed line positions, and provide one or more line lists of known
+   wavelengths. Multiple arcs and multiple catalogs are supported.
+2. **Line Detection (if using arc spectra)**: Identify line positions in the arc spectra.
+3. **Fitting the Wavelength Solution**: Use either direct fitting with known pixel–
+   wavelength pairs (:meth:`~specreduce.wavecal1d.WavelengthCalibration1D.fit_lines`)
+   or automated global optimization
+   (:meth:`~specreduce.wavecal1d.WavelengthCalibration1D.fit_dispersion`).
+4. **Refinement and Inspection**: Optionally refine the solution and check fit quality
+   using RMS statistics and plots.
 5.  **Applying the Solution**: Use the fitted model (often accessed as a `~gwcs.wcs.WCS` object) to
     calibrate science spectra or resample spectra onto a linear wavelength grid.
-
-.. Tutorials
-.. ---------
-
-.. The following tutorials provide hands-on examples demonstrating the usage of the
-   `~specreduce.wavecal1d.WavelengthCalibration1D` class. These step-by-step guides cover
-   both basic and advanced functionality to help you get started with wavelength calibration.
 
 Quickstart
 ----------
@@ -54,12 +44,8 @@ Quickstart
 *****************
 
 You instantiate the :class:`~specreduce.wavecal1d.WavelengthCalibration1D` by providing basic
-information about your setup and data. A reference pixel (``ref_pixel``) is required, which serves
-as the anchor point for the polynomial fit, and ``degree`` can be used to set the degree of the
-polynomial for the fit.
-
-You must provide *either* a list of arc spectra (or a single arc spectrum) *or* a list of known
-observed line positions:
+information about your setup and data. You must provide *either* a list of arc spectra (or a
+single arc spectrum) *or* a list of known observed line positions:
 
 *   **Using an Arc Spectrum**: Provide the arc spectrum as a `specutils.Spectrum`
     object via the ``arc_spectra`` argument. You also need to provide a ``line_lists`` argument,
@@ -69,30 +55,26 @@ observed line positions:
 
     .. code-block:: python
 
-        wc = WavelengthCalibration1D(ref_pixel=512,
-                                     arc_spectra=arc_he,
+        wc = WavelengthCalibration1D(arc_spectra=arc_he,
                                      line_lists=["HeI"])
 
 *   **Using multiple Arc Spectra**:
 
     .. code-block:: python
 
-        wc = WavelengthCalibration1D(ref_pixel=512,
-                                     arc_spectra=[arc_he, arc_hg_ar],
+        wc = WavelengthCalibration1D(arc_spectra=[arc_he, arc_hg_ar],
                                      line_lists=[["HeI"], ["HgI", "ArI"]])
 
 *   **Using Observed Line Positions**: If you have already identified the pixel centroids of
     lines in your calibration spectrum, you can provide them directly via the ``obs_lines``
     argument (as a list of NumPy arrays). In this case, you *must* also provide the detector's pixel
-    boundaries using ``pix_bounds`` (a tuple like ``(min_pixel, max_pixel)``). You still need to
-    provide the ``line_lists`` containing the potential matching catalog wavelengths.
+    boundaries using ``pix_bounds`` (a tuple like ``(min_pixel, max_pixel)``) and a reference
+    pixel, ``ref_pixel``,  which serves as the anchor point for the polynomial fit. You also
+    need to provide the ``line_lists`` containing the potential matching catalog wavelengths.
 
     .. code-block:: python
 
-        # Assume observed line pixel centers were found previously
         obs_he = np.array([105.3, 210.8, 455.1, 512.5, 680.2])
-
-        # Pixel range of the detector
         pixel_bounds = (0, 1024)
 
         wc = WavelengthCalibration1D(ref_pixel=512,
@@ -122,7 +104,6 @@ If you initialized the class with ``arc_spectra``, you need to detect the lines 
 
 .. code-block:: python
 
-    # Find lines with an estimated FWHM and noise factor
     wc.find_lines(fwhm=3.5, noise_factor=5)
 
 This populates the `~specreduce.wavecal1d.WavelengthCalibration1D.observed_line_locations`
@@ -130,36 +111,48 @@ attribute.
 
 .. code-block:: python
 
-    # Access the found lines (pixel positions)
     print(wc.observed_line_locations)
 
 3. Matching and Fitting the Solution
 ************************************
 
-The core of the process is fitting the model that maps pixels to wavelengths.
+The core of the calibration process is fitting a model that maps pixels to wavelengths.
 
 *   **Global Fitting for Automated Pipelines**: If you have
     `~specreduce.wavecal1d.WavelengthCalibration1D.observed_lines` (either found automatically or
     provided initially) and
     `~specreduce.wavecal1d.WavelengthCalibration1D.catalog_lines` (from ``line_lists``), but don't
     know the exact pixel-wavelength pairs, you can use
-    :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.fit_global`. This method uses the
-    `differential evolution global optimization algorithm <https://en.wikipedia.org/wiki/Differential_evolution>`_
-    to find the best-fit polynomial parameters by
-    minimizing the distance between predicted line wavelengths and the nearest catalog lines. You
-    need to provide estimated bounds for the wavelength and dispersion at the ``ref_pixel``. You can
-    also adjust the size of the differential evolution population using the ``popsize`` argument.
-    A larger population generally yields a more robust solution but increases the
-    optimization time.
+    :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.fit_dispersion`.  This method applies the
+    `differential evolution optimization algorithm <https://en.wikipedia
+    .org/wiki/Differential_evolution>`_
+    to find the polynomial coefficients that minimize the distance between observed line
+    positions (transformed to wavelength space) and the nearest catalog lines.
+
+    The fit is anchored around the reference pixel (``ref_pixel``), which defines the centre
+    of the polynomial model. If not explicitly set at initialization, it defaults to the middle
+    of the detector when arc spectra are supplied. You must provide estimated bounds for both
+    the wavelength and the dispersion (dλ/dx) at ``ref_pixel``.
+
+    The polynomial degree is set with the ``degree`` argument. A higher degree can capture
+    more complex dispersion behaviour but risks overfitting if too few calibration lines are
+    available.
+
+    The ``higher_order_limits`` argument optionally constrains the absolute values of the
+    higher-order polynomial coefficients, reducing the risk of unrealistic solutions.
+
+    The ``popsize`` argument controls the population size in the differential evolution search.
+    Larger values generally improve robustness at the expense of longer computation times.
+
 
     .. code-block:: python
 
-        # Estimate wavelength and dispersion around the reference pixel
-        # (e.g., Wavelength around 7500 AA, Dispersion ~2 AA/pix)
-        wavelength_bounds = (7450, 7550)
-        dispersion_bounds = (1.8, 2.2)
-
-        wc.fit_global(wavelength_bounds, dispersion_bounds, popsize=30, refine_fit=True)
+        wc.fit_dispersion(wavelength_bounds=(7450, 7550),
+                          dispersion_bounds=(1.8, 2.2),
+                          higher_order_limits=[0.001, 1e-5],
+                          degree=4,
+                          popsize=30,
+                          refine_fit=True)
 
     Setting ``refine_fit=True`` automatically performs a least-squares refinement after the global
     fit finds an initial solution and matches lines.
@@ -171,11 +164,10 @@ The core of the process is fitting the model that maps pixels to wavelengths.
 
     .. code-block:: python
 
-        # Assume these are matched pairs
-        pixels = np.array([105.3, 512.5, 780.1])
-        wavelengths = np.array([6965.43, 7503.87, 7723.76])
-
-        wc.fit_lines(pixels=pixels, wavelengths=wavelengths, refine_fit=True)
+        wc.fit_lines(pixels=[105.3, 512.5, 780.1],
+                     wavelengths=[6965.43, 7503.87, 7723.76],
+                     degree=2,
+                     refine_fit=True)
 
     When ``refine_fit=True`` is set, the method automatically identifies matching pairs between
     observed and catalog lines, then performs a least-squares refinement using **all matching lines**.
@@ -235,13 +227,10 @@ Once satisfied with the fit, you can use the wavelength solution:
 
 *   **Rebin Spectrum**: Resample a spectrum onto a new wavelength grid using
     :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.resample`. The rebinning is
-    flux-conserving, meaning the total flux in the output spectrum matches the total flux
+    flux-conserving, meaning the integrated flux in the output spectrum matches the integrated flux
     in the input spectrum.
 
     .. code-block:: python
 
-        # Resample the original arc spectrum onto a linear grid of 1000 points
         resampled_arc = ws.resample(arc_spectrum, nbins=1000)
-
-        # The resampled spectrum now has a linear wavelength axis
         print(resampled_arc.spectral_axis)
