@@ -159,7 +159,7 @@ class WavelengthCalibration1D:
         self._trees: list[KDTree] | None = None
 
         self._fit: optimize.OptimizeResult | None = None
-        self._solution: WavelengthSolution1D | None = None
+        self._solution = WavelengthSolution1D(None, pix_bounds, unit, ref_pixel)
 
         # Read and store the observational data if given. The user can provide either a list of arc
         # spectra as Spectrum objects or a list of line pixel position arrays. An attempt to give
@@ -787,7 +787,7 @@ class WavelengthCalibration1D:
         if isinstance(plot_labels, bool):
             plot_labels = np.full(frames.size, plot_labels, dtype=bool)
 
-        if map_x and self._solution is None:
+        if map_x and self._solution.p2w is None:
             raise ValueError("Cannot map between pixels and wavelengths without a fitted model.")
 
         if kind == "observed":

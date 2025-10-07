@@ -3,15 +3,13 @@ import astropy.units as u
 import numpy as np
 import pytest
 from astropy.modeling import models
-from astropy.modeling.polynomial import Polynomial1D
 from astropy.nddata import StdDevUncertainty
-from gwcs import wcs
-from numpy import array
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
-from specreduce.wavecal1d import WavelengthCalibration1D, _diff_poly1d
-from specreduce.compat import Spectrum
+from numpy import array
 
+from specreduce.compat import Spectrum
+from specreduce.wavecal1d import WavelengthCalibration1D
 
 ref_pixel = 250
 pix_bounds = (0, 500)
@@ -46,9 +44,7 @@ def mk_good_wc_with_transform(mk_lines):
     wc = WavelengthCalibration1D(
         ref_pixel, line_lists=cat_lines, obs_lines=obs_lines, pix_bounds=pix_bounds
     )
-    wc._p2w = p2w
-    wc._calculate_p2w_inverse()
-    wc._calculate_p2w_derivative()
+    wc._solution.p2w = p2w
     return wc
 
 
@@ -59,11 +55,6 @@ def mk_arc():
         spectral_axis=np.arange(pix_bounds[1]) * u.pix,
         uncertainty=StdDevUncertainty(np.ones(pix_bounds[1])),
     )
-
-
-def test_diff_poly1d():
-    p = _diff_poly1d(Polynomial1D(3, c0=1.0, c1=2.0, c2=3.0, c3=4.0))
-    np.testing.assert_array_equal(p.parameters, [2.0, 6.0, 12.0])
 
 
 def test_init(mk_arc, mk_lines):
@@ -124,13 +115,13 @@ def test_fit_lines(mk_matched_lines):
     lo, lc = mk_matched_lines
     wc = WavelengthCalibration1D(ref_pixel, pix_bounds=pix_bounds)
     wc.fit_lines(pixels=lo, wavelengths=lc)
-    assert wc._p2w is not None
-    assert wc._p2w[1].degree == wc.degree
+    assert wc._solution.p2w is not None
+    assert wc._solution.p2w[1].degree == wc.degree
 
     wc = WavelengthCalibration1D(ref_pixel, obs_lines=lo, line_lists=lc, pix_bounds=pix_bounds)
     wc.fit_lines(pixels=lo, wavelengths=lc, match_cat=True, match_obs=True)
-    assert wc._p2w is not None
-    assert wc._p2w[1].degree == wc.degree
+    assert wc._solution.p2w is not None
+    assert wc._solution.p2w[1].degree == wc.degree
 
     wc = WavelengthCalibration1D(ref_pixel, pix_bounds=pix_bounds)
     with pytest.warns(UserWarning, match="The degree of the polynomial"):
@@ -230,68 +221,12 @@ def test_fit_global():
     np.testing.assert_allclose(wc._fit.x, [650.0, 50.0, 0.0, 0.0], atol=1e-4)
     assert wc._fit is not None
     assert wc._fit.success
-    assert wc._p2w is not None
+    assert wc._solution.p2w is not None
 
     wc = WavelengthCalibration1D(
         5, pix_bounds=pix_bounds, obs_lines=lines_obs, line_lists=lines_cat
     )
     wc.fit_dispersion(wavelength_bounds, dispersion_bounds, popsize=10, refine_fit=False)
-
-
-def test_resample(mk_arc, mk_wc, mk_good_wc_with_transform):
-    wc = mk_good_wc_with_transform
-    spectrum = mk_arc
-    resampled = wc.resample(spectrum, nbins=50)
-    assert resampled is not None
-    assert len(resampled.flux) == 50
-    assert resampled.flux.unit == u.DN / u.angstrom
-
-    pix_edges = np.arange(spectrum.spectral_axis.size+1) - 0.5
-    f0 = (spectrum.flux.value * np.diff(wc._p2w(pix_edges))).sum()
-    f1 = (resampled.flux.value * np.diff(resampled.spectral_axis.value)[0]).sum()
-
-    np.testing.assert_approx_equal(f0, f1, 5)
-
-    wc = mk_wc
-    with pytest.raises(ValueError, match="Wavelength solution not yet"):
-        wc.resample(mk_arc)
-
-    wc = mk_good_wc_with_transform
-    with pytest.raises(ValueError, match="Number of bins must be positive"):
-        wc.resample(mk_arc, nbins=-5)
-
-
-def test_pix_to_wav(mk_good_wc_with_transform):
-    pix_values = np.array([1, 2, 3, 4, 5])
-    wc = mk_good_wc_with_transform
-    wavelengths = wc.pix_to_wav(pix_values)
-    np.testing.assert_array_equal(wavelengths, p2w(pix_values))
-
-    pix_values = np.ma.masked_array([1, 2, 3], mask=[0, 1, 0])
-    wavelengths = wc.pix_to_wav(pix_values)
-    np.testing.assert_array_equal(wavelengths.data, p2w(pix_values))
-    np.testing.assert_array_equal(wavelengths.mask, np.array([0, 1, 0]))
-
-
-def test_wav_to_pix(mk_wc):
-    wav_values = np.array([500, 1000, 1500])
-    wc = mk_wc
-    wc._w2p = lambda x: x / 10  # Mock wavelength-to-pixel conversion
-    pixel_values = wc.wav_to_pix(wav_values)
-    np.testing.assert_array_equal(pixel_values, np.array([50, 100, 150]))
-
-    wav_values = np.ma.masked_array([500, 1000, 1500], mask=[0, 1, 0])
-    pixel_values = wc.wav_to_pix(wav_values)
-    np.testing.assert_array_equal(pixel_values.data, np.array([50, 100, 150]))
-    np.testing.assert_array_equal(pixel_values.mask, np.array([0, 1, 0]))
-
-
-def test_wcs_creates_valid_gwcs_object(mk_good_wc_with_transform):
-    wc = mk_good_wc_with_transform
-    wcs_obj = wc.gwcs
-    assert wcs_obj is not None
-    assert isinstance(wcs_obj, wcs.WCS)
-    assert wcs_obj.output_frame.unit[0] == u.angstrom
 
 
 def test_rms(mk_good_wc_with_transform):

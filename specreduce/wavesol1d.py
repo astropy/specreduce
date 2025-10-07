@@ -8,7 +8,7 @@ from astropy.modeling import models, Model, CompoundModel
 from astropy.nddata import VarianceUncertainty
 from gwcs import coordinate_frames
 from numpy.ma import MaskedArray
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 from scipy.interpolate import interp1d
 
 from specreduce.compat import Spectrum
@@ -43,36 +43,36 @@ class WavelengthSolution1D:
 
     def __init__(
         self,
-        p2w_model: Model,
+        p2w: None | CompoundModel,
         bounds_pix: tuple[int, int],
         unit: u.Unit,
-        ref_pixel: float,
     ) -> None:
         self.unit = unit
         self._unit_str = unit.to_string("latex")
-        self.ref_pixel = ref_pixel
-
-        self._p2w: None | CompoundModel = None  # pixel -> wavelength model
         self.bounds_pix: tuple[int, int] = bounds_pix
         self.bounds_wav: tuple[float, float] | None = None
-        self.p2w = p2w_model
+        self.ref_pixel: None | float = None
+        self._p2w: None | CompoundModel = None
+        self.p2w = p2w
 
     @property
-    def p2w(self) -> CompoundModel:
+    def p2w(self) -> None |CompoundModel:
         return self._p2w
 
     @p2w.setter
     def p2w(self, m: CompoundModel) -> None:
         self._p2w = m
-        if hasattr(self, "p2w_dldx"):
+        self.ref_pixel = m[0].offset.value if m is not None else None
+
+        if "p2w_dldx" in self.__dict__:
             del self.p2w_dldx
-        if hasattr(self, "w2p"):
+        if "w2p" in self.__dict__:
             del self.w2p
-        if hasattr(self, "gwcs"):
+        if "gwcs" in self.__dict__:
             del self.gwcs
 
     @cached_property
-    def p2w_dldx(self) -> models.Polynomial1D:
+    def p2w_dldx(self) -> CompoundModel:
         """Calculate (d wavelength) / (d pixel) for the pixel-to-wavelength transformation."""
         return models.Shift(self._p2w.offset_0) | _diff_poly1d(self._p2w[1])
 
@@ -83,13 +83,13 @@ class WavelengthSolution1D:
         self.bounds_wav = self.p2w(self.bounds_pix)
         return interp1d(self.p2w(p), p, bounds_error=False, fill_value=np.nan)
 
-    def pix_to_wav(self, pix: float | ArrayLike) -> float | np.ndarray | MaskedArray:
+    def pix_to_wav(self, pix: float | ArrayLike) -> float | NDArray | MaskedArray:
         """Map pixel values into wavelength values.
 
         Parameters
         ----------
         pix
-            Input pixel value(s) to be transformed into wavelength.
+            The pixel value(s) to be transformed into wavelength value(s).
 
         Returns
         -------
@@ -101,7 +101,7 @@ class WavelengthSolution1D:
         else:
             return self.p2w(pix)
 
-    def wav_to_pix(self, wav: float | ArrayLike) -> float | np.ndarray | MaskedArray:
+    def wav_to_pix(self, wav: float | ArrayLike) -> float | NDArray | MaskedArray:
         """Map wavelength values into pixel values.
 
         Parameters
@@ -170,6 +170,9 @@ class WavelengthSolution1D:
         """
         if nbins is not None and nbins < 0:
             raise ValueError("Number of bins must be positive.")
+
+        if self._p2w is None:
+            raise ValueError("Wavelength solution not set.")
 
         flux = spectrum.flux.value
         pixels = spectrum.spectral_axis.value
