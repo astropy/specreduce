@@ -12,7 +12,7 @@ from specreduce.compat import Spectrum
 ref_pixel = 250.0
 p2w = models.Shift(ref_pixel) | models.Polynomial1D(degree=3, c0=1, c1=0.2, c2=0.001)
 pix_bounds = (0, 500)
-wav_bounds  = p2w(pix_bounds)
+wav_bounds = p2w(pix_bounds)
 
 
 @pytest.fixture
@@ -44,24 +44,23 @@ def test_init():
     assert ws._p2w is p2w
     assert ws.bounds_pix == pix_bounds
     assert ws.unit == u.angstrom
-    assert ws.ref_pixel == ref_pixel
-    assert 'w2p' not in ws.__dict__
-    assert 'p2d_dldx' not in ws.__dict__
-    assert 'gwcs' not in ws.__dict__
+    assert "w2p" not in ws.__dict__
+    assert "p2d_dldx" not in ws.__dict__
+    assert "gwcs" not in ws.__dict__
 
     # Test that the cached properties are created correctly
     ws.w2p(0.5)
-    assert 'w2p' in ws.__dict__
+    assert "w2p" in ws.__dict__
     ws.p2w_dldx(pix_bounds[0])
-    assert 'p2w_dldx' in ws.__dict__
+    assert "p2w_dldx" in ws.__dict__
     wcs = ws.gwcs
-    assert 'gwcs' in ws.__dict__
+    assert "gwcs" in ws.__dict__
 
     # Test that the cached properties are deleted correctly
     ws.p2w = p2w
-    assert 'w2p' not in ws.__dict__
-    assert 'p2d_dldx' not in ws.__dict__
-    assert 'gwcs' not in ws.__dict__
+    assert "w2p" not in ws.__dict__
+    assert "p2d_dldx" not in ws.__dict__
+    assert "gwcs" not in ws.__dict__
 
     ws = WavelengthSolution1D(p2w, pix_bounds, u.micron)
     assert ws.unit == u.micron

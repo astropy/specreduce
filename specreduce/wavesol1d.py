@@ -39,43 +39,42 @@ def _diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
 
 
 class WavelengthSolution1D:
-    """Class defining a one-dimensional wavelength solution.
-
-    This class manages the mapping between pixel positions and wavelength values in a 1D spectrum,
-    supporting both forward and reverse transformations. It provides methods for resampling
-    spectra in the pixel-to-wavelength space while conserving flux, and integrates with GWCS for
-    coordinate transformations.
-
-    Attributes
-    ----------
-    unit : Unit
-        The unit of the wavelength axis (e.g., Angstrom, nanometers, etc.).
-    bounds_pix : tuple of int
-        The bounds of the pixel axis used in the wavelength solution.
-    bounds_wav : tuple of float or None
-        The bounds of the wavelength domain corresponding to the pixel range.
-    ref_pixel : float or None
-        The reference pixel position for the wavelength solution.
-    p2w : CompoundModel or None
-        The model describing the pixel-to-wavelength mapping.
-    """
-
     def __init__(
         self,
         p2w: None | CompoundModel,
         bounds_pix: tuple[int, int],
         unit: u.Unit,
     ) -> None:
+        """Class defining a one-dimensional wavelength solution.
+
+        This class manages the mapping between pixel positions and wavelength values in a 1D spectrum,
+        supporting both forward and reverse transformations. It provides methods for resampling
+        spectra in the pixel-to-wavelength space while conserving flux, and integrates with GWCS for
+        coordinate transformations.
+
+        Initializes an object with pixel-to-wavelength transformation, pixel bounds, and
+        measurement unit. Also, converts the unit to its LaTeX string representation.
+
+        Parameters
+        ----------
+        p2w
+            The pixel-to-wavelength transformation model. If None, no transformation
+            will be set.
+        bounds_pix
+            The lower and upper pixel bounds defining the range of the spectrum.
+        unit
+            The wavelength unit.
+        """
         self.unit = unit
         self._unit_str = unit.to_string("latex")
         self.bounds_pix: tuple[int, int] = bounds_pix
         self.bounds_wav: tuple[float, float] | None = None
-        self.ref_pixel: None | float = None
         self._p2w: None | CompoundModel = None
         self.p2w = p2w
 
     @property
     def p2w(self) -> None | CompoundModel:
+        """Pixel-to-wavelength transformation."""
         return self._p2w
 
     @p2w.setter
@@ -97,7 +96,7 @@ class WavelengthSolution1D:
 
     @cached_property
     def w2p(self) -> Callable:
-        """Wavelength-to-pixel mapping"""
+        """Wavelength-to-pixel transformation."""
         p = np.arange(self.bounds_pix[0] - 2, self.bounds_pix[1] + 2)
         self.bounds_wav = self.p2w(self.bounds_pix)
         return interp1d(self.p2w(p), p, bounds_error=False, fill_value=np.nan)

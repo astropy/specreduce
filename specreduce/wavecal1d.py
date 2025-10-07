@@ -159,7 +159,7 @@ class WavelengthCalibration1D:
         self._trees: list[KDTree] | None = None
 
         self._fit: optimize.OptimizeResult | None = None
-        self._solution = WavelengthSolution1D(None, pix_bounds, unit, ref_pixel)
+        self._solution = WavelengthSolution1D(None, pix_bounds, unit)
 
         # Read and store the observational data if given. The user can provide either a list of arc
         # spectra as Spectrum objects or a list of line pixel position arrays. An attempt to give
