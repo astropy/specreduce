@@ -1,20 +1,15 @@
 import warnings
 from functools import cached_property
 from math import isclose
-from typing import Sequence, Callable, Literal
+from typing import Sequence, Literal
 
 import astropy.units as u
-import gwcs
 import numpy as np
-
-from astropy.modeling import models, Model, fitting
-from astropy.nddata import VarianceUncertainty
-from gwcs import coordinate_frames
+from astropy.modeling import models, Model, fitting, CompoundModel
 from matplotlib.pyplot import Axes, Figure, setp, subplots
-from numpy.typing import ArrayLike
 from numpy.ma import MaskedArray
+from numpy.typing import ArrayLike
 from scipy import optimize, ndimage
-from scipy.interpolate import interp1d
 from scipy.spatial import KDTree
 
 from specreduce.calibration_data import load_pypeit_calibration_lines
@@ -22,6 +17,8 @@ from specreduce.compat import Spectrum
 from specreduce.line_matching import find_arc_lines
 
 __all__ = ["WavelengthCalibration1D"]
+
+from specreduce.wavesol1d import WavelengthSolution1D
 
 
 def _format_linelist(lst: ArrayLike) -> MaskedArray:
@@ -90,27 +87,6 @@ def _unclutter_text_boxes(labels: Sequence) -> None:
 
     for label in to_remove:
         label.remove()
-
-
-def _diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
-    """Compute the derivative of a Polynomial1D model.
-
-    Computes the derivative of a Polynomial1D model and returns a new Polynomial1D
-    model representing the derivative. The coefficients of the input model are
-    used to calculate the coefficients of the derivative model. For a Polynomial1D
-    of degree n, the derivative is a Polynomial1D of degree n-1.
-
-    Parameters
-    ----------
-    m
-        A Polynomial1D model for which the derivative is to be computed.
-
-    Returns
-    -------
-    A new Polynomial1D model representing the derivative of the input Polynomial1D model.
-    """
-    coeffs = {f"c{i-1}": i * getattr(m, f"c{i}").value for i in range(1, m.degree + 1)}
-    return models.Polynomial1D(m.degree - 1, **coeffs)
 
 
 class WavelengthCalibration1D:
@@ -183,10 +159,7 @@ class WavelengthCalibration1D:
         self._trees: list[KDTree] | None = None
 
         self._fit: optimize.OptimizeResult | None = None
-
-        self._p2w: None | Model = None  # pixel -> wavelength model
-        self._w2p: None | Callable = None  # wavelength -> pixel model
-        self._p2w_dldx: None | Model = None  # delta lambda / delta pixel
+        self._solution: WavelengthSolution1D | None = None
 
         # Read and store the observational data if given. The user can provide either a list of arc
         # spectra as Spectrum objects or a list of line pixel position arrays. An attempt to give
@@ -225,30 +198,7 @@ class WavelengthCalibration1D:
                 raise ValueError("The number of line lists must match the number of arc spectra.")
             self._read_linelists(line_lists, line_list_bounds=line_list_bounds, wave_air=wave_air)
 
-    def _init_model(self, degree: int, coeffs: None | ArrayLike = None) -> None:
-        """Initialize the polynomial model with the given degree and an optional base model.
-
-        This method sets up a polynomial transformation based on the reference pixel and degree.
-        If coefficients are provided, they are copied to the initialized model up to the degree
-        specified.
-
-        Parameters
-        ----------
-        degree
-            Degree of the polynomial model to be initialized.
-
-        coeffs
-            Optional initial polynomial coefficients.
-        """
-        self.degree = degree
-
-        pars = {}
-        if coeffs is not None:
-            nc = min(degree + 1, len(coeffs))
-            pars = {f"c{i}": c for i, c in enumerate(coeffs[:nc])}
-        self._p2w = models.Shift(-self.ref_pixel) | models.Polynomial1D(self.degree, **pars)
-
-    def _line_match_distance(self, x: ArrayLike, max_distance: float = 100) -> float:
+    def _line_match_distance(self, x: ArrayLike, model: Model, max_distance: float = 100) -> float:
         """Compute the sum of distances between catalog lines and transformed observed lines.
 
         This function evaluates the pixel-to-wavelength model at the observed line positions,
@@ -260,6 +210,8 @@ class WavelengthCalibration1D:
         ----------
         x
             Pixel-to-wavelength model parameters (e.g., Polynomial1D coefficients c0..cN).
+        model
+            The pixel-to-wavelength model to be evaluated.
         max_distance
             Upper bound used to clip individual distances before summation.
 
@@ -271,14 +223,9 @@ class WavelengthCalibration1D:
         """
         total_distance = 0.0
         for t, l in zip(self._trees, self.observed_line_locations):
-            transformed_lines = self._p2w.evaluate(l, -self.ref_pixel, *x)[:, None]
+            transformed_lines = model.evaluate(l, -self.ref_pixel, *x)[:, None]
             total_distance += np.clip(t.query(transformed_lines)[0], 0, max_distance).sum()
         return total_distance
-
-    def _reset_cached(self) -> None:
-        """Reset cached attributes."""
-        if hasattr(self, "gwcs"):
-            del self.gwcs
 
     def _read_linelists(
         self,
@@ -365,6 +312,29 @@ class WavelengthCalibration1D:
             )
         self.observed_lines = line_lists
 
+    def _create_model(self, degree: int, coeffs: None | ArrayLike = None) -> CompoundModel:
+        """Initialize the polynomial model with the given degree and an optional base model.
+
+        This method sets up a polynomial transformation based on the reference pixel and degree.
+        If coefficients are provided, they are copied to the initialized model up to the degree
+        specified.
+
+        Parameters
+        ----------
+        degree
+            Degree of the polynomial model to be initialized.
+
+        coeffs
+            Optional initial polynomial coefficients.
+        """
+        self.degree = degree
+
+        pars = {}
+        if coeffs is not None:
+            nc = min(degree + 1, len(coeffs))
+            pars = {f"c{i}": c for i, c in enumerate(coeffs[:nc])}
+        return models.Shift(-self.ref_pixel) | models.Polynomial1D(self.degree, **pars)
+
     def fit_lines(
         self,
         pixels: ArrayLike,
@@ -433,8 +403,6 @@ class WavelengthCalibration1D:
         if self.bounds_pix is None:
             raise ValueError("Cannot fit without pixel bounds set.")
 
-        self._init_model(degree)
-
         # Match the input wavelengths to catalog lines.
         if match_cat:
             if self._cat_lines is None:
@@ -456,28 +424,25 @@ class WavelengthCalibration1D:
             pixels = tree.data[ix][:, 0]
 
         fitter = fitting.LinearLSQFitter()
-        m = self._p2w[1]
-        if m.degree > nlines:
+        shift, model = self._create_model(degree)
+        if model.degree > nlines:
             warnings.warn(
                 "The degree of the polynomial model is higher than the number of lines. "
                 "Fixing the higher-order coefficients to zero."
             )
-            for i in range(nlines, m.degree + 1):
-                m.fixed[f"c{i}"] = True
-        m = fitter(m, pixels - self.ref_pixel, wavelengths)
-        for i in range(m.degree + 1):
-            m.fixed[f"c{i}"] = False
-        self._p2w = self._p2w[0] | m
+            for i in range(nlines, model.degree + 1):
+                model.fixed[f"c{i}"] = True
+        model = fitter(model, pixels - self.ref_pixel, wavelengths)
+        for i in range(model.degree + 1):
+            model.fixed[f"c{i}"] = False
+        self._solution.p2w = shift | model
 
         can_match = self._cat_lines is not None and self._obs_lines is not None
         if refine_fit and can_match:
             self.refine_fit(refined_fit_degree, max_match_distance=refine_max_distance)
         else:
-            self._calculate_p2w_derivative()
-            self._calculate_p2w_inverse()
             if can_match:
                 self.match_lines()
-        self._reset_cached()
 
     def fit_dispersion(
         self,
@@ -540,13 +505,12 @@ class WavelengthCalibration1D:
             equals to ``degree``.
         """
 
-        self._init_model(degree)
-
         # Define bounds for differential_evolution.
         bounds = [np.asarray(wavelength_bounds), np.asarray(dispersion_bounds)]
+        model = self._create_model(degree)
 
         if higher_order_limits is not None:
-            if len(higher_order_limits) != self._p2w[1].degree - 1:
+            if len(higher_order_limits) != model[1].degree - 1:
                 raise ValueError(
                     "The number of higher-order limits must match the degree of the polynomial "
                     "model minus one."
@@ -554,28 +518,26 @@ class WavelengthCalibration1D:
             for v in higher_order_limits:
                 bounds.append(np.asarray([-v, v]))
         else:
-            for i in range(2, self._p2w[1].degree + 1):
+            for i in range(2, model[1].degree + 1):
                 bounds.append(
                     np.array([-1, 1]) * 10 ** (np.log10(np.mean(dispersion_bounds)) - 2 * i)
                 )
         bounds = np.array(bounds)
 
         self._fit = optimize.differential_evolution(
-            lambda x: self._line_match_distance(x, max_distance),
+            lambda x: self._line_match_distance(x, model, max_distance),
             bounds=bounds,
             popsize=popsize,
             init="sobol",
         )
-        self._init_model(degree, coeffs=self._fit.x)
+        self._solution.p2w = self._create_model(degree, coeffs=self._fit.x)
 
-        # Update the model with the best-fit parameters found
+        can_match = self._cat_lines is not None and self._obs_lines is not None
         if refine_fit:
             self.refine_fit(refined_fit_degree, max_match_distance=refine_max_distance)
         else:
-            self._calculate_p2w_derivative()
-            self._calculate_p2w_inverse()
-            self.match_lines()
-        self._reset_cached()
+            if can_match:
+                self.match_lines()
 
     def refine_fit(
         self, degree: None | int = None, max_match_distance: float = 5.0, max_iter: int = 5
@@ -603,168 +565,23 @@ class WavelengthCalibration1D:
 
         # Create a new model with the current parameters if degree is specified.
         if degree is not None and degree != self.degree:
-            self._init_model(degree, coeffs=self._p2w[1].parameters)
+            model = self._create_model(degree, coeffs=self._solution.p2w[1].parameters)
+        else:
+            model = self._solution.p2w
 
-        model = self._p2w[1]
+        shift, poly = model
         fitter = fitting.LinearLSQFitter()
         rms = np.nan
         for i in range(max_iter):
             self.match_lines(max_match_distance)
             matched_pix = np.ma.concatenate(self.observed_line_locations).compressed()
             matched_wav = np.ma.concatenate(self.catalog_line_locations).compressed()
-            rms_new = np.sqrt(((matched_wav - self.pix_to_wav(matched_pix)) ** 2).mean())
+            rms_new = np.sqrt(((matched_wav - model(matched_pix)) ** 2).mean())
             if isclose(rms_new, rms):
                 break
-            self._p2w = self._p2w[0].copy() | fitter(
-                model, matched_pix - self.ref_pixel, matched_wav
-            )
+            model = shift | fitter(poly, matched_pix - self.ref_pixel, matched_wav)
             rms = rms_new
-        self._calculate_p2w_derivative()
-        self._calculate_p2w_inverse()
-        self._reset_cached()
-
-    def _calculate_p2w_derivative(self) -> None:
-        """Calculate (d wavelength) / (d pixel) for the pixel-to-wavelength transformation."""
-        if self._p2w is not None:
-            self._p2w_dldx = models.Shift(self._p2w.offset_0) | _diff_poly1d(self._p2w[1])
-
-    def _calculate_p2w_inverse(self) -> None:
-        """Compute the wavelength-to-pixel mapping from the pixel-to-wavelength transformation."""
-        p = np.arange(self.bounds_pix[0] - 2, self.bounds_pix[1] + 2)
-        self._w2p = interp1d(self._p2w(p), p, bounds_error=False, fill_value=np.nan)
-        self.bounds_wav = self._p2w(self.bounds_pix)
-
-    def resample(
-        self,
-        spectrum: "Spectrum",
-        nbins: int | None = None,
-        wlbounds: tuple[float, float] | None = None,
-        bin_edges: ArrayLike | None = None,
-    ) -> Spectrum:
-        """Bin the given pixel-space 1D spectrum to a wavelength space conserving the flux.
-
-        This method bins a pixel-space spectrum to a wavelength space using the computed
-        pixel-to-wavelength and wavelength-to-pixel transformations and their derivatives with
-        respect to the spectral axis. The binning is exact and conserves the integrated flux.
-
-        Parameters
-        ----------
-        spectrum
-            A Spectrum instance containing the flux to be resampled over the wavelength
-            space.
-
-        nbins
-            The number of bins for resampling. If not provided, it defaults to the size of the
-            input spectrum.
-
-        wlbounds
-            A tuple specifying the starting and ending wavelengths for resampling. If not
-            provided, the wavelength bounds are inferred from the object's methods and the
-            entire flux array is used.
-
-        bin_edges
-            Explicit bin edges in the wavelength space. Should be an 1D array-like [e_0, e_1,
-            ..., e_n] with n = nbins + 1. The bins are created as [[e_0, e_1], [e_1, e_2], ...,
-            [e_n-1, n]]. If provided, ``nbins`` and ``wlbounds`` are ignored.
-
-        Returns
-        -------
-            1D spectrum binned to the specified wavelength bins.
-        """
-        if self._p2w is None:
-            raise ValueError("Wavelength solution not yet computed.")
-
-        if nbins is not None and nbins < 0:
-            raise ValueError("Number of bins must be positive.")
-
-        flux = spectrum.flux.value
-        pixels = spectrum.spectral_axis.value
-
-        if spectrum.uncertainty is not None:
-            ucty = spectrum.uncertainty.represent_as(VarianceUncertainty).array
-            ucty_type = type(spectrum.uncertainty)
-        else:
-            ucty = np.zeros_like(flux)
-            ucty_type = VarianceUncertainty
-        npix = flux.size
-        nbins = npix if nbins is None else nbins
-        if wlbounds is None:
-            l1, l2 = self._p2w(pixels[[0, -1]] + np.array([-0.5, 0.5]))
-        else:
-            l1, l2 = wlbounds
-
-        if bin_edges is not None:
-            bin_edges_wav = np.asarray(bin_edges)
-            nbins = bin_edges_wav.size - 1
-        else:
-            bin_edges_wav = np.linspace(l1, l2, num=nbins + 1)
-
-        bin_edges_pix = np.clip(self._w2p(bin_edges_wav) + 0.5, 0, npix - 1e-12)
-        bin_edge_ix = np.floor(bin_edges_pix).astype(int)
-        bin_edge_w = bin_edges_pix - bin_edge_ix
-        bin_centers_wav = 0.5 * (bin_edges_wav[:-1] + bin_edges_wav[1:])
-        flux_wl = np.zeros(nbins)
-        ucty_wl = np.zeros(nbins)
-        weights = np.zeros(npix)
-
-        dldx = np.diff(self._p2w(np.arange(pixels[0], pixels[-1] + 2) - 0.5))
-
-        for i in range(nbins):
-            i1, i2 = bin_edge_ix[i : i + 2]
-            weights[:] = 0.0
-            if i1 != i2:
-                weights[i1 + 1 : i2] = 1.0
-                weights[i1] = 1 - bin_edge_w[i]
-                weights[i2] = bin_edge_w[i + 1]
-                sl = slice(i1, i2 + 1)
-                w = weights[sl]
-                flux_wl[i] = (w * flux[sl] * dldx[sl]).sum()
-                ucty_wl[i] = (w**2 * ucty[sl] * dldx[sl]).sum()
-            else:
-                fracw = bin_edges_pix[i + 1] - bin_edges_pix[i]
-                flux_wl[i] = fracw * flux[i1] * dldx[i1]
-                ucty_wl[i] = fracw**2 * ucty[i1] * dldx[i1]
-
-        bin_widths_wav = np.diff(bin_edges_wav)
-        flux_wl = flux_wl / bin_widths_wav * spectrum.flux.unit / self.unit
-        ucty_wl = VarianceUncertainty(ucty_wl / bin_widths_wav**2).represent_as(ucty_type)
-        return Spectrum(flux_wl, bin_centers_wav * self.unit, uncertainty=ucty_wl)
-
-    def pix_to_wav(self, pix: float | ArrayLike) -> float | np.ndarray:
-        """Map pixel values into wavelength values.
-
-        Parameters
-        ----------
-        pix
-            Input pixel value(s) to be transformed into wavelength.
-
-        Returns
-        -------
-        Transformed wavelength value(s) corresponding to the input pixel value(s).
-        """
-        if isinstance(pix, MaskedArray):
-            wav = self._p2w(pix.data)
-            return np.ma.masked_array(wav, mask=pix.mask)
-        else:
-            return self._p2w(pix)
-
-    def wav_to_pix(self, wav: float | ArrayLike) -> float | np.ndarray:
-        """Map wavelength values into pixel values.
-
-        Parameters
-        ----------
-        wav
-            The wavelength value(s) to be converted into pixel value(s).
-
-        Returns
-        -------
-        The corresponding pixel value(s) for the input wavelength(s).
-        """
-        if isinstance(wav, MaskedArray):
-            pix = self._w2p(wav.data)
-            return np.ma.masked_array(pix, mask=wav.mask)
-        else:
-            return self._w2p(wav)
+        self._solution.p2w = model
 
     @property
     def degree(self) -> None | int:
@@ -842,25 +659,6 @@ class WavelengthCalibration1D:
         if hasattr(self, "catalog_line_amplitudes"):
             del self.catalog_line_amplitudes
 
-    @cached_property
-    def gwcs(self) -> gwcs.wcs.WCS:
-        """GWCS object defining the mapping between pixel and spectral coordinate frames."""
-        pixel_frame = coordinate_frames.CoordinateFrame(
-            1,
-            "SPECTRAL",
-            (0,),
-            axes_names=[
-                "x",
-            ],
-            unit=[u.pix],
-        )
-        spectral_frame = coordinate_frames.SpectralFrame(
-            axes_names=("wavelength",),
-            unit=[self.unit],
-        )
-        pipeline = [(pixel_frame, self._p2w), (spectral_frame, None)]
-        return gwcs.wcs.WCS(pipeline)
-
     def match_lines(self, max_distance: float = 5) -> None:
         """Match the observed lines to theoretical lines.
 
@@ -873,7 +671,7 @@ class WavelengthCalibration1D:
 
         for iframe, tree in enumerate(self._trees):
             l, ix = tree.query(
-                self._p2w(self.observed_line_locations[iframe].data)[:, None],
+                self._solution.p2w(self.observed_line_locations[iframe].data)[:, None],
                 distance_upper_bound=max_distance,
             )
             m = np.isfinite(l)
@@ -918,9 +716,9 @@ class WavelengthCalibration1D:
         mpix = np.ma.concatenate(self.observed_line_locations).compressed()
         mwav = np.ma.concatenate(self.catalog_line_locations).compressed()
         if space == "wavelength":
-            return np.sqrt(((mwav - self.pix_to_wav(mpix)) ** 2).mean())
+            return np.sqrt(((mwav - self._solution.p2w(mpix)) ** 2).mean())
         elif space == "pixel":
-            return np.sqrt(((mpix - self.wav_to_pix(mwav)) ** 2).mean())
+            return np.sqrt(((mpix - self._solution.w2p(mwav)) ** 2).mean())
         else:
             raise ValueError("Space must be either 'pixel' or 'wavelength'")
 
@@ -989,16 +787,16 @@ class WavelengthCalibration1D:
         if isinstance(plot_labels, bool):
             plot_labels = np.full(frames.size, plot_labels, dtype=bool)
 
-        if map_x and self._p2w is None:
+        if map_x and self._solution is None:
             raise ValueError("Cannot map between pixels and wavelengths without a fitted model.")
 
         if kind == "observed":
-            transform = self.pix_to_wav if map_x else lambda x: x
+            transform = self._solution.pix_to_wav if map_x else lambda x: x
             linelists = self.observed_lines
             spectra = self.arc_spectra
             lc = "C0"
         else:
-            transform = self.wav_to_pix if map_x else lambda x: x
+            transform = self._solution.wav_to_pix if map_x else lambda x: x
             linelists = self.catalog_lines
             spectra = None
             lc = "C1"
@@ -1291,7 +1089,7 @@ class WavelengthCalibration1D:
         mwav = np.ma.concatenate(self.catalog_line_locations).compressed()
 
         if space == "wavelength":
-            twav = self.pix_to_wav(mpix)
+            twav = self._solution.pix_to_wav(mpix)
             ax.plot(mwav, mwav - twav, ".")
             ax.text(
                 0.98,
@@ -1307,7 +1105,7 @@ class WavelengthCalibration1D:
                 ylabel=f"Residuals [{self._unit_str}]",
             )
         elif space == "pixel":
-            tpix = self.wav_to_pix(mwav)
+            tpix = self._solution.wav_to_pix(mwav)
             ax.plot(mpix, mpix - tpix, ".")
             ax.text(
                 0.98,
