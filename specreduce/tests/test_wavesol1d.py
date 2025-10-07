@@ -9,9 +9,10 @@ from specreduce.wavesol1d import _diff_poly1d, WavelengthSolution1D
 from specreduce.compat import Spectrum
 
 
-ref_pixel = 250
-pix_bounds = (0, 500)
+ref_pixel = 250.0
 p2w = models.Shift(ref_pixel) | models.Polynomial1D(degree=3, c0=1, c1=0.2, c2=0.001)
+pix_bounds = (0, 500)
+wav_bounds  = p2w(pix_bounds)
 
 
 @pytest.fixture
@@ -48,12 +49,19 @@ def test_init():
     assert 'p2d_dldx' not in ws.__dict__
     assert 'gwcs' not in ws.__dict__
 
+    # Test that the cached properties are created correctly
     ws.w2p(0.5)
     assert 'w2p' in ws.__dict__
     ws.p2w_dldx(pix_bounds[0])
     assert 'p2w_dldx' in ws.__dict__
     wcs = ws.gwcs
     assert 'gwcs' in ws.__dict__
+
+    # Test that the cached properties are deleted correctly
+    ws.p2w = p2w
+    assert 'w2p' not in ws.__dict__
+    assert 'p2d_dldx' not in ws.__dict__
+    assert 'gwcs' not in ws.__dict__
 
     ws = WavelengthSolution1D(p2w, pix_bounds, u.micron)
     assert ws.unit == u.micron
@@ -76,6 +84,9 @@ def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
     f0 = (spectrum.flux.value * np.diff(ws._p2w(pix_edges))).sum()
     f1 = (resampled.flux.value * np.diff(resampled.spectral_axis.value)[0]).sum()
     np.testing.assert_approx_equal(f0, f1, 5)
+
+    resampled = ws.resample(spectrum, wlbounds=wav_bounds)
+    resampled = ws.resample(spectrum, bin_edges=np.linspace(*wav_bounds, num=50))
 
     # Resample a spectrum without uncertainty
     spectrum.uncertainty = None
