@@ -39,7 +39,26 @@ def _diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
 
 
 class WavelengthSolution1D:
-    """Container for a 1D wavelength solution"""
+    """Class defining a one-dimensional wavelength solution.
+
+    This class manages the mapping between pixel positions and wavelength values in a 1D spectrum,
+    supporting both forward and reverse transformations. It provides methods for resampling
+    spectra in the pixel-to-wavelength space while conserving flux, and integrates with GWCS for
+    coordinate transformations.
+
+    Attributes
+    ----------
+    unit : Unit
+        The unit of the wavelength axis (e.g., Angstrom, nanometers, etc.).
+    bounds_pix : tuple of int
+        The bounds of the pixel axis used in the wavelength solution.
+    bounds_wav : tuple of float or None
+        The bounds of the wavelength domain corresponding to the pixel range.
+    ref_pixel : float or None
+        The reference pixel position for the wavelength solution.
+    p2w : CompoundModel or None
+        The model describing the pixel-to-wavelength mapping.
+    """
 
     def __init__(
         self,
@@ -56,7 +75,7 @@ class WavelengthSolution1D:
         self.p2w = p2w
 
     @property
-    def p2w(self) -> None |CompoundModel:
+    def p2w(self) -> None | CompoundModel:
         return self._p2w
 
     @p2w.setter
@@ -73,12 +92,12 @@ class WavelengthSolution1D:
 
     @cached_property
     def p2w_dldx(self) -> CompoundModel:
-        """Calculate (d wavelength) / (d pixel) for the pixel-to-wavelength transformation."""
+        """Derivative of the pixel-to-wavelength transformation."""
         return models.Shift(self._p2w.offset_0) | _diff_poly1d(self._p2w[1])
 
     @cached_property
     def w2p(self) -> Callable:
-        """Compute the wavelength-to-pixel mapping from the pixel-to-wavelength transformation."""
+        """Wavelength-to-pixel mapping"""
         p = np.arange(self.bounds_pix[0] - 2, self.bounds_pix[1] + 2)
         self.bounds_wav = self.p2w(self.bounds_pix)
         return interp1d(self.p2w(p), p, bounds_error=False, fill_value=np.nan)
