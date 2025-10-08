@@ -53,7 +53,7 @@ def test_init():
     assert "w2p" in ws.__dict__
     ws.p2w_dldx(pix_bounds[0])
     assert "p2w_dldx" in ws.__dict__
-    wcs = ws.gwcs
+    wcs = ws.gwcs  # noqa: F841
     assert "gwcs" in ws.__dict__
 
     # Test that the cached properties are deleted correctly

@@ -13,19 +13,19 @@ from specreduce.wavecal1d import WavelengthCalibration1D
 
 ref_pixel = 250
 pix_bounds = (0, 500)
-p2w = models.Shift(ref_pixel) | models.Polynomial1D(degree=3, c0=1, c1=0.2, c2=0.001)
+p2w = models.Shift(-ref_pixel) | models.Polynomial1D(degree=3, c0=1, c1=0.2, c2=0.001)
 
 
 @pytest.fixture
 def mk_lines():
-    obs_lines = array([1, 2, 5, 8, 10])
-    cat_lines = p2w(array([1, 3, 5, 7, 8, 10]))
+    obs_lines = ref_pixel + array([1, 2, 5, 8, 10])
+    cat_lines = p2w(ref_pixel + array([1, 3, 5, 7, 8, 10]))
     return obs_lines, cat_lines
 
 
 @pytest.fixture
 def mk_matched_lines():
-    obs_lines = array([1, 2, 5, 8, 10])
+    obs_lines = ref_pixel + array([1, 2, 5, 8, 10])
     cat_lines = p2w(obs_lines)
     return obs_lines, cat_lines
 
@@ -34,7 +34,10 @@ def mk_matched_lines():
 def mk_wc(mk_lines):
     obs_lines, cat_lines = mk_lines
     return WavelengthCalibration1D(
-        ref_pixel, line_lists=cat_lines, obs_lines=obs_lines, pix_bounds=(0, 10)
+        obs_lines=obs_lines,
+        line_lists=cat_lines,
+        pix_bounds=(0, 10),
+        ref_pixel=ref_pixel,
     )
 
 
@@ -42,9 +45,12 @@ def mk_wc(mk_lines):
 def mk_good_wc_with_transform(mk_lines):
     obs_lines, cat_lines = mk_lines
     wc = WavelengthCalibration1D(
-        ref_pixel, line_lists=cat_lines, obs_lines=obs_lines, pix_bounds=pix_bounds
+        obs_lines=obs_lines,
+        line_lists=cat_lines,
+        pix_bounds=pix_bounds,
+        ref_pixel=ref_pixel,
     )
-    wc._solution.p2w = p2w
+    wc.solution.p2w = p2w
     return wc
 
 
@@ -60,70 +66,71 @@ def mk_arc():
 def test_init(mk_arc, mk_lines):
     arc = mk_arc
     obs_lines, cat_lines = mk_lines
-    WavelengthCalibration1D(ref_pixel, line_lists=cat_lines, arc_spectra=arc)
+    WavelengthCalibration1D(arc_spectra=arc, line_lists=cat_lines, ref_pixel=ref_pixel)
     WavelengthCalibration1D(
-        ref_pixel, line_lists=cat_lines, obs_lines=obs_lines, pix_bounds=(0, 10)
+        obs_lines=obs_lines,
+        line_lists=cat_lines,
+        pix_bounds=(0, 10),
+        ref_pixel=ref_pixel,
     )
 
     with pytest.raises(ValueError, match="Only one of arc_spectra or obs_lines can be provided."):
-        WavelengthCalibration1D(ref_pixel, arc_spectra=arc, obs_lines=obs_lines)
+        WavelengthCalibration1D(arc_spectra=arc, obs_lines=obs_lines, ref_pixel=ref_pixel)
 
     arc = Spectrum(
         flux=np.array([[1, 2, 3, 4, 5]]) * u.DN,
         spectral_axis=np.array([1, 2, 3, 4, 5]) * u.angstrom,
     )
     with pytest.raises(ValueError, match="The arc spectrum must be one dimensional."):
-        WavelengthCalibration1D(ref_pixel, arc_spectra=arc)
+        WavelengthCalibration1D(arc_spectra=arc, ref_pixel=ref_pixel)
 
     with pytest.raises(ValueError, match="Must give pixel bounds when"):
-        WavelengthCalibration1D(ref_pixel, obs_lines=obs_lines)
+        WavelengthCalibration1D(obs_lines=obs_lines, ref_pixel=ref_pixel)
 
 
 def test_init_line_list(mk_arc):
     arc = mk_arc
-    WavelengthCalibration1D(ref_pixel, arc_spectra=arc, line_lists=["ArI"])
-    WavelengthCalibration1D(ref_pixel, arc_spectra=arc, line_lists="ArI")
-    WavelengthCalibration1D(ref_pixel, arc_spectra=arc, line_lists=[array([0.1])])
-    WavelengthCalibration1D(ref_pixel, arc_spectra=arc, line_lists=array([0.1]))
-    WavelengthCalibration1D(ref_pixel, arc_spectra=[arc, arc], line_lists=[["ArI"], ["ArI"]])
-    WavelengthCalibration1D(ref_pixel, arc_spectra=[arc, arc], line_lists=["ArI", ["ArI"]])
-    WavelengthCalibration1D(ref_pixel, arc_spectra=[arc, arc], line_lists=["ArI", "ArI"])
-    WavelengthCalibration1D(
-        ref_pixel, arc_spectra=[arc, arc], line_lists=[array([0.1]), array([0.1])]
-    )
-    WavelengthCalibration1D(
-        ref_pixel, arc_spectra=[arc, arc], line_lists=[array([0.1, 0.3]), ["ArI"]]
-    )
+    WavelengthCalibration1D(arc_spectra=arc, line_lists=["ArI"])
+    WavelengthCalibration1D(arc_spectra=arc, line_lists="ArI")
+    WavelengthCalibration1D(arc_spectra=arc, line_lists=[array([0.1])])
+    WavelengthCalibration1D(arc_spectra=arc, line_lists=array([0.1]))
+    WavelengthCalibration1D(arc_spectra=[arc, arc], line_lists=[["ArI"], ["ArI"]])
+    WavelengthCalibration1D(arc_spectra=[arc, arc], line_lists=["ArI", ["ArI"]])
+    WavelengthCalibration1D(arc_spectra=[arc, arc], line_lists=["ArI", "ArI"])
+    WavelengthCalibration1D(arc_spectra=[arc, arc], line_lists=[array([0.1]), array([0.1])])
+    WavelengthCalibration1D(arc_spectra=[arc, arc], line_lists=[array([0.1, 0.3]), ["ArI"]])
     with pytest.raises(ValueError, match="The number of line lists"):
-        WavelengthCalibration1D(ref_pixel, arc_spectra=[arc, arc], line_lists=[["ArI"]])
+        WavelengthCalibration1D(arc_spectra=[arc, arc], line_lists=[["ArI"]])
 
 
 def test_find_lines(mocker, mk_arc):
-    wc = WavelengthCalibration1D(ref_pixel, arc_spectra=mk_arc)
+    wc = WavelengthCalibration1D(arc_spectra=mk_arc)
     mock_find_arc_lines = mocker.patch("specreduce.wavecal1d.find_arc_lines")
     mock_find_arc_lines.return_value = {"centroid": np.array([5.0]) * u.angstrom}
     wc.find_lines(fwhm=2.0, noise_factor=1.5)
     assert wc._obs_lines is not None
     assert len(wc._obs_lines) == 1
 
-    wc = WavelengthCalibration1D(ref_pixel)
+    wc = WavelengthCalibration1D()
     with pytest.raises(ValueError, match="Must provide arc spectra to find lines."):
         wc.find_lines(fwhm=2.0, noise_factor=1.5)
 
 
 def test_fit_lines(mk_matched_lines):
     lo, lc = mk_matched_lines
-    wc = WavelengthCalibration1D(ref_pixel, pix_bounds=pix_bounds)
+    wc = WavelengthCalibration1D(pix_bounds=pix_bounds, ref_pixel=ref_pixel)
     wc.fit_lines(pixels=lo, wavelengths=lc)
-    assert wc._solution.p2w is not None
-    assert wc._solution.p2w[1].degree == wc.degree
+    assert wc.solution.p2w is not None
+    assert wc.solution.p2w[1].degree == wc.degree
 
-    wc = WavelengthCalibration1D(ref_pixel, obs_lines=lo, line_lists=lc, pix_bounds=pix_bounds)
+    wc = WavelengthCalibration1D(
+        obs_lines=lo, line_lists=lc, pix_bounds=pix_bounds, ref_pixel=ref_pixel
+    )
     wc.fit_lines(pixels=lo, wavelengths=lc, match_cat=True, match_obs=True)
-    assert wc._solution.p2w is not None
-    assert wc._solution.p2w[1].degree == wc.degree
+    assert wc.solution.p2w is not None
+    assert wc.solution.p2w[1].degree == wc.degree
 
-    wc = WavelengthCalibration1D(ref_pixel, pix_bounds=pix_bounds)
+    wc = WavelengthCalibration1D(pix_bounds=pix_bounds, ref_pixel=ref_pixel)
     with pytest.warns(UserWarning, match="The degree of the polynomial"):
         wc.fit_lines(degree=5, pixels=lo[:3], wavelengths=lc[:3])
     with pytest.raises(ValueError, match="Cannot fit without catalog"):
@@ -133,10 +140,10 @@ def test_fit_lines(mk_matched_lines):
 
 
 def test_observed_lines(mk_lines):
-    wc = WavelengthCalibration1D(ref_pixel)
+    wc = WavelengthCalibration1D()
     assert wc.observed_lines is None
     obs_lines, cat_lines = mk_lines
-    wc = WavelengthCalibration1D(ref_pixel, obs_lines=obs_lines, pix_bounds=pix_bounds)
+    wc = WavelengthCalibration1D(obs_lines=obs_lines, pix_bounds=pix_bounds, ref_pixel=ref_pixel)
     assert len(wc.observed_lines) == 1
     assert wc.observed_lines[0].shape == (len(obs_lines), 2)
     assert wc.observed_lines[0].mask.shape == (len(obs_lines), 2)
@@ -163,11 +170,11 @@ def test_observed_lines(mk_lines):
 
 
 def test_catalog_lines(mk_lines):
-    wc = WavelengthCalibration1D(ref_pixel)
+    wc = WavelengthCalibration1D(ref_pixel=ref_pixel)
     assert wc.catalog_lines is None
     obs_lines, cat_lines = mk_lines
     wc = WavelengthCalibration1D(
-        ref_pixel, obs_lines=obs_lines, line_lists=cat_lines, pix_bounds=pix_bounds
+        obs_lines=obs_lines, line_lists=cat_lines, pix_bounds=pix_bounds, ref_pixel=ref_pixel
     )
     assert len(wc.catalog_lines) == 1
     assert wc.catalog_lines[0].shape == (len(cat_lines), 2)
@@ -188,7 +195,7 @@ def test_catalog_lines(mk_lines):
 def test_fit_lines_raises_error_for_mismatched_sizes():
     pixels = array([2, 4, 6])
     wavelengths = p2w(array([2, 4, 5, 6]))
-    wc = WavelengthCalibration1D(ref_pixel, pix_bounds=pix_bounds)
+    wc = WavelengthCalibration1D(pix_bounds=pix_bounds, ref_pixel=ref_pixel)
     with pytest.raises(ValueError, match="The sizes of pixel and wavelength arrays must match."):
         wc.fit_lines(pixels=pixels, wavelengths=wavelengths)
 
@@ -196,7 +203,7 @@ def test_fit_lines_raises_error_for_mismatched_sizes():
 def test_fit_lines_raises_error_for_insufficient_lines():
     pixels = [5]
     wavelengths = p2w(pixels)
-    wc = WavelengthCalibration1D(ref_pixel, pix_bounds=pix_bounds)
+    wc = WavelengthCalibration1D(pix_bounds=pix_bounds, ref_pixel=ref_pixel)
     with pytest.raises(ValueError, match="Need at least two lines for a fit"):
         wc.fit_lines(pixels=pixels, wavelengths=wavelengths)
 
@@ -204,27 +211,29 @@ def test_fit_lines_raises_error_for_insufficient_lines():
 def test_fit_lines_raises_error_for_missing_pixel_bounds():
     pixels = [2, 4, 6, 8]
     wavelengths = p2w(pixels)
-    wc = WavelengthCalibration1D(ref_pixel)
+    wc = WavelengthCalibration1D(ref_pixel=ref_pixel)
     with pytest.raises(ValueError, match="Cannot fit without pixel bounds set."):
         wc.fit_lines(pixels=pixels, wavelengths=wavelengths)
 
 
 def test_fit_global():
-    lines_obs = array([2, 4, 5, 6, 8])
-    lines_cat = array([500, 550, 600, 650, 700, 750, 800])
+    p2w = models.Shift(-ref_pixel) | models.Polynomial1D(degree=3, c0=650, c1=50.0, c2=-0.001)
+
+    lines_obs = ref_pixel + array([2, 4, 4.5, 5, 6, 6.3, 8])
+    lines_cat = p2w(ref_pixel + array([1, 2, 2.3, 4, 5, 6, 6.3, 7, 8, 9, 10]))
     wavelength_bounds = (649, 651)
     dispersion_bounds = (49, 51)
     wc = WavelengthCalibration1D(
-        5, pix_bounds=pix_bounds, obs_lines=lines_obs, line_lists=lines_cat
+        obs_lines=lines_obs, line_lists=lines_cat, pix_bounds=pix_bounds, ref_pixel=ref_pixel
     )
-    wc.fit_dispersion(wavelength_bounds, dispersion_bounds, popsize=10)
-    np.testing.assert_allclose(wc._fit.x, [650.0, 50.0, 0.0, 0.0], atol=1e-4)
+    ws = wc.fit_dispersion(wavelength_bounds, dispersion_bounds, popsize=10, refine_fit=True)
+    np.testing.assert_allclose(ws.p2w[1].parameters, [650.0, 50.0, -0.001, 0.0], atol=1e-4)
     assert wc._fit is not None
     assert wc._fit.success
-    assert wc._solution.p2w is not None
+    assert wc.solution.p2w is not None
 
     wc = WavelengthCalibration1D(
-        5, pix_bounds=pix_bounds, obs_lines=lines_obs, line_lists=lines_cat
+        obs_lines=lines_obs, line_lists=lines_cat, pix_bounds=pix_bounds, ref_pixel=ref_pixel
     )
     wc.fit_dispersion(wavelength_bounds, dispersion_bounds, popsize=10, refine_fit=False)
 
@@ -245,7 +254,7 @@ def test_remove_unmatched_lines(mk_good_wc_with_transform):
 
 
 def test_plot_lines_with_valid_input():
-    wc = WavelengthCalibration1D(ref_pixel)
+    wc = WavelengthCalibration1D(ref_pixel=ref_pixel)
     wc.observed_lines = [np.ma.masked_array([100, 200, 300], mask=[False, True, False])]
     wc._cat_lines = wc.observed_lines
     fig = wc._plot_lines(kind="observed", frames=0, figsize=(8, 4), plot_labels=True)
