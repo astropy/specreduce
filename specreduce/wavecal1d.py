@@ -92,16 +92,16 @@ def _unclutter_text_boxes(labels: Sequence) -> None:
 class WavelengthCalibration1D:
     def __init__(
         self,
-        ref_pixel: float | None = None,
-        unit: u.Unit = u.angstrom,
-        line_lists: ArrayLike | None = None,
         arc_spectra: Spectrum | Sequence[Spectrum] | None = None,
         obs_lines: ArrayLike | Sequence[ArrayLike] | None = None,
+        line_lists: ArrayLike | None = None,
+        unit: u.Unit = u.angstrom,
+        ref_pixel: float | None = None,
         pix_bounds: tuple[int, int] | None = None,
         line_list_bounds: None | tuple[float, float] = None,
         wave_air: bool = False,
     ) -> None:
-        """A class for wavelength calibration of one-dimensional spectral data.
+        """A class for wavelength calibration of one-dimensional spectra.
 
         This class is designed to facilitate wavelength calibration of one-dimensional spectra,
         with support for both direct input of line lists and observed spectra. It uses a polynomial
@@ -110,18 +110,6 @@ class WavelengthCalibration1D:
 
         Parameters
         ----------
-        ref_pixel
-            The reference pixel in which the wavelength solution will be centered.
-
-        unit
-            The unit of the wavelength calibration, by default ``astropy.units.Angstrom``.
-
-        line_lists
-            Catalogs of spectral line wavelengths for wavelength calibration. Provide either an
-            array of line wavelengths or a list of `PypeIt <https://github.com/pypeit/PypeIt>`_
-            catalog names. If `None`, no line lists are used. You can query the list of available
-            catalog names via `~specreduce.calibration_data.get_available_line_catalogs`.
-
         arc_spectra
             Arc spectra provided as ``Spectrum`` objects for wavelength fitting, by default
             None. This parameter and ``obs_lines`` cannot be provided simultaneously.
@@ -130,13 +118,25 @@ class WavelengthCalibration1D:
             Pixel positions of observed spectral lines for wavelength fitting, by default None. This
             parameter and ``arc_spectra`` cannot be provided simultaneously.
 
+        line_lists
+            Catalogs of spectral line wavelengths for wavelength calibration. Provide either an
+            array of line wavelengths or a list of `PypeIt <https://github.com/pypeit/PypeIt>`_
+            catalog names. If `None`, no line lists are used. You can query the list of available
+            catalog names via `~specreduce.calibration_data.get_available_line_catalogs`.
+
+        unit
+            The unit of the wavelength calibration, by default ``astropy.units.Angstrom``.
+
+        ref_pixel
+            The reference pixel in which the wavelength solution will be centered.
+
         pix_bounds
-            Lower and upper pixel bounds for fitting, defined as a 2-tuple (min, max). If
+            Lower and upper pixel bounds for fitting, defined as a tuple (min, max). If
             ``obs_lines`` is provided, this parameter is mandatory.
 
         line_list_bounds
-            Wavelength bounds (inclusive) as a range (min, max) for filtering usable spectral
-            lines from the provided line lists, by default (0, np.inf).
+            Wavelength bounds as a tuple (min, max) for filtering usable spectral
+            lines from the provided line lists.
 
         wave_air
             Boolean indicating whether the input wavelengths correspond to air rather than vacuum;
@@ -159,7 +159,7 @@ class WavelengthCalibration1D:
         self._trees: list[KDTree] | None = None
 
         self._fit: optimize.OptimizeResult | None = None
-        self._solution = WavelengthSolution1D(None, pix_bounds, unit)
+        self.solution = WavelengthSolution1D(None, pix_bounds, unit)
 
         # Read and store the observational data if given. The user can provide either a list of arc
         # spectra as Spectrum objects or a list of line pixel position arrays. An attempt to give
@@ -345,7 +345,7 @@ class WavelengthCalibration1D:
         refine_fit: bool = True,
         refine_max_distance: float = 5.0,
         refined_fit_degree: int | None = None,
-    ) -> None:
+    ) -> WavelengthSolution1D:
         """Fit the pixel-to-wavelength model using provided line pairs.
 
         This method fits the pixel-to-wavelength transformation using explicitly provided pairs
@@ -435,7 +435,7 @@ class WavelengthCalibration1D:
         model = fitter(model, pixels - self.ref_pixel, wavelengths)
         for i in range(model.degree + 1):
             model.fixed[f"c{i}"] = False
-        self._solution.p2w = shift | model
+        self.solution.p2w = shift | model
 
         can_match = self._cat_lines is not None and self._obs_lines is not None
         if refine_fit and can_match:
@@ -443,6 +443,7 @@ class WavelengthCalibration1D:
         else:
             if can_match:
                 self.match_lines()
+        return self.solution
 
     def fit_dispersion(
         self,
@@ -455,7 +456,7 @@ class WavelengthCalibration1D:
         refine_fit: bool = True,
         refine_max_distance: float = 5.0,
         refined_fit_degree: int | None = None,
-    ) -> None:
+    ) -> WavelengthSolution1D:
         """Calculate a wavelength solution using all the catalog and observed lines.
 
         This method estimates a wavelength solution without pre-matched pixel–wavelength
@@ -530,7 +531,7 @@ class WavelengthCalibration1D:
             popsize=popsize,
             init="sobol",
         )
-        self._solution.p2w = self._create_model(degree, coeffs=self._fit.x)
+        self.solution.p2w = self._create_model(degree, coeffs=self._fit.x)
 
         can_match = self._cat_lines is not None and self._obs_lines is not None
         if refine_fit:
@@ -538,10 +539,11 @@ class WavelengthCalibration1D:
         else:
             if can_match:
                 self.match_lines()
+        return self.solution
 
     def refine_fit(
         self, degree: None | int = None, max_match_distance: float = 5.0, max_iter: int = 5
-    ) -> None:
+    ) -> WavelengthSolution1D:
         """Refine the pixel-to-wavelength transformation fit.
 
         Fits (or re-fits) the polynomial wavelength solution using the currently
@@ -565,9 +567,9 @@ class WavelengthCalibration1D:
 
         # Create a new model with the current parameters if degree is specified.
         if degree is not None and degree != self.degree:
-            model = self._create_model(degree, coeffs=self._solution.p2w[1].parameters)
+            model = self._create_model(degree, coeffs=self.solution.p2w[1].parameters)
         else:
-            model = self._solution.p2w
+            model = self.solution.p2w
 
         shift, poly = model
         fitter = fitting.LinearLSQFitter()
@@ -581,7 +583,8 @@ class WavelengthCalibration1D:
                 break
             model = shift | fitter(poly, matched_pix - self.ref_pixel, matched_wav)
             rms = rms_new
-        self._solution.p2w = model
+        self.solution.p2w = model
+        return self.solution
 
     @property
     def degree(self) -> None | int:
@@ -671,7 +674,7 @@ class WavelengthCalibration1D:
 
         for iframe, tree in enumerate(self._trees):
             l, ix = tree.query(
-                self._solution.p2w(self.observed_line_locations[iframe].data)[:, None],
+                self.solution.p2w(self.observed_line_locations[iframe].data)[:, None],
                 distance_upper_bound=max_distance,
             )
             m = np.isfinite(l)
@@ -716,9 +719,9 @@ class WavelengthCalibration1D:
         mpix = np.ma.concatenate(self.observed_line_locations).compressed()
         mwav = np.ma.concatenate(self.catalog_line_locations).compressed()
         if space == "wavelength":
-            return np.sqrt(((mwav - self._solution.p2w(mpix)) ** 2).mean())
+            return np.sqrt(((mwav - self.solution.p2w(mpix)) ** 2).mean())
         elif space == "pixel":
-            return np.sqrt(((mpix - self._solution.w2p(mwav)) ** 2).mean())
+            return np.sqrt(((mpix - self.solution.w2p(mwav)) ** 2).mean())
         else:
             raise ValueError("Space must be either 'pixel' or 'wavelength'")
 
@@ -787,16 +790,16 @@ class WavelengthCalibration1D:
         if isinstance(plot_labels, bool):
             plot_labels = np.full(frames.size, plot_labels, dtype=bool)
 
-        if map_x and self._solution.p2w is None:
+        if map_x and self.solution.p2w is None:
             raise ValueError("Cannot map between pixels and wavelengths without a fitted model.")
 
         if kind == "observed":
-            transform = self._solution.pix_to_wav if map_x else lambda x: x
+            transform = self.solution.pix_to_wav if map_x else lambda x: x
             linelists = self.observed_lines
             spectra = self.arc_spectra
             lc = "C0"
         else:
-            transform = self._solution.wav_to_pix if map_x else lambda x: x
+            transform = self.solution.wav_to_pix if map_x else lambda x: x
             linelists = self.catalog_lines
             spectra = None
             lc = "C1"
@@ -1089,7 +1092,7 @@ class WavelengthCalibration1D:
         mwav = np.ma.concatenate(self.catalog_line_locations).compressed()
 
         if space == "wavelength":
-            twav = self._solution.pix_to_wav(mpix)
+            twav = self.solution.pix_to_wav(mpix)
             ax.plot(mwav, mwav - twav, ".")
             ax.text(
                 0.98,
@@ -1105,7 +1108,7 @@ class WavelengthCalibration1D:
                 ylabel=f"Residuals [{self._unit_str}]",
             )
         elif space == "pixel":
-            tpix = self._solution.wav_to_pix(mwav)
+            tpix = self.solution.wav_to_pix(mwav)
             ax.plot(mpix, mpix - tpix, ".")
             ax.text(
                 0.98,

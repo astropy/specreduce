@@ -4,7 +4,7 @@ from typing import Callable
 import astropy.units as u
 import gwcs
 import numpy as np
-from astropy.modeling import models, Model, CompoundModel
+from astropy.modeling import models, CompoundModel
 from astropy.nddata import VarianceUncertainty
 from gwcs import coordinate_frames
 from numpy.ma import MaskedArray
@@ -47,10 +47,10 @@ class WavelengthSolution1D:
     ) -> None:
         """Class defining a one-dimensional wavelength solution.
 
-        This class manages the mapping between pixel positions and wavelength values in a 1D spectrum,
-        supporting both forward and reverse transformations. It provides methods for resampling
-        spectra in the pixel-to-wavelength space while conserving flux, and integrates with GWCS for
-        coordinate transformations.
+        This class manages the mapping between pixel positions and wavelength values in a 1D
+        spectrum, supporting both forward and reverse transformations. It provides methods for
+        resampling spectra in the pixel-to-wavelength space while conserving flux, and integrates
+        with GWCS for coordinate transformations.
 
         Initializes an object with pixel-to-wavelength transformation, pixel bounds, and
         measurement unit. Also, converts the unit to its LaTeX string representation.
@@ -91,7 +91,7 @@ class WavelengthSolution1D:
 
     @cached_property
     def p2w_dldx(self) -> CompoundModel:
-        """Derivative of the pixel-to-wavelength transformation."""
+        """Partial derivative of the pixel-to-wavelength transformation, (d lambda) / (d pix)."""
         return models.Shift(self._p2w.offset_0) | _diff_poly1d(self._p2w[1])
 
     @cached_property
