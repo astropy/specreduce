@@ -13,16 +13,23 @@ This is often achieved by observing a calibration source with well-known emissio
 lines (e.g., an arc lamp). By identifying the pixel positions of these lines, we can fit
 a mathematical model describing the spectrograph’s dispersion.
 
-The ``specreduce`` library provides the
-:class:`~specreduce.wavecal1d.WavelengthCalibration1D` class to facilitate this process
-for one-dimensional spectra. Tools for calibrating 2D spectra will be added in later
-versions.
+The ``specreduce`` library provides two complementary classes for 1D calibration:
+
+- :class:`~specreduce.wavecal1d.WavelengthCalibration1D`: a high-level calibration workflow
+  to detect and match arc lines and fit a dispersion model.
+- `~specreduce.wavesol1d.WavelengthSolution1D`: a lightweight wavelength-solution
+  container that holds the pixel→wavelength transform with its inverse, a WCS solution, and
+  a method for flux-conserving resampling.
+
+Tools for calibrating 2D spectra will be added in later versions.
 
 1D Wavelength Calibration
 -------------------------
 
 The :class:`~specreduce.wavecal1d.WavelengthCalibration1D` class encapsulates the data
-and methods needed for 1D wavelength calibration. A typical workflow involves:
+and methods needed to compute a 1D wavelength solution, and the
+:class:`~specreduce.wavesol1d.WavelengthSolution1D` class provides the tools to use the
+computed solution. A typical workflow involves:
 
 1. **Initialization**: Create an instance of the class with either arc spectra or
    pre-identified observed line positions, and provide one or more line lists of known
@@ -34,8 +41,9 @@ and methods needed for 1D wavelength calibration. A typical workflow involves:
    (:meth:`~specreduce.wavecal1d.WavelengthCalibration1D.fit_dispersion`).
 4. **Refinement and Inspection**: Optionally refine the solution and check fit quality
    using RMS statistics and plots.
-5.  **Applying the Solution**: Use the fitted model (often accessed as a `~gwcs.wcs.WCS` object) to
-    calibrate science spectra or resample spectra onto a linear wavelength grid.
+5. **Applying the Solution**: Access the fitted solution as a
+   :class:`~specreduce.wavesol1d.WavelengthSolution1D` to resample spectra, or attach the
+   solution to a `specutils.Spectrum` as a `~gwcs.wcs.WCS` object.
 
 Quickstart
 ----------
@@ -55,8 +63,7 @@ single arc spectrum) *or* a list of known observed line positions:
 
     .. code-block:: python
 
-        wc = WavelengthCalibration1D(arc_spectra=arc_he,
-                                     line_lists=["HeI"])
+        wc = WavelengthCalibration1D(arc_spectra=arc_he, line_lists=["HeI"])
 
 *   **Using multiple Arc Spectra**:
 
@@ -94,7 +101,6 @@ single arc spectrum) *or* a list of known observed line positions:
                                      obs_lines=[obs_he, obs_hg_ar],
                                      line_lists=[["HeI"], ["HgI", "ArI"]],
                                      pix_bounds=pixel_bounds)
-
 
 2. Finding Observed Lines
 *************************
@@ -147,15 +153,17 @@ The core of the calibration process is fitting a model that maps pixels to wavel
 
     .. code-block:: python
 
-        wc.fit_dispersion(wavelength_bounds=(7450, 7550),
-                          dispersion_bounds=(1.8, 2.2),
-                          higher_order_limits=[0.001, 1e-5],
-                          degree=4,
-                          popsize=30,
-                          refine_fit=True)
+        ws = wc.fit_dispersion(wavelength_bounds=(7450, 7550),
+                              dispersion_bounds=(1.8, 2.2),
+                              higher_order_limits=[0.001, 1e-5],
+                              degree=4,
+                              popsize=30,
+                              refine_fit=True)
 
-    Setting ``refine_fit=True`` automatically performs a least-squares refinement after the global
-    fit finds an initial solution and matches lines.
+    The fitted `~specreduce.wavesol1d.WavelengthSolution1D` is returned by the method and also
+    stored in `~specreduce.wavecal1d.WavelengthCalibration1D.solution`. Setting ``refine_fit=True``
+    automatically performs a least-squares refinement after the global fit finds an initial
+    solution and matches lines.
 
 *   **Fitting Known Pairs for an Interactive Workflow**: If you have already established explicit
     pairs of observed pixel centers and their corresponding known wavelengths, you can use
@@ -164,10 +172,10 @@ The core of the calibration process is fitting a model that maps pixels to wavel
 
     .. code-block:: python
 
-        wc.fit_lines(pixels=[105.3, 512.5, 780.1],
-                     wavelengths=[6965.43, 7503.87, 7723.76],
-                     degree=2,
-                     refine_fit=True)
+        ws = wc.fit_lines(pixels=[105.3, 512.5, 780.1],
+                         wavelengths=[6965.43, 7503.87, 7723.76],
+                         degree=2,
+                         refine_fit=True)
 
     When ``refine_fit=True`` is set, the method automatically identifies matching pairs between
     observed and catalog lines, then performs a least-squares refinement using **all matching lines**.
@@ -206,31 +214,42 @@ Several tools help assess the quality of the wavelength solution:
     *   :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.plot_catalog_lines`: Plots the catalog
         line positions (in wavelengths or mapped to pixels).
 
-5. Using the Solution
-*********************
+5. Using the Wavelength Solution
+********************************
 
-Once satisfied with the fit, you can use the wavelength solution:
+The fitted wavelength solution is stored as a :class:`~specreduce.wavesol1d.WavelengthSolution1D`
+instance that you can use to transform and resample spectra. The fitting methods return the
+solution, but it is also stored in `~specreduce.wavecal1d.WavelengthCalibration1D.solution`.
 
-*   **Convert Coordinates**: Use :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.pix_to_wav` and
-    :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.wav_to_pix` to convert between pixel and
+*   **Convert Coordinates**: Use :meth:`~specreduce.wavesol1d.WavelengthSolution1D.pix_to_wav` and
+    :meth:`~specreduce.wavesol1d.WavelengthSolution1D.wav_to_pix` to convert between pixel and
     wavelength coordinates.
 
     .. code-block:: python
 
         pixels = np.array([100, 500, 900])
-        wavelengths = wc.pix_to_wav(pixels)
+        wavelengths = ws.pix_to_wav(pixels)
         print(wavelengths)
 
 *   **Get WCS Object**: Access the `~gwcs.wcs.WCS` object representing the solution via the
-    :attr:`~specreduce.wavecal1d.WavelengthCalibration1D.gwcs` attribute. This is particularly
+    :attr:`~specreduce.wavesol1d.WavelengthSolution1D.gwcs` attribute. This is particularly
     useful for attaching the calibration to a :class:`~specutils.Spectrum` object.
 
 *   **Rebin Spectrum**: Resample a spectrum onto a new wavelength grid using
-    :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.resample`. The rebinning is
+    :meth:`~specreduce.wavesol1d.WavelengthSolution1D.resample`. The rebinning is
     flux-conserving, meaning the integrated flux in the output spectrum matches the integrated flux
     in the input spectrum.
 
     .. code-block:: python
 
         resampled_arc = ws.resample(arc_spectrum, nbins=1000)
+        print(resampled_arc.spectral_axis)
+
+    By default, :meth:`~specreduce.wavesol1d.WavelengthSolution1D.resample` produces a spectrum on
+    a linear wavelength grid. Alternatively, you can pass an arbitrary 1D array of wavelength bin
+    edges via ``bin_edges`` to define a custom grid.
+
+    .. code-block:: python
+
+        resampled_arc = ws.resample(arc_spectrum, bin_edges=np.geomspace(4500, 7500, 1000))
         print(resampled_arc.spectral_axis)
