@@ -161,7 +161,7 @@ The core of the calibration process is fitting a model that maps pixels to wavel
                               refine_fit=True)
 
     The fitted `~specreduce.wavesol1d.WavelengthSolution1D` is returned by the method and also
-    stored in `~specreduce.wavecal1d.WavelengthCalibration1D.solution`. Setting ``refine_fit=True``
+    stored in ``WavelengthCalibration1D.solution``. Setting ``refine_fit=True``
     automatically performs a least-squares refinement after the global fit finds an initial
     solution and matches lines.
 
@@ -180,11 +180,7 @@ The core of the calibration process is fitting a model that maps pixels to wavel
     When ``refine_fit=True`` is set, the method automatically identifies matching pairs between
     observed and catalog lines, then performs a least-squares refinement using **all matching lines**.
     This goes beyond the subset of lines provided to :meth:`~specreduce.wavecal1d.WavelengthCalibration1D.fit_lines`,
-    resulting in a more complete wavelength calibration.
-
-After fitting (either way), the pixel-to-wavelength
-(`~specreduce.wavecal1d.WavelengthCalibration1D.pix_to_wav`) and wavelength-to-pixel
-(`~specreduce.wavecal1d.WavelengthCalibration1D.wav_to_pix`) model transforms are calculated.
+    resulting in an improved wavelength solution.
 
 4. Inspecting the Fit
 *********************
@@ -219,7 +215,7 @@ Several tools help assess the quality of the wavelength solution:
 
 The fitted wavelength solution is stored as a :class:`~specreduce.wavesol1d.WavelengthSolution1D`
 instance that you can use to transform and resample spectra. The fitting methods return the
-solution, but it is also stored in `~specreduce.wavecal1d.WavelengthCalibration1D.solution`.
+solution, but it is also stored in ``WavelengthCalibration1D.solution``.
 
 *   **Convert Coordinates**: Use :meth:`~specreduce.wavesol1d.WavelengthSolution1D.pix_to_wav` and
     :meth:`~specreduce.wavesol1d.WavelengthSolution1D.wav_to_pix` to convert between pixel and
