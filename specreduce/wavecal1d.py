@@ -176,6 +176,7 @@ class WavelengthCalibration1D:
             if len(set([s.data.size for s in self.arc_spectra])) != 1:
                 raise ValueError("All arc spectra must have the same length.")
             self.bounds_pix = (0, self.arc_spectra[0].shape[0])
+            self.solution.bounds_pix = self.bounds_pix
             if self.ref_pixel is None:
                 self.ref_pixel = self.arc_spectra[0].data.size / 2
 
