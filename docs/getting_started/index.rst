@@ -1,7 +1,7 @@
-.. _spectral-extraction:
+.. _getting-started:
 
-Quickstart
-==========
+Getting started
+===============
 
 .. toctree::
     :maxdepth: 2

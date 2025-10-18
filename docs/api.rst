@@ -1,7 +1,7 @@
 .. _api_index:
 
-API
-===
+API Reference
+=============
 
 .. automodapi:: specreduce
     :no-inheritance-diagram:

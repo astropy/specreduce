@@ -34,6 +34,7 @@ from specreduce import __version__
 
 try:
     from sphinx_astropy.conf.v2 import *  # noqa
+    from sphinx_astropy.conf.v2 import extensions # noqa
 except ImportError:
     print('ERROR: the documentation requires the sphinx-astropy package to be installed')
     sys.exit(1)
@@ -41,9 +42,7 @@ except ImportError:
 # xref: https://github.com/sphinx-doc/sphinx/issues/13232#issuecomment-2608708175
 if sys.version_info[:2] >= (3, 13) and sphinx.version_info[:2] < (8, 2):
     import pathlib
-
     from sphinx.util.typing import _INVALID_BUILTIN_CLASSES
-
     _INVALID_BUILTIN_CLASSES[pathlib.Path] = "pathlib.Path"
 
 # -- General configuration ----------------------------------------------------
@@ -65,7 +64,12 @@ exclude_patterns.append('_templates')
 # This is added to the end of RST files - a good place to put substitutions to
 # be used globally.
 rst_epilog += """
+.. _Astropy: https://www.astropy.org/
 """
+
+extensions += [
+    'sphinx_design',
+]
 
 # -- Project information ------------------------------------------------------
 
@@ -100,6 +104,8 @@ html_theme_options.update(
             "image_light": "_static/logo_icon.png",
             "image_dark": "_static/logo_icon.png",
         },
+        "secondary_sidebar_items": {"**":["page-toc"],
+                                    "index": []}
     }
 )
 
@@ -117,16 +123,10 @@ html_context = {
     "READTHEDOCS": os.environ.get("READTHEDOCS", "") == "True",
 }
 
-#html_theme_options = {
-#    'logotext1': 'spec',  # white,  semi-bold
-#    'logotext2': 'reduce',  # orange, light
-#    'logotext3': ':docs'   # white,  light
-#    }
-
 # Custom sidebar templates, maps document names to template names.
 #html_sidebars = {}
 #html_sidebars['**'] = ['localtoc.html']
-#html_sidebars['index'] = ['globaltoc.html', 'localtoc.html']
+#html_sidebars['index'] = [] #['globaltoc.html', 'localtoc.html']
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -162,7 +162,9 @@ latex_documents = [('index', project + '.tex', project + u' Documentation',
 man_pages = [('index', project.lower(), project + u' Documentation',
               [author], 1)]
 
-extensions.append('nbsphinx')
+# -- Options for numpydoc extension -------------------------------------------
+numpydoc_xref_param_type = True
+
 
 # -- Options for the edit_on_github extension ---------------------------------
 
