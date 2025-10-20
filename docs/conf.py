@@ -34,24 +34,25 @@ from specreduce import __version__
 
 try:
     from sphinx_astropy.conf.v2 import *  # noqa
-    from sphinx_astropy.conf.v2 import extensions # noqa
+    from sphinx_astropy.conf.v2 import extensions  # noqa
 except ImportError:
-    print('ERROR: the documentation requires the sphinx-astropy package to be installed')
+    print("ERROR: the documentation requires the sphinx-astropy package to be installed")
     sys.exit(1)
 
 # xref: https://github.com/sphinx-doc/sphinx/issues/13232#issuecomment-2608708175
 if sys.version_info[:2] >= (3, 13) and sphinx.version_info[:2] < (8, 2):
     import pathlib
     from sphinx.util.typing import _INVALID_BUILTIN_CLASSES
+
     _INVALID_BUILTIN_CLASSES[pathlib.Path] = "pathlib.Path"
 
 # -- General configuration ----------------------------------------------------
 
 # By default, highlight as Python 3.
-highlight_language = 'python3'
+highlight_language = "python3"
 
 # If your documentation needs a minimal Sphinx version, state it here.
-needs_sphinx = '3.0'
+needs_sphinx = "3.0"
 
 # To perform a Sphinx version check that needs to be more specific than
 # major.minor, call `check_sphinx_version("x.y.z")` here.
@@ -59,7 +60,7 @@ needs_sphinx = '3.0'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns.append('_templates')
+exclude_patterns.append("_templates")
 
 # This is added to the end of RST files - a good place to put substitutions to
 # be used globally.
@@ -67,32 +68,34 @@ rst_epilog += """
 .. _Astropy: https://www.astropy.org/
 """
 
-extensions += [
-    'sphinx_design',
-]
+extensions.extend(
+    [
+        "sphinx_design",
+        "nbsphinx",
+    ]
+)
 
 # -- Project information ------------------------------------------------------
 
 # This does not *have* to match the package name, but typically does
 project = "specreduce"
 author = "Astropy Specreduce contributors"
-copyright = '{0}, {1}'.format(
-    datetime.datetime.now().year, author)
+copyright = "{0}, {1}".format(datetime.datetime.now().year, author)
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
 # The short X.Y version.
-version = __version__.split('-', 1)[0]
+version = __version__.split("-", 1)[0]
 # The full version, including alpha/beta/rc tags.
 release = __version__
 
 
 # -- Options for HTML output --------------------------------------------------
 
-html_static_path = ['_static']  # html_theme = None
-html_style = 'specreduce.css'
+html_static_path = ["_static"]  # html_theme = None
+html_style = "specreduce.css"
 
 html_theme_options.update(
     {
@@ -104,8 +107,7 @@ html_theme_options.update(
             "image_light": "_static/logo_icon.png",
             "image_dark": "_static/logo_icon.png",
         },
-        "secondary_sidebar_items": {"**":["page-toc"],
-                                    "index": []}
+        "secondary_sidebar_items": {"**": ["page-toc"], "index": []},
     }
 )
 
@@ -124,25 +126,25 @@ html_context = {
 }
 
 # Custom sidebar templates, maps document names to template names.
-#html_sidebars = {}
-#html_sidebars['**'] = ['localtoc.html']
-#html_sidebars['index'] = [] #['globaltoc.html', 'localtoc.html']
+# html_sidebars = {}
+# html_sidebars['**'] = ['localtoc.html']
+# html_sidebars['index'] = [] #['globaltoc.html', 'localtoc.html']
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
-html_favicon = '_static/logo_icon.ico'
+html_favicon = "_static/logo_icon.ico"
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
-#html_last_updated_fmt = ''
+# html_last_updated_fmt = ''
 
 # The name for this set of Sphinx documents.  If None, it defaults to
 # "<project> v<release> documentation".
-html_title = '{0} v{1}'.format(project, release)
+html_title = "{0} v{1}".format(project, release)
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = project + 'doc'
+htmlhelp_basename = project + "doc"
 
 # Prefixes that are ignored for sorting the Python module index
 modindex_common_prefix = ["specreduce."]
@@ -151,16 +153,14 @@ modindex_common_prefix = ["specreduce."]
 
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
-latex_documents = [('index', project + '.tex', project + u' Documentation',
-                    author, 'manual')]
+latex_documents = [("index", project + ".tex", project + " Documentation", author, "manual")]
 
 
 # -- Options for manual page output -------------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [('index', project.lower(), project + u' Documentation',
-              [author], 1)]
+man_pages = [("index", project.lower(), project + " Documentation", [author], 1)]
 
 # -- Options for numpydoc extension -------------------------------------------
 numpydoc_xref_param_type = True
@@ -173,10 +173,10 @@ numpydoc_xref_param_type = True
 nitpicky = True
 intersphinx_mapping.update(
     {
-        'astropy': ('https://docs.astropy.org/en/stable/', None),
-        'ccdproc': ('https://ccdproc.readthedocs.io/en/stable/', None),
-        'specutils': ('https://specutils.readthedocs.io/en/stable/', None),
-        'gwcs': ('https://gwcs.readthedocs.io/en/stable/', None)
+        "astropy": ("https://docs.astropy.org/en/stable/", None),
+        "ccdproc": ("https://ccdproc.readthedocs.io/en/stable/", None),
+        "specutils": ("https://specutils.readthedocs.io/en/stable/", None),
+        "gwcs": ("https://gwcs.readthedocs.io/en/stable/", None),
     }
 )
 #
