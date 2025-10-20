@@ -5,8 +5,6 @@ User Guide
     :maxdepth: 1
     :caption: Core Functionality
 
-    tilt_correction/tilt_correction
-    wavelength_calibration
     trace
     background
     extraction

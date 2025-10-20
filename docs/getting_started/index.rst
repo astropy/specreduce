@@ -8,3 +8,4 @@ Getting started
 
     installation.rst
     extraction_quickstart.rst
+    quickstart

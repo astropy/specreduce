@@ -26,6 +26,10 @@ Contribute code or documentation
 Contribute tutorials
 --------------------
 
+Tutorials and examples of use-cases are extremely welcome. While the main steps for spectroscopic
+reduction (of long-slit spectra) are pretty much the same for any spectrograph and instrument
+setup, the details and recipe for the best results can still vary.
+
 .. toctree::
     :maxdepth: 1
 
