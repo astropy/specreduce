@@ -99,6 +99,7 @@ class WavelengthCalibration1D:
         ref_pixel: float | None = None,
         pix_bounds: tuple[int, int] | None = None,
         line_list_bounds: None | tuple[float, float] = None,
+        n_strogest_lines: None | int = None,
         wave_air: bool = False,
     ) -> None:
         """A class for wavelength calibration of one-dimensional spectra.
@@ -137,6 +138,10 @@ class WavelengthCalibration1D:
         line_list_bounds
             Wavelength bounds as a tuple (min, max) for filtering usable spectral
             lines from the provided line lists.
+
+        n_strogest_lines
+            The number of strongest lines to be included from the line lists. If `None`, all
+            are included.
 
         wave_air
             Boolean indicating whether the input wavelengths correspond to air rather than vacuum;
@@ -197,7 +202,12 @@ class WavelengthCalibration1D:
 
             if len(line_lists) != self.nframes:
                 raise ValueError("The number of line lists must match the number of arc spectra.")
-            self._read_linelists(line_lists, line_list_bounds=line_list_bounds, wave_air=wave_air)
+            self._read_linelists(
+                line_lists,
+                line_list_bounds=line_list_bounds,
+                wave_air=wave_air,
+                n_strongest=n_strogest_lines,
+            )
 
     def _line_match_distance(self, x: ArrayLike, model: Model, max_distance: float = 100) -> float:
         """Compute the sum of distances between catalog lines and transformed observed lines.
@@ -233,6 +243,7 @@ class WavelengthCalibration1D:
         line_lists: Sequence,
         line_list_bounds: None | tuple[float, float] = None,
         wave_air: bool = False,
+        n_strongest: None | int = None,
     ) -> None:
         """Read and processes line lists.
 
@@ -251,29 +262,34 @@ class WavelengthCalibration1D:
         wave_air
              If True, convert the vacuum wavelengths used by `PypeIt
              <https://github.com/pypeit/PypeIt>`_ to air wavelengths.
+
+        n_strongest
+            The number of strongest lines to be used. If `None`, all lines are used.
         """
 
-        lines_wav = []
+        lines = []
         for lst in line_lists:
             if isinstance(lst, np.ndarray):
-                lines_wav.append(lst)
+                lines.append(lst)
             else:
-                lines = []
                 if isinstance(lst, str):
                     lst = [lst]
+                lines.append([])
                 for ll in lst:
-                    lines.append(
-                        load_pypeit_calibration_lines(ll, wave_air=wave_air)["wavelength"]
-                        .to(self.unit)
-                        .value
-                    )
-                lines_wav.append(np.ma.masked_array(np.sort(np.concatenate(lines))))
+                    line_table = load_pypeit_calibration_lines(ll, wave_air=wave_air)
+                    if n_strongest is not None:
+                        ix = np.argsort(line_table["amplitude"].value)[::-1]
+                        lines[-1].append(line_table[ix][:n_strongest]["wavelength"].to(
+                            self.unit).value)
+                    else:
+                        lines[-1].append(line_table["wavelength"].to(self.unit).value)
+                lines[-1] = np.ma.masked_array(np.sort(np.concatenate(lines[-1])))
 
         if line_list_bounds is not None:
-            for i, lst in enumerate(lines_wav):
-                lines_wav[i] = lst[(lst >= line_list_bounds[0]) & (lst <= line_list_bounds[1])]
+            for i, lst in enumerate(lines):
+                lines[i] = lst[(lst >= line_list_bounds[0]) & (lst <= line_list_bounds[1])]
 
-        self.catalog_lines = lines_wav
+        self.catalog_lines = lines
         self._create_trees()
 
     def _create_trees(self) -> None:
