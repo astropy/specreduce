@@ -1,8 +1,10 @@
 import warnings
+from copy import deepcopy
 from typing import Sequence
 
 import astropy.units as u
 import numpy as np
+from astropy.nddata import StdDevUncertainty
 from astropy.stats import gaussian_fwhm_to_sigma, gaussian_sigma_to_fwhm
 from astropy.modeling import models
 from astropy.table import QTable
@@ -52,6 +54,10 @@ def find_arc_lines(
 
     if fwhm.unit != spectrum.spectral_axis.unit:
         raise ValueError("fwhm must have the same units as spectrum.spectral_axis.")
+
+    if spectrum.uncertainty is None:
+        spectrum = deepcopy(spectrum)
+        spectrum.uncertainty = StdDevUncertainty(np.sqrt(np.abs(spectrum.flux.value)))
 
     detected_lines = find_lines_threshold(spectrum, noise_factor=noise_factor)
     detected_lines = detected_lines[detected_lines['line_type'] == 'emission']
