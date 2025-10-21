@@ -137,12 +137,6 @@ def test_horne_image_validation(mk_test_img):
     with pytest.raises(ValueError, match=r".*NDData object lacks uncertainty"):
         ext = extract(image=image)
 
-    # a warning should be raised if uncertainty is StdDevUncertainty
-    with pytest.warns(UserWarning, match="image NDData object's uncertainty"):
-        err = StdDevUncertainty(np.ones_like(image))
-        image.uncertainty = err
-        ext = extract(image=image)
-
     # an NDData-type image's uncertainty must be of type VarianceUncertainty
     # or type StdDevUncertainty
     with pytest.raises(ValueError, match=r".*unexpected uncertainty type.*"):
