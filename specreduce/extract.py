@@ -420,12 +420,6 @@ class HorneExtract(SpecreduceOperation):
             if image.uncertainty.uncertainty_type == "var":
                 variance = image.uncertainty.array
             elif image.uncertainty.uncertainty_type == "std":
-                warnings.warn(
-                    "image NDData object's uncertainty "
-                    "interpreted as standard deviation. if "
-                    "incorrect, use VarianceUncertainty when "
-                    "assigning image object's uncertainty."
-                )
                 variance = image.uncertainty.array**2
             elif image.uncertainty.uncertainty_type == "ivar":
                 variance = 1 / image.uncertainty.array
