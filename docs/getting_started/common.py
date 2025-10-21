@@ -172,17 +172,17 @@ def make_science_and_arcs(ndisp: int = 1000, ncross: int = 300):
         add_noise=True,
         background=10,
         wcs=wcs,
-        airglow_amplitude=20.0,
-        spectrum_amplitude=80.0,
+        airglow_amplitude=40.0,
+        spectrum_amplitude=160.0,
         trace_coeffs={"c0": 0, "c1": 30, "c2": 40},
         source_profile=models.Moffat1D(amplitude=1, alpha=0.3),
     )
 
     arcargs = dict(wcs=wcs, line_fwhm=3, background=0, add_noise=False)
     arcs = []
-    for linelist in ["HeI", "NeI", "ArI"]:
+    for linelist in ["HeI", "NeI"]:
         arc = make_2d_arc_image(ndisp, ncross, linelists=[linelist], **arcargs)
-        arc.data = apply_poisson_noise(100*(arc.data / arc.data.max()) + 10) - 10
+        arc.data = apply_poisson_noise(200*(arc.data / arc.data.max()) + 10) - 10
         arcs.append(arc)
     return science, arcs
 
