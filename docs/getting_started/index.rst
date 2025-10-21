@@ -7,5 +7,4 @@ Getting started
     :maxdepth: 2
 
     installation.rst
-    extraction_quickstart.rst
-    quickstart
+    quickstart.ipynb
