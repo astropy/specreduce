@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from astropy import units as u
 from astropy.modeling import models
-from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty, StdDevUncertainty
+from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty
 from astropy.tests.helper import assert_quantity_allclose
 
 from specreduce.background import Background

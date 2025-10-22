@@ -27,7 +27,6 @@
 
 import sys
 import datetime
-
 import sphinx
 
 from specreduce import __version__
@@ -64,14 +63,14 @@ exclude_patterns.append("_templates")
 
 # This is added to the end of RST files - a good place to put substitutions to
 # be used globally.
-rst_epilog += """
-.. _Astropy: https://www.astropy.org/
-"""
+#rst_epilog += """
+#.. _Astropy: https://www.astropy.org/
+#"""
 
 extensions.extend(
     [
-        "sphinx_design",
-        "nbsphinx",
+        #"sphinx_design",
+        #"nbsphinx",
     ]
 )
 

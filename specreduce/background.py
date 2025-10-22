@@ -344,17 +344,17 @@ class Background(_ImageParser):
 
     def sub_image(self, image=None):
         """
-        Subtract the computed background from ``image``.
+        Subtract the computed background from image.
 
         Parameters
         ----------
         image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will extract
+            image with 2D spectral image data.  If None, will extract
             the background from ``image`` used to initialize the class.
 
         Returns
         -------
-        spec : `~specutils.Spectrum1D`
+        spec : `~specutils.Spectrum`
             Spectrum object with same shape as ``image``.
         """
         image = self._parse_image(image)
@@ -377,13 +377,13 @@ class Background(_ImageParser):
         Parameters
         ----------
         image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will extract
+            image with 2D spectral image data.  If None, will extract
             the background from ``image`` used to initialize the class.
 
         Returns
         -------
-        spec : `~specutils.Spectrum1D`
-            The background 1-D spectrum, with flux expressed in the same
+        spec : `~specutils.Spectrum`
+            The background 1D spectrum, with flux expressed in the same
             units as the input image (or u.DN if none were provided) and
             the spectral axis expressed in pixel units.
         """

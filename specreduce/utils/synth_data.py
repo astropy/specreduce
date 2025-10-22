@@ -24,7 +24,7 @@ def make_2d_trace_image(
     background: int | float = 5,
     trace_center: int | float | None = None,
     trace_order: int = 3,
-    trace_coeffs: dict[str, int | float] = {'c0': 0, 'c1': 50, 'c2': 100},
+    trace_coeffs: None | dict[str, int | float] = None,
     profile: Model = models.Moffat1D(amplitude=10, alpha=0.1),
     add_noise: bool = True
 ) -> CCDData:
@@ -56,6 +56,8 @@ def make_2d_trace_image(
     -------
     ccd_im : CCDData instance containing synthetic 2D spectroscopic image
     """
+    if trace_coeffs is None:
+        trace_coeffs = {'c0': 0, 'c1': 50, 'c2': 100}
     x = np.arange(nx)
     y = np.arange(ny)
     xx, yy = np.meshgrid(x, y)
@@ -87,7 +89,7 @@ def make_2d_arc_image(
     wave_air: bool = False,
     background: int | float = 5,
     line_fwhm: float = 5.,
-    linelists: list[str] = ['HeI'],
+    linelists: list[str] = ('HeI',),
     amplitude_scale: float = 1.,
     tilt_func: Model = models.Legendre1D(degree=0),
     add_noise: bool = True
@@ -326,12 +328,12 @@ def make_2d_spec_image(
     wave_air: bool = False,
     background: int | float = 5,
     line_fwhm: float = 5.,
-    linelists: list[str] = ['OH_GMOS'],
+    linelists: list[str] = ('OH_GMOS',),
     amplitude_scale: float = 1.,
     tilt_func: Model = models.Legendre1D(degree=0),
     trace_center: int | float | None = None,
     trace_order: int = 3,
-    trace_coeffs: dict[str, int | float] = {'c0': 0, 'c1': 50, 'c2': 100},
+    trace_coeffs: None | dict[str, int | float] = None,
     source_profile: Model = models.Moffat1D(amplitude=10, alpha=0.1),
     add_noise: bool = True
 ) -> CCDData:
@@ -382,6 +384,9 @@ def make_2d_spec_image(
     -------
     ccd_im : CCDData instance containing synthetic 2D spectroscopic image
     """
+    if trace_coeffs is None:
+        trace_coeffs = {'c0': 0, 'c1': 50, 'c2': 100},
+
     arc_image = make_2d_arc_image(
         nx=nx,
         ny=ny,
