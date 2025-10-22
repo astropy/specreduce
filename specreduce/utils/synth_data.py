@@ -35,26 +35,34 @@ def make_2d_trace_image(
 
     Parameters
     ----------
-    nx : Size of image in X axis which is assumed to be the dispersion axis
+    nx
+        Size of image in X axis which is assumed to be the dispersion axis
 
-    ny : Size of image in Y axis which is assumed to be the spatial axis
+    ny
+        Size of image in Y axis which is assumed to be the spatial axis
 
-    background : Level of constant background in counts
+    background
+        Level of constant background in counts
 
-    trace_center : Zeropoint of the trace. If None, then use center of Y (spatial) axis.
+    trace_center
+        Zeropoint of the trace. If None, then use center of Y (spatial) axis.
 
-    trace_order : Order of the Chebyshev polynomial used to model the source's trace
+    trace_order
+        Order of the Chebyshev polynomial used to model the source's trace
 
-    trace_coeffs : Dict containing the Chebyshev polynomial coefficients to use in the trace model
+    trace_coeffs
+        Dict containing the Chebyshev polynomial coefficients to use in the trace model
 
-    profile : Model to use for the source's spatial profile
+    profile
+        Model to use for the source's spatial profile
 
-    add_noise : If True, add Poisson noise to the image
-
+    add_noise
+        If True, add Poisson noise to the image
 
     Returns
     -------
-    ccd_im : CCDData instance containing synthetic 2D spectroscopic image
+    ccd_im
+        `~astropy.nddata.CCDData` instance containing synthetic 2D spectroscopic image
     """
     if trace_coeffs is None:
         trace_coeffs = {'c0': 0, 'c1': 50, 'c2': 100}
@@ -103,36 +111,50 @@ def make_2d_arc_image(
 
     Parameters
     ----------
-    nx : Size of image in X axis which is assumed to be the dispersion axis
+    nx
+        Size of image in X axis which is assumed to be the dispersion axis
 
-    ny : Size of image in Y axis which is assumed to be the spatial axis
+    ny
+        Size of image in Y axis which is assumed to be the spatial axis
 
-    wcs : 2D WCS to apply to the image. Must have a spectral axis defined along with
+    wcs
+        2D WCS to apply to the image. Must have a spectral axis defined along with
         appropriate spectral wavelength units.
 
-    extent : If ``wcs`` is not provided, this defines the beginning and end wavelengths
+    extent
+        If ``wcs`` is not provided, this defines the beginning and end wavelengths
         of the dispersion axis.
 
-    wave_unit : If ``wcs`` is not provided, this defines the wavelength units of the
+    wave_unit
+        If ``wcs`` is not provided, this defines the wavelength units of the
         dispersion axis.
 
-    wave_air : If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
+    wave_air
+        If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
 
-    background : Level of constant background in counts
+    background
+        Level of constant background in counts
 
-    line_fwhm : Gaussian FWHM of the emission lines in pixels
+    line_fwhm
+        Gaussian FWHM of the emission lines in pixels
 
-    linelists : Specification for linelists to load from ``pypeit``
+    linelists
+        Specification for linelists to load from ``pypeit``
 
-    amplitude_scale : Scale factor to apply to amplitudes provided in the linelists
+    amplitude_scale
+        Scale factor to apply to amplitudes provided in the linelists
 
-    tilt_func : The tilt function to apply along the cross-dispersion axis to simulate
+    tilt_func
+        The tilt function to apply along the cross-dispersion axis to simulate
         tilted or curved emission lines.
-    add_noise : If True, add Poisson noise to the image; requires ``photutils`` to be installed.
+
+    add_noise
+        If True, add Poisson noise to the image; requires ``photutils`` to be installed.
 
     Returns
     -------
-    ccd_im : CCDData instance containing synthetic 2D spectroscopic image
+    ccd_im
+        `~astropy.nddata.CCDData` instance containing synthetic 2D spectroscopic image
 
     Examples
     --------
@@ -343,46 +365,63 @@ def make_2d_spec_image(
 
     Parameters
     ----------
-    nx : Number of pixels in the dispersion direction.
+    nx
+        Number of pixels in the dispersion direction.
 
-    ny : Number of pixels in the spatial direction.
+    ny
+        Number of pixels in the spatial direction.
 
-    wcs : 2D WCS to apply to the image. Must have a spectral axis defined along with
+    wcs
+        2D WCS to apply to the image. Must have a spectral axis defined along with
         appropriate spectral wavelength units.
 
-    extent : If ``wcs`` is not provided, this defines the beginning and end wavelengths
+    extent
+        If ``wcs`` is not provided, this defines the beginning and end wavelengths
         of the dispersion axis.
 
-    wave_unit : If ``wcs`` is not provided, this defines the wavelength units of the
+    wave_unit
+        If ``wcs`` is not provided, this defines the wavelength units of the
         dispersion axis.
 
-    wave_air : If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
+    wave_air
+        If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
 
-    background : Constant background level in counts.
+    background
+        Constant background level in counts.
 
-    line_fwhm : Gaussian FWHM of the emission lines in pixels
+    line_fwhm
+        Gaussian FWHM of the emission lines in pixels
 
-    linelists : Specification for linelists to load from ``pypeit``
+    linelists
+        Specification for linelists to load from ``pypeit``
 
-    amplitude_scale : Scale factor to apply to amplitudes provided in the linelists
+    amplitude_scale
+        Scale factor to apply to amplitudes provided in the linelists
 
-    tilt_func : The tilt function to apply along the cross-dispersion axis to simulate
+    tilt_func
+        The tilt function to apply along the cross-dispersion axis to simulate
         tilted or curved emission lines.
 
-    trace_center : Zeropoint of the trace. If None, then use center of Y (spatial) axis.
+    trace_center
+        Zeropoint of the trace. If None, then use center of Y (spatial) axis.
 
-    trace_order : Order of the Chebyshev polynomial used to model the source's trace
+    trace_order
+        Order of the Chebyshev polynomial used to model the source's trace
 
-    trace_coeffs : Dict containing the Chebyshev polynomial coefficients to use in the trace model
+    trace_coeffs
+        Dict containing the Chebyshev polynomial coefficients to use in the trace model
 
-    source_profile : Model to use for the source's spatial profile
+    source_profile
+        Model to use for the source's spatial profile
 
-    add_noise : If True, add Poisson noise to the image; requires ``photutils`` to be installed.
+    add_noise
+        If True, add Poisson noise to the image; requires ``photutils`` to be installed.
 
 
     Returns
     -------
-    ccd_im : CCDData instance containing synthetic 2D spectroscopic image
+    ccd_im
+        `~astropy.nddata.CCDData` instance containing synthetic 2D spectroscopic image
     """
     if trace_coeffs is None:
         trace_coeffs = {'c0': 0, 'c1': 50, 'c2': 100},
