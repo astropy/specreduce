@@ -69,8 +69,8 @@ exclude_patterns.append("_templates")
 
 extensions.extend(
     [
-        #"sphinx_design",
-        #"nbsphinx",
+        "sphinx_design",
+        "nbsphinx",
     ]
 )
 
@@ -162,7 +162,7 @@ latex_documents = [("index", project + ".tex", project + " Documentation", autho
 man_pages = [("index", project.lower(), project + " Documentation", [author], 1)]
 
 # -- Options for numpydoc extension -------------------------------------------
-numpydoc_xref_param_type = True
+numpydoc_xref_param_type = False
 
 
 # -- Options for the edit_on_github extension ---------------------------------
