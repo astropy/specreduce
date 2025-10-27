@@ -424,7 +424,7 @@ def make_2d_spec_image(
         `~astropy.nddata.CCDData` instance containing synthetic 2D spectroscopic image
     """
     if trace_coeffs is None:
-        trace_coeffs = {'c0': 0, 'c1': 50, 'c2': 100},
+        trace_coeffs = {'c0': 0, 'c1': 50, 'c2': 100}
 
     arc_image = make_2d_arc_image(
         nx=nx,
