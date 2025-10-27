@@ -24,6 +24,15 @@ other Astropy ecosystem packages like
 `matplotlib <https://matplotlib.org/>`_. The documentation includes examples demonstrating how these
 tools can be combined to create complete spectroscopic workflows.
 
+.. note::
+
+    Specreduce is an active, community-driven project, and we warmly welcome contributions of all kinds,
+    from reporting bugs and suggesting new features to improving documentation or writing code.
+    Whether you are an experienced developer or just getting started, your input helps make Specreduce
+    better for everyone. If you would like to get involved, see the :ref:`contributor's guide
+    <contributors_guide>` for details on how to participate and become part of the wider Astropy
+    community.
+
 .. toctree::
     :maxdepth: 1
     :hidden:
