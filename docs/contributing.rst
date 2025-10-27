@@ -48,7 +48,7 @@ For feature requests or usability feedback, describe your idea clearly and expla
 improve the user experience. Even short notes are valuable and help guide development priorities.
 
 
-Contribute Code or Focumentation
+Contribute Code or Documentation
 --------------------------------
 
 If you see an open issue you’d like to work on, or if you’ve spotted an error or missing detail
