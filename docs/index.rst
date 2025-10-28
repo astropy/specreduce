@@ -16,13 +16,14 @@ foundation upon which instrument-specific pipelines and analysis tools can be bu
 Specreduce includes tools for determining and modeling spectral traces, performing
 background subtraction, extracting one-dimensional spectra using both optimal and boxcar methods,
 and applying wavelength correction derived from calibration data.
-
 Beyond these tasks, basic image processing steps, data analysis, and visualisation are covered by
-other Astropy ecosystem packages like
-`ccdproc <https://ccdproc.readthedocs.io/en/latest/>`_,
+other Astropy ecosystem packages like `ccdproc <https://ccdproc.readthedocs.io/en/latest/>`_,
 `specutils <https://specutils.readthedocs.io/en/latest/>`_, and
 `matplotlib <https://matplotlib.org/>`_. The documentation includes examples demonstrating how these
 tools can be combined to create complete spectroscopic workflows.
+
+.. image::
+   roadmap.png
 
 .. note::
 

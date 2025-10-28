@@ -30,6 +30,14 @@ Before you begin contributing code, you may want to:
 * Comment on an issue to let others know you’d like to work on it — or open a new issue to
   discuss an idea or feature you’d like to propose.
 
+Roadmap
+-------
+
+.. image::
+   roadmap.png
+   :align: center
+   :width: 100%
+
 Contribute feedback
 -------------------
 
