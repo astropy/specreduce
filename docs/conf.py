@@ -125,7 +125,10 @@ html_context = {
 }
 
 # Custom sidebar templates, maps document names to template names.
-# html_sidebars = {}
+html_sidebars = {}
+html_sidebars['index'] = []
+html_sidebars["contributing"] = []
+
 # html_sidebars['**'] = ['localtoc.html']
 # html_sidebars['index'] = [] #['globaltoc.html', 'localtoc.html']
 
