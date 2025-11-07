@@ -211,7 +211,7 @@ def load_MAST_calspec(
 
     Returns
     -------
-    spectrum : If the spectrum can be loaded, return it as a `~specutils.Spectrum1D`.
+    spectrum : If the spectrum can be loaded, return it as a `~specutils.Spectrum`.
         Otherwise return None. The spectral_axis units are Å and the flux units are milli-Janskys.
     """
     filename = Path(filename)
@@ -266,7 +266,7 @@ def load_onedstds(
 
     Returns
     -------
-    spectrum : If the spectrum can be loaded, return it as a `~specutils.Spectrum1D`.
+    spectrum : If the spectrum can be loaded, return it as a `~specutils.Spectrum`.
         Otherwise return None. The spectral_axis units are Å and the flux units are milli-Janskys.
     """
     if dataset not in SPECPHOT_DATASETS:
