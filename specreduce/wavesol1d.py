@@ -187,7 +187,7 @@ class WavelengthSolution1D:
             1D spectrum binned to the specified wavelength bins.
         """
         if nbins is not None and nbins < 0:
-            raise ValueError("Number of bins must be positive.")
+            raise ValueError("Number of bins must be non-zero and positive.")
 
         if self._p2w is None:
             raise ValueError("Wavelength solution not set.")
