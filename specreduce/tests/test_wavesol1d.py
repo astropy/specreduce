@@ -97,7 +97,7 @@ def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
         ws.resample(mk_spectrum)
 
     ws = mk_ws_with_transform
-    with pytest.raises(ValueError, match="Number of bins must be positive"):
+    with pytest.raises(ValueError, match="Number of bins must be non-zero and positive"):
         ws.resample(mk_spectrum, nbins=-5)
 
 
