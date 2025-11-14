@@ -88,6 +88,7 @@ def test_init(mk_arc, mk_lines):
         WavelengthCalibration1D(obs_lines=obs_lines, ref_pixel=ref_pixel)
 
 
+@pytest.mark.remote_data
 def test_init_line_list(mk_arc):
     arc = mk_arc
     WavelengthCalibration1D(arc_spectra=arc, line_lists=["ArI"])
