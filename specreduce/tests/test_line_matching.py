@@ -1,5 +1,7 @@
 import numpy as np
 import pytest
+import astropy.units as u
+
 from astropy.wcs import WCS
 from astropy.modeling import models
 from astropy.nddata import StdDevUncertainty
@@ -84,6 +86,13 @@ def test_find_arc_lines(mk_test_data):
     Test the find_arc_lines routine.
     """
     _, _, _, arc_sub = mk_test_data
+    lines = find_arc_lines(arc_sub, fwhm=5, window=5, noise_factor=5)
+    assert len(lines) > 1
+
+    with pytest.raises(ValueError, match="fwhm must have"):
+        find_arc_lines(arc_sub, fwhm=5*u.angstrom, window=5, noise_factor=5)
+
+    arc_sub.uncertainty = None
     lines = find_arc_lines(arc_sub, fwhm=5, window=5, noise_factor=5)
     assert len(lines) > 1
 

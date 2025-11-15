@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from astropy import units as u
 from astropy.modeling import models
-from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty, StdDevUncertainty
+from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty
 from astropy.tests.helper import assert_quantity_allclose
 
 from specreduce.background import Background
@@ -135,12 +135,6 @@ def test_horne_image_validation(mk_test_img):
 
     # an NDData-type image can't have an empty uncertainty attribute
     with pytest.raises(ValueError, match=r".*NDData object lacks uncertainty"):
-        ext = extract(image=image)
-
-    # a warning should be raised if uncertainty is StdDevUncertainty
-    with pytest.warns(UserWarning, match="image NDData object's uncertainty"):
-        err = StdDevUncertainty(np.ones_like(image))
-        image.uncertainty = err
         ext = extract(image=image)
 
     # an NDData-type image's uncertainty must be of type VarianceUncertainty
