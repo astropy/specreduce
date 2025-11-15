@@ -1,3 +1,11 @@
+1.7.1 (2025-11-2x)
+------------------
+
+Other changes
+^^^^^^^^^^^^^
+
+- Changed to use ``sphinx_astropy.conf.v2`` and revised the documentation.
+
 1.7.0 (2025-11-13)
 ------------------
 
