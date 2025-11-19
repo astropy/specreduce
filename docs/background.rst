@@ -2,14 +2,19 @@ Background correction
 =====================
 
 The `specreduce.background` module generates and subtracts a background image from
-the input 2D spectral image.  The `~specreduce.background.Background` object is
-defined by one or more windows, and can be generated with:
+the input 2D spectral image. The `~specreduce.background.Background` object is
+defined by one or more windows, where each window is a region parallel to a
+`~specreduce.tracing.Trace`, offset from that `~specreduce.tracing.Trace` by a
+specified separation in the cross-dispersion direction, and extending over a
+specified width (also measured along the cross-dispersion axis) in pixels. The
+object can be generated with:
 
 * `~specreduce.background.Background`
 * `Background.one_sided <specreduce.background.Background.one_sided>`
 * `Background.two_sided <specreduce.background.Background.two_sided>`
 
-The center of the window can either be passed as a float/integer or as a trace
+The center of the window can either be passed as a float/integer or as a
+`~specreduce.tracing.Trace`.
 
 .. code-block:: python
 
