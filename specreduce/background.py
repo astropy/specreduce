@@ -210,13 +210,13 @@ class Background(_ImageParser):
             Image with 2-D spectral image data. Assumes cross-dispersion
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1.
-        trace_object: `~specreduce.tracing.Trace`
+        trace_object : `~specreduce.tracing.Trace`
             estimated trace of the spectrum to center the background traces
-        separation: float
+        separation : float
             separation from ``trace_object`` for the background regions
         width : float
             width of each background aperture in pixels
-        statistic: string
+        statistic : string
             statistic to use when computing the background.  'average' will
             account for partial pixel weights, 'median' will include all partial
             pixels.
@@ -258,21 +258,21 @@ class Background(_ImageParser):
             Image with 2-D spectral image data. Assumes cross-dispersion
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1.
-        trace_object: `~specreduce.tracing.Trace`
-            estimated trace of the spectrum to center the background traces
-        separation: float
-            separation from ``trace_object`` for the background, positive will be
+        trace_object : `~specreduce.tracing.Trace`
+            Estimated trace of the spectrum to center the background traces
+        separation : float
+            Separation from ``trace_object`` for the background, positive will be
             above the trace, negative below.
         width : float
-            width of each background aperture in pixels
-        statistic: string
-            statistic to use when computing the background.  'average' will
+            Width of each background aperture in pixels
+        statistic : string
+            Statistic to use when computing the background.  'average' will
             account for partial pixel weights, 'median' will include all partial
             pixels.
         disp_axis : int
-            dispersion axis
+            Dispersion axis
         crossdisp_axis : int
-            cross-dispersion axis
+            Cross-dispersion axis
         mask_treatment : string
             The method for handling masked or non-finite data. Choice of ``filter``,
             ``omit``, or ``zero_fill``. If `filter` is chosen, masked/non-finite data
@@ -344,17 +344,17 @@ class Background(_ImageParser):
 
     def sub_image(self, image=None):
         """
-        Subtract the computed background from ``image``.
+        Subtract the computed background from image.
 
         Parameters
         ----------
         image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will extract
+            image with 2D spectral image data.  If None, will extract
             the background from ``image`` used to initialize the class.
 
         Returns
         -------
-        spec : `~specutils.Spectrum1D`
+        spec : `~specutils.Spectrum`
             Spectrum object with same shape as ``image``.
         """
         image = self._parse_image(image)
@@ -376,14 +376,14 @@ class Background(_ImageParser):
 
         Parameters
         ----------
-        image : nddata-compatible image or None
-            image with 2-D spectral image data.  If None, will extract
+        image : `~astropy.nddata.NDData`-compatible image or None
+            image with 2D spectral image data.  If None, will extract
             the background from ``image`` used to initialize the class.
 
         Returns
         -------
-        spec : `~specutils.Spectrum1D`
-            The background 1-D spectrum, with flux expressed in the same
+        spec : `~specutils.Spectrum`
+            The background 1D spectrum, with flux expressed in the same
             units as the input image (or u.DN if none were provided) and
             the spectral axis expressed in pixel units.
         """

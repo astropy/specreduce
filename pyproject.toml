@@ -24,7 +24,10 @@ test = [
     "tox",
 ]
 docs = [
-    "sphinx-astropy",
+    "sphinx-astropy[confv2]",
+    "sphinx-copybutton",
+    "sphinx-design",
+    "matplotlib>=3.7",
     "photutils>=1.0",
     "synphot",
     "nbsphinx",

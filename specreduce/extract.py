@@ -307,11 +307,11 @@ class HorneExtract(SpecreduceOperation):
     spatial_profile : str or dict, optional
         The shape of the object profile. The first option is 'gaussian' to fit
         a uniform 1D gaussian to the average of pixels in the cross-dispersion
-        direction. The other option is 'interpolated_profile'  - when this
-        option is used, the profile is sampled in bins and these samples are
+        direction. The other option is 'interpolated_profile' - when this
+        option is used, the profile is sampled in bins, and these samples are
         interpolated between to construct a continuously varying, empirical
         spatial profile for extraction. For this option, if passed in as a
-        string (i.e spatial_profile='interpolated_profile') the default values
+        string (i.e., spatial_profile='interpolated_profile') the default values
         for the number of bins used (10) and degree of interpolation
         (linear in x and y, by default) will be used. To set these parameters,
         pass in a dictionary with the keys 'n_bins_interpolated_profile' (which
@@ -420,12 +420,6 @@ class HorneExtract(SpecreduceOperation):
             if image.uncertainty.uncertainty_type == "var":
                 variance = image.uncertainty.array
             elif image.uncertainty.uncertainty_type == "std":
-                warnings.warn(
-                    "image NDData object's uncertainty "
-                    "interpreted as standard deviation. if "
-                    "incorrect, use VarianceUncertainty when "
-                    "assigning image object's uncertainty."
-                )
                 variance = image.uncertainty.array**2
             elif image.uncertainty.uncertainty_type == "ivar":
                 variance = 1 / image.uncertainty.array
@@ -669,7 +663,7 @@ class HorneExtract(SpecreduceOperation):
         n_bins_interpolated_profile = profile.get("n_bins_interpolated_profile", 10)
         interp_degree_interpolated_profile = profile.get("interp_degree_interpolated_profile", 1)
 
-        if bkgrd_prof is None and profile_type == 'gaussian':
+        if bkgrd_prof is None and profile_type == "gaussian":
             bkgrd_prof = models.Polynomial1D(2)
 
         self.image = self._parse_image(image, variance, mask, unit, disp_axis)
