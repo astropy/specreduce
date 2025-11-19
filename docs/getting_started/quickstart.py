@@ -44,9 +44,9 @@ def make_2d_spec_image(
     Parameters
     ----------
     nx : int, optional
-        Number of columns (spatial dimension) in the generated image, by default 3000.
+        Number of columns (spatial dimension) in the generated image, by default 1000.
     ny : int, optional
-        Number of rows (dispersion dimension) in the generated image, by default 1000.
+        Number of rows (dispersion dimension) in the generated image, by default 300.
     wcs : WCS or None, optional
         World Coordinate System (WCS) object for the image. Specifies spectral coordinates.
         If None, WCS is not assigned, by default None.
@@ -68,8 +68,6 @@ def make_2d_spec_image(
         Scaling factor for the airglow contribution to the image, by default 1.0.
     spectrum_amplitude : float, optional
         Scaling factor for the primary spectrum contribution (trace image), by default 1.0.
-    amplitude_scale : float, optional
-        Global amplitude scaling factor applied to both arcs and traces, by default 1.0.
     tilt_func : Model, optional
         Astropy model representing the spectral tilt across the spatial axis. By default,
         a zero-degree Legendre polynomial (no tilt) is used.

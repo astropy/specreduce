@@ -1,3 +1,5 @@
+.. _extraction_quickstart:
+
 Spectrum Extraction
 ===================
 
