@@ -96,15 +96,23 @@ Or, to override the default of 10 samples and use 20 samples
 
 .. code-block:: python
 
-    interp_profile_extraction = extract(spatial_profile={'name': 'interpolated_profile',
-                                    'n_bins_interpolated_profile': 20})
+    interp_profile_extraction = extract(
+        spatial_profile={
+            'name': 'interpolated_profile',
+            'n_bins_interpolated_profile': 20
+        }
+    )
 
 Or, to do a cubic interpolation instead of the default linear
 
 .. code-block:: python
 
-    interp_profile_extraction = extract(spatial_profile={'name': 'interpolated_profile',
-                                    'interp_degree_interpolated_profile': 3})
+    interp_profile_extraction = extract(
+        spatial_profile={
+            "name": "interpolated_profile",
+            "interp_degree_interpolated_profile": 3,
+        }
+    )
 
 As usual, parameters can either be set when instantiating the HorneExtraxt object,
 or supplied/overridden when calling the extraction method on that object.
