@@ -1,3 +1,5 @@
+.. _tracing:
+
 Tracing
 =======
 
@@ -7,13 +9,13 @@ spatial position (trace) of a spectrum across a 2D detector image: `~specreduce.
 the 2D spectral image as input, along with trace-specific parameters that control how the trace
 is determined.
 
-Flat trace
-----------
+FlatTrace
+---------
 
 `~specreduce.tracing.FlatTrace` assumes that the spectrum follows a straight line across the
 detector, and is best for well-aligned spectrographs with minimal optical distortion. To
-initialize a `~specreduce.tracing.FlatTrace`, we need to specify the fixed cross-dispersion
-pixel position:
+initialize a `~specreduce.tracing.FlatTrace`, specify the fixed cross-dispersion pixel
+position with the ``trace_pos`` argument:
 
 .. code-block:: python
 
@@ -126,14 +128,15 @@ non-finite values.
 ArrayTrace
 ----------
 
-`~specreduce.tracing.ArrayTrace` uses a pre-defined array of positions for maximum flexibility,
+`~specreduce.tracing.ArrayTrace` uses a pre-defined array of positions for maximum flexibility
 and is ideal for complex or unusual trace shapes that are difficult to model mathematically.
-`~specreduce.tracing.ArrayTrace` initialization requires an array of cross-dispersion pixel
-positions. The size of the array must match the number of dispersion-axis pixels in the image.
+To initialize `~specreduce.tracing.ArrayTrace`, provide a 1D array of cross-dispersion pixel
+positions via the ``trace`` argument. The size of this array must match the number of
+pixels along the dispersion axis of the image.
 
 .. code-block:: python
 
-    trace = specreduce.tracing.ArrayTrace(image, positions)
+    trace = specreduce.tracing.ArrayTrace(image, trace=positions)
 
 .. plot::
 
