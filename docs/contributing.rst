@@ -68,10 +68,6 @@ To get started:
 3. Commit your changes with a clear message describing what you did.
 4. Open a pull request to the main repository.
 
-.. If you’re unsure how to start, you can look for issues labeled
-.. ``good first issue`` or ``help wanted`` — these are designed to be approachable even for
-.. first-time contributors.
-
 Contribute Tutorials and Examples
 ---------------------------------
 
