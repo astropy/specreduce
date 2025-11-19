@@ -107,7 +107,7 @@ tools can be combined to create complete spectroscopic workflows.
             **Contributor's Guide**
             ^^^^^^^^^^^^^^^^^^^^^^^
 
-            Want to contribute to specreduce? Found a bug? The contributing guidelines will
+            Want to contribute to Specreduce? Found a bug? The contributing guidelines will
             show you how to improve specreduce.
 
             +++
@@ -119,7 +119,3 @@ tools can be combined to create complete spectroscopic workflows.
 
                 To the contributor's guide
 
-
-..  * :ref:`genindex`
-..  * :ref:`modindex`
-..  * :ref:`search`
