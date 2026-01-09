@@ -44,13 +44,17 @@ jobs:
           linux: py312-test
           toxargs: -v
 
-        - name: Python 3.13 on Linux with all dependencies, remote data, and coverage
-          linux: py313-test-alldeps-cov
+        - name: Python 3.13 on Linux with minimal dependencies
+          linux: py313-test
+          toxargs: -v
+
+        - name: Python 3.14 on Linux with all dependencies, remote data, and coverage
+          linux: py314-test-alldeps-cov
           coverage: codecov
           toxargs: -v
           posargs: --remote-data=any
 
-        - name: (Allowed Failure) Python 3.13 on Linux with dev dependencies
-          linux: py313-test-devdeps-cov
+        - name: (Allowed Failure) Python 3.14 on Linux with dev dependencies
+          linux: py314-test-devdeps-cov
           coverage: codecov
           toxargs: -v
