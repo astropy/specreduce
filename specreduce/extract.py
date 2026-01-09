@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from astropy import units as u
 from astropy.modeling import Model, models, fitting
-from astropy.nddata import NDData, VarianceUncertainty
+from astropy.nddata import NDData, VarianceUncertainty, StdDevUncertainty, InverseVariance
 from numpy import ndarray
 from scipy.integrate import trapezoid
 from scipy.interpolate import RectBivariateSpline
@@ -178,7 +178,6 @@ class BoxcarExtract(SpecreduceOperation):
     width: float = 5
     disp_axis: int = 1
     crossdisp_axis: int = 0
-    # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
     mask_treatment: MaskingOption = "apply"
     _valid_mask_treatment_methods = (
         "apply",
@@ -246,19 +245,52 @@ class BoxcarExtract(SpecreduceOperation):
         # the window multiplied by the window width.
         window_weights = _ap_weight_image(trace, width, disp_axis, cdisp_axis, self.image.shape)
 
-        if self.mask_treatment == "apply":
-            image_cleaned = np.where(~self.image.mask, self.image.data * window_weights, 0.0)
-            weights = np.where(~self.image.mask, window_weights, 0.0)
-            spectrum = (
-                image_cleaned.sum(axis=cdisp_axis)
-                / weights.sum(axis=cdisp_axis)
-                * window_weights.sum(axis=cdisp_axis)
-            )
+        # Extract variance for uncertainty propagation (if available)
+        if self.image.uncertainty is not None:
+            variance = self.image.uncertainty.represent_as(VarianceUncertainty).array
+            orig_uncty_type = type(self.image.uncertainty)
         else:
-            image_windowed = np.where(window_weights, self.image.data * window_weights, 0.0)
-            spectrum = np.sum(image_windowed, axis=cdisp_axis)
+            variance = None
+            orig_uncty_type = None
 
-        return Spectrum(spectrum * self.image.unit, spectral_axis=self.image.spectral_axis)
+        if self.mask_treatment == "apply":
+            flux = np.where(~self.image.mask, self.image.data * window_weights, 0.0)
+            weights = np.where(~self.image.mask, window_weights, 0.0)
+            weights_sum = weights.sum(axis=cdisp_axis)
+            window_sum = window_weights.sum(axis=cdisp_axis)
+            extracted_flux = flux.sum(axis=cdisp_axis) / weights_sum * window_sum
+
+            if variance is not None:
+                variance = np.where(~self.image.mask, variance * window_weights**2, 0.0)
+                extracted_variance = variance.sum(axis=cdisp_axis) / weights_sum**2 * window_sum**2
+        else:
+            flux = np.where(window_weights, self.image.data * window_weights, 0.0)
+            extracted_flux = flux.sum(axis=cdisp_axis)
+
+            if variance is not None:
+                variance = np.where(window_weights, variance * window_weights**2, 0.0)
+                extracted_variance = np.sum(variance, axis=cdisp_axis)
+
+        # Create output uncertainty (preserving original type)
+        if variance is not None:
+            # Convert variance to the original uncertainty type with proper units
+            if orig_uncty_type == VarianceUncertainty:
+                output_uncertainty = VarianceUncertainty(extracted_variance * self.image.unit**2)
+            elif orig_uncty_type == StdDevUncertainty:
+                output_uncertainty = StdDevUncertainty(np.sqrt(extracted_variance) * self.image.unit)
+            elif orig_uncty_type == InverseVariance:
+                output_uncertainty = InverseVariance(1.0 / extracted_variance / self.image.unit**2)
+            else:
+                # Fallback to VarianceUncertainty for unknown types
+                output_uncertainty = VarianceUncertainty(extracted_variance * self.image.unit**2)
+        else:
+            output_uncertainty = None
+
+        return Spectrum(
+            extracted_flux * self.image.unit,
+            spectral_axis=self.image.spectral_axis,
+            uncertainty=output_uncertainty
+        )
 
 
 @dataclass

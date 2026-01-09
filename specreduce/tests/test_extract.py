@@ -119,6 +119,36 @@ def test_boxcar_array_trace(mk_test_img):
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.0))
 
 
+def test_boxcar_uncertainty_propagation():
+    """Test that BoxcarExtract propagates uncertainties correctly."""
+    # Create image with known uniform flux and uncertainty
+    nrows, ncols = 10, 20
+    flux = np.full((nrows, ncols), 100.0)
+    variance = np.full((nrows, ncols), 4.0)
+
+    img = Spectrum(
+        flux * u.DN,
+        uncertainty=VarianceUncertainty(variance),
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+    width = 3
+    extracted = BoxcarExtract(img, trace, width=width)()
+
+    # Check uncertainty exists and is correct type
+    assert extracted.uncertainty is not None
+    assert isinstance(extracted.uncertainty, VarianceUncertainty)
+
+    # For width=3, summing 3 pixels each with variance=4 gives variance=12
+    # (weights are 1.0 for full pixels in aperture)
+    expected_variance = width * 4.0
+    np.testing.assert_allclose(extracted.uncertainty.array, expected_variance, rtol=0.01)
+
+    # Check units are correct (flux_unit^2)
+    assert extracted.uncertainty.unit == u.DN**2
+
+
 def test_horne_image_validation(mk_test_img):
     #
     # Test HorneExtract scenarios specific to its use with an image of
