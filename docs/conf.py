@@ -203,6 +203,12 @@ intersphinx_mapping.update(
 #     target = target.strip()
 #     nitpick_ignore.append((dtype, six.u(target)))
 
+# -- Nitpick exceptions -------------------------------------------------------
+# ArrayLike from numpy.typing is not properly resolved by intersphinx
+nitpick_ignore = [
+    ("py:class", "ArrayLike"),
+]
+
 # -- Options for linkcheck output -------------------------------------------
 linkcheck_retry = 5
 linkcheck_ignore = [
