@@ -5,7 +5,7 @@ Utilities for defining, loading, and handling spectroscopic calibration data
 import warnings
 from pathlib import Path
 from typing import Sequence, Literal
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 from astropy import units as u
 from astropy.table import Table, vstack, QTable
@@ -164,6 +164,8 @@ def load_pypeit_calibration_lines(
                                           pkgname='specreduce')
                 linelists.append(Table.read(data_path, format='ascii.fixed_width', comment='#'))
             except URLError as e:
+                if isinstance(e, HTTPError):
+                    e.close()
                 warnings.warn(f"Downloading of {data_url} failed: {e}", AstropyUserWarning)
         else:
             warnings.warn(
@@ -224,6 +226,8 @@ def load_MAST_calspec(
                                       show_progress=show_progress,
                                       pkgname='specreduce')
         except URLError as e:
+            if isinstance(e, HTTPError):
+                e.close()
             warnings.warn(f"Downloading of {filename} failed: {e}", AstropyUserWarning)
             file_path = None
 
@@ -280,6 +284,8 @@ def load_onedstds(
                                   cache=cache, show_progress=show_progress, pkgname="specreduce")
         t = Table.read(data_path, format="ascii", names=['wavelength', 'ABmag', 'binsize'])
     except URLError as e:
+        if isinstance(e, HTTPError):
+            e.close()
         msg = f"Can't load {specfile} from {dataset}: {e}."
         warnings.warn(msg, AstropyUserWarning)
         return None

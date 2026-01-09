@@ -30,6 +30,6 @@ jobs:
         - name: Check URLs in docs
           linux: linkcheck
 
-        - name: Python 3.12 on Linux with pre-releases
-          linux: py312-test-alldeps-predeps
+        - name: Python 3.14 on Linux with pre-releases
+          linux: py314-test-alldeps-predeps
           toxargs: -v
