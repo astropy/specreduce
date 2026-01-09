@@ -61,3 +61,4 @@ pip-wheel-metadata/
 
 # Mac OSX
 .DS_Store
+coverage.xml
