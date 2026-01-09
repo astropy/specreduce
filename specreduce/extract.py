@@ -261,8 +261,13 @@ class BoxcarExtract(SpecreduceOperation):
             extracted_flux = flux.sum(axis=cdisp_axis) / weights_sum * window_sum
 
             if variance is not None:
-                variance = np.where(~self.image.mask, variance * window_weights**2, 0.0)
-                extracted_variance = variance.sum(axis=cdisp_axis) / weights_sum**2 * window_sum**2
+                extracted_variance = (
+                    np.where(~self.image.mask, variance * window_weights**2, 0.0).sum(
+                        axis=cdisp_axis
+                    )
+                    / weights_sum**2
+                    * window_sum**2
+                )
         else:
             flux = np.where(window_weights, self.image.data * window_weights, 0.0)
             extracted_flux = flux.sum(axis=cdisp_axis)
@@ -277,7 +282,9 @@ class BoxcarExtract(SpecreduceOperation):
             if orig_uncty_type == VarianceUncertainty:
                 output_uncertainty = VarianceUncertainty(extracted_variance * self.image.unit**2)
             elif orig_uncty_type == StdDevUncertainty:
-                output_uncertainty = StdDevUncertainty(np.sqrt(extracted_variance) * self.image.unit)
+                output_uncertainty = StdDevUncertainty(
+                    np.sqrt(extracted_variance) * self.image.unit
+                )
             elif orig_uncty_type == InverseVariance:
                 output_uncertainty = InverseVariance(1.0 / extracted_variance / self.image.unit**2)
             else:
@@ -289,7 +296,7 @@ class BoxcarExtract(SpecreduceOperation):
         return Spectrum(
             extracted_flux * self.image.unit,
             spectral_axis=self.image.spectral_axis,
-            uncertainty=output_uncertainty
+            uncertainty=output_uncertainty,
         )
 
 
