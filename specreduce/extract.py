@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from astropy import units as u
 from astropy.modeling import Model, models, fitting
-from astropy.nddata import NDData, VarianceUncertainty
+from astropy.nddata import NDData, VarianceUncertainty, StdDevUncertainty, InverseVariance
 from numpy import ndarray
 from scipy.integrate import trapezoid
 from scipy.interpolate import RectBivariateSpline
@@ -696,25 +696,32 @@ class HorneExtract(SpecreduceOperation):
         if bkgrd_prof is None and profile_type == "gaussian":
             bkgrd_prof = models.Polynomial1D(2)
 
+        # Store original uncertainty type BEFORE parsing (parsing converts to VarianceUncertainty)
+        if hasattr(image, "uncertainty") and image.uncertainty is not None:
+            orig_uncty_type = type(image.uncertainty)
+        else:
+            orig_uncty_type = VarianceUncertainty  # default if variance passed separately
+
         self.image = self._parse_image(image, variance, mask, unit, disp_axis)
+
         variance = self.image.uncertainty.represent_as(VarianceUncertainty).array
         mask = self.image.mask.astype(bool) | (~np.isfinite(self.image.data))
         unit = self.image.unit
-        img = self.image.data
+        flux = self.image.data
 
-        ncross = img.shape[crossdisp_axis]
-        ndisp = img.shape[disp_axis]
+        ncross = flux.shape[crossdisp_axis]
+        ndisp = flux.shape[disp_axis]
 
         # If the trace is not flat, shift the rows in each column
         # so the image is aligned along the trace:
         if not isinstance(trace_object, FlatTrace):
-            img = _align_along_trace(
-                img, trace_object.trace, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis
+            flux = _align_along_trace(
+                flux, trace_object.trace, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis
             )
 
         if profile_type == "gaussian":
             fit_ext_kernel = self._fit_gaussian_spatial_profile(
-                img, disp_axis, crossdisp_axis, mask, bkgrd_prof
+                flux, disp_axis, crossdisp_axis, mask, bkgrd_prof
             )
             if isinstance(trace_object, FlatTrace):
                 mean_cross_pix = trace_object.trace
@@ -740,14 +747,14 @@ class HorneExtract(SpecreduceOperation):
                 kx, ky = interp_degree_interpolated_profile
 
             interp_spatial_prof = self._fit_spatial_profile(
-                img, disp_axis, crossdisp_axis, mask, n_bins_interpolated_profile, kx, ky
+                flux, disp_axis, crossdisp_axis, mask, n_bins_interpolated_profile, kx, ky
             )
 
             # add private attribute to save fit profile. should this be public?
             self._interp_spatial_prof = interp_spatial_prof
 
         xd_pixels = np.arange(ncross)
-        kernel_vals = np.zeros(img.shape)
+        kernel_vals = np.zeros(flux.shape)
         norms = np.full(ndisp, np.nan)
         valid = ~mask
 
@@ -767,11 +774,27 @@ class HorneExtract(SpecreduceOperation):
                 norms[idisp] = trapezoid(fitted_col, dx=1)[0]
 
         with np.errstate(divide="ignore", invalid="ignore"):
-            num = np.sum(np.where(valid, img * kernel_vals / variance, 0.0), axis=crossdisp_axis)
+            num = np.sum(np.where(valid, flux * kernel_vals / variance, 0.0), axis=crossdisp_axis)
             den = np.sum(np.where(valid, kernel_vals**2 / variance, 0.0), axis=crossdisp_axis)
-            extraction = (num / den) * norms
+            extracted_flux = (num / den) * norms
+            extracted_variance = norms**2 / den
 
-        return Spectrum(extraction * unit, spectral_axis=self.image.spectral_axis)
+        # Create output uncertainty (preserving original type)
+        if orig_uncty_type == VarianceUncertainty:
+            output_uncertainty = VarianceUncertainty(extracted_variance * unit**2)
+        elif orig_uncty_type == StdDevUncertainty:
+            output_uncertainty = StdDevUncertainty(np.sqrt(extracted_variance) * unit)
+        elif orig_uncty_type == InverseVariance:
+            output_uncertainty = InverseVariance(1.0 / extracted_variance / unit**2)
+        else:
+            # Fallback to VarianceUncertainty for unknown types
+            output_uncertainty = VarianceUncertainty(extracted_variance * unit**2)
+
+        return Spectrum(
+            extracted_flux * unit,
+            spectral_axis=self.image.spectral_axis,
+            uncertainty=output_uncertainty
+        )
 
 
 def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):
