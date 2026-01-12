@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from astropy import units as u
 from astropy.modeling import Model, models, fitting
-from astropy.nddata import NDData, VarianceUncertainty, StdDevUncertainty, InverseVariance
+from astropy.nddata import NDData, VarianceUncertainty
 from numpy import ndarray
 from scipy.integrate import trapezoid
 from scipy.interpolate import RectBivariateSpline
@@ -253,6 +253,7 @@ class BoxcarExtract(SpecreduceOperation):
             variance = None
             orig_uncty_type = None
 
+        extracted_variance = None
         if self.mask_treatment == "apply":
             flux = np.where(~self.image.mask, self.image.data * window_weights, 0.0)
             weights = np.where(~self.image.mask, window_weights, 0.0)
@@ -276,27 +277,17 @@ class BoxcarExtract(SpecreduceOperation):
                 variance = np.where(window_weights, variance * window_weights**2, 0.0)
                 extracted_variance = np.sum(variance, axis=cdisp_axis)
 
-        # Create output uncertainty (preserving original type)
-        if variance is not None:
-            # Convert variance to the original uncertainty type with proper units
-            if orig_uncty_type == VarianceUncertainty:
-                output_uncertainty = VarianceUncertainty(extracted_variance * self.image.unit**2)
-            elif orig_uncty_type == StdDevUncertainty:
-                output_uncertainty = StdDevUncertainty(
-                    np.sqrt(extracted_variance) * self.image.unit
-                )
-            elif orig_uncty_type == InverseVariance:
-                output_uncertainty = InverseVariance(1.0 / extracted_variance / self.image.unit**2)
-            else:
-                # Fallback to VarianceUncertainty for unknown types
-                output_uncertainty = VarianceUncertainty(extracted_variance * self.image.unit**2)
+        if extracted_variance is not None:
+            spectrum_uncty = VarianceUncertainty(
+                extracted_variance * self.image.unit**2
+            ).represent_as(orig_uncty_type)
         else:
-            output_uncertainty = None
+            spectrum_uncty = None
 
         return Spectrum(
             extracted_flux * self.image.unit,
             spectral_axis=self.image.spectral_axis,
-            uncertainty=output_uncertainty,
+            uncertainty=spectrum_uncty,
         )
 
 

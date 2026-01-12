@@ -169,7 +169,6 @@ def test_boxcar_uncertainty_stddev_type():
     extracted = BoxcarExtract(img, trace, width=3)()
 
     assert isinstance(extracted.uncertainty, StdDevUncertainty)
-    # For width=3, variance=12, so stddev=sqrt(12)
     expected_stddev = np.sqrt(3 * 4.0)
     np.testing.assert_allclose(extracted.uncertainty.array, expected_stddev, rtol=0.01)
     assert extracted.uncertainty.unit == u.DN
@@ -189,7 +188,6 @@ def test_boxcar_uncertainty_inverse_variance_type():
     extracted = BoxcarExtract(img, trace, width=3)()
 
     assert isinstance(extracted.uncertainty, InverseVariance)
-    # For width=3, variance=12, so ivar=1/12
     expected_ivar = 1.0 / (3 * 4.0)
     np.testing.assert_allclose(extracted.uncertainty.array, expected_ivar, rtol=0.01)
     assert extracted.uncertainty.unit == 1 / u.DN**2
