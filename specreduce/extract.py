@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from astropy import units as u
 from astropy.modeling import Model, models, fitting
-from astropy.nddata import NDData, VarianceUncertainty, StdDevUncertainty, InverseVariance
+from astropy.nddata import NDData, VarianceUncertainty
 from numpy import ndarray
 from scipy.integrate import trapezoid
 from scipy.interpolate import RectBivariateSpline
@@ -779,21 +779,14 @@ class HorneExtract(SpecreduceOperation):
             extracted_flux = (num / den) * norms
             extracted_variance = norms**2 / den
 
-        # Create output uncertainty (preserving original type)
-        if orig_uncty_type == VarianceUncertainty:
-            output_uncertainty = VarianceUncertainty(extracted_variance * unit**2)
-        elif orig_uncty_type == StdDevUncertainty:
-            output_uncertainty = StdDevUncertainty(np.sqrt(extracted_variance) * unit)
-        elif orig_uncty_type == InverseVariance:
-            output_uncertainty = InverseVariance(1.0 / extracted_variance / unit**2)
-        else:
-            # Fallback to VarianceUncertainty for unknown types
-            output_uncertainty = VarianceUncertainty(extracted_variance * unit**2)
+        spectrum_uncty = VarianceUncertainty(
+            extracted_variance * self.image.unit**2
+        ).represent_as(orig_uncty_type)
 
         return Spectrum(
             extracted_flux * unit,
             spectral_axis=self.image.spectral_axis,
-            uncertainty=output_uncertainty
+            uncertainty=spectrum_uncty,
         )
 
 
