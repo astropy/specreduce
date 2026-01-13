@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from astropy import units as u
+from astropy.nddata import VarianceUncertainty
 from astropy.utils.decorators import deprecated_attribute
 
 from specreduce.compat import SPECUTILS_LT_2, Spectrum
@@ -101,6 +102,8 @@ class Background(_ImageParser):
             raise ValueError("width must be positive")
         if self.width == 0:
             self._bkg_array = np.zeros(self.image.shape[self.disp_axis])
+            self._bkg_variance = np.zeros(self.image.shape[self.disp_axis])
+            self._variance_unit = self.image.unit ** 2
             return
 
         self._set_traces()
@@ -157,6 +160,9 @@ class Background(_ImageParser):
         else:
             raise ValueError("statistic must be 'average' or 'median'")
 
+        # Compute background variance for uncertainty propagation
+        self._compute_bkg_variance(img)
+
     def _set_traces(self):
         """Determine `traces` from input. If an integer/float or list if int/float
         is passed in, use these to construct FlatTrace objects. These values
@@ -191,6 +197,49 @@ class Background(_ImageParser):
                     "define FlatTraces, or None to use a FlatTrace in "
                     "the middle of the image."
                 )
+
+    def _compute_bkg_variance(self, img):
+        """Compute background variance for uncertainty propagation.
+
+        Parameters
+        ----------
+        img : np.ma.MaskedArray
+            The masked image array used for background computation.
+        """
+        # Get input variance (default to ones if not provided)
+        if self.image.uncertainty is not None:
+            input_variance = self.image.uncertainty.array
+            if hasattr(self.image.uncertainty, 'unit') and self.image.uncertainty.unit is not None:
+                self._variance_unit = self.image.uncertainty.unit
+            else:
+                self._variance_unit = self.image.unit ** 2
+        else:
+            input_variance = np.ones_like(self.image.data)
+            self._variance_unit = self.image.unit ** 2
+
+        # Create masked variance array matching the image mask
+        masked_variance = np.ma.masked_array(input_variance, img.mask)
+
+        if self.statistic == "average":
+            # Var(weighted_mean) = sum(w^2 * var) / (sum w)^2
+            weights_squared = self.bkg_wimage ** 2
+            numerator = np.ma.sum(
+                weights_squared * masked_variance, axis=self.crossdisp_axis
+            )
+            denominator = np.ma.sum(self.bkg_wimage, axis=self.crossdisp_axis) ** 2
+            self._bkg_variance = (numerator / denominator).data
+
+        elif self.statistic == "median":
+            # Var(median) ~ (pi/2) * var / n for approximately normal data
+            # Use mean variance of included pixels
+            bkg_mask = self.bkg_wimage > 0
+            valid_mask = bkg_mask & ~img.mask
+            n_pixels = np.sum(valid_mask, axis=self.crossdisp_axis)
+            variance_sum = np.sum(
+                np.where(valid_mask, input_variance, 0), axis=self.crossdisp_axis
+            )
+            mean_variance = variance_sum / n_pixels
+            self._bkg_variance = (np.pi / 2) * mean_variance / n_pixels
 
     @classmethod
     def two_sided(cls, image, trace_object, separation, **kwargs):
@@ -289,7 +338,7 @@ class Background(_ImageParser):
         kwargs["traces"] = [trace_object + separation]
         return cls(image=image, **kwargs)
 
-    def bkg_image(self, image=None):
+    def bkg_image(self, image=None) -> Spectrum:
         """
         Expose the background tiled to the dimension of ``image``.
 
@@ -303,46 +352,56 @@ class Background(_ImageParser):
 
         Returns
         -------
-        spec : `~specutils.Spectrum1D`
-            Spectrum object with same shape as ``image``.
+        spec : `~specutils.Spectrum`
+            Spectrum object with same shape as ``image``, including uncertainty.
         """
         image = self._parse_image(image)
         arr = np.tile(self._bkg_array, (image.shape[0], 1))
+        var_arr = np.tile(self._bkg_variance, (image.shape[0], 1))
+        uncertainty = VarianceUncertainty(var_arr * self._variance_unit)
+
         if SPECUTILS_LT_2:
             kwargs = {}
         else:
             kwargs = {"spectral_axis_index": arr.ndim - 1}
         return Spectrum(
             arr * image.unit,
-            spectral_axis=image.spectral_axis, **kwargs
+            spectral_axis=image.spectral_axis,
+            uncertainty=uncertainty,
+            **kwargs
         )
 
-    def bkg_spectrum(self, image=None, bkg_statistic=None):
+    def bkg_spectrum(self, image=None, bkg_statistic=None) -> Spectrum:
         """
         Expose the 1D spectrum of the background.
 
         Parameters
         ----------
         image : `~astropy.nddata.NDData`-like or array-like, optional
-            Image with 2-D spectral image data. Assumes cross-dispersion
+            Image with 2D spectral image data. Assumes cross-dispersion
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1. If None, will extract the background
             from ``image`` used to initialize the class. [default: None]
 
         Returns
         -------
-        spec : `~specutils.Spectrum1D`
-            The background 1-D spectrum, with flux expressed in the same
-            units as the input image (or DN if none were provided).
+        spec : `~specutils.Spectrum`
+            The background 1D spectrum, with flux and uncertainty expressed
+            in the same units as the input image (or DN if none were provided).
         """
         if bkg_statistic is not None:
             warnings.warn("'bkg_statistic' is deprecated and will be removed in a future release. "
                           "Please use the 'statistic' argument in the Background initializer instead.",  # noqa
                           DeprecationWarning,)
 
-        return Spectrum(self._bkg_array * self.image.unit, self.image.spectral_axis)
+        uncertainty = VarianceUncertainty(self._bkg_variance * self._variance_unit)
+        return Spectrum(
+            self._bkg_array * self.image.unit,
+            self.image.spectral_axis,
+            uncertainty=uncertainty
+        )
 
-    def sub_image(self, image=None):
+    def sub_image(self, image=None) -> Spectrum:
         """
         Subtract the computed background from image.
 
@@ -370,7 +429,7 @@ class Background(_ImageParser):
         # https://docs.astropy.org/en/stable/nddata/mixins/ndarithmetic.html
         return image.subtract(self.bkg_image(image), **kwargs)
 
-    def sub_spectrum(self, image=None):
+    def sub_spectrum(self, image=None) -> Spectrum:
         """
         Expose the 1D spectrum of the background-subtracted image.
 
@@ -383,19 +442,30 @@ class Background(_ImageParser):
         Returns
         -------
         spec : `~specutils.Spectrum`
-            The background 1D spectrum, with flux expressed in the same
-            units as the input image (or u.DN if none were provided) and
-            the spectral axis expressed in pixel units.
+            The background-subtracted 1D spectrum, with flux and uncertainty
+            expressed in the same units as the input image (or u.DN if none
+            were provided) and the spectral axis expressed in pixel units.
         """
-        sub_image = self.sub_image(image=image)
+        sub_img = self.sub_image(image=image)
 
         try:
-            return sub_image.collapse(np.nansum, axis=self.crossdisp_axis)
+            result = sub_img.collapse(np.nansum, axis=self.crossdisp_axis)
         except u.UnitTypeError:
             # can't collapse with a spectral axis in pixels because
             # SpectralCoord only allows frequency/wavelength equivalent units...
-            ext1d = np.nansum(sub_image.flux, axis=self.crossdisp_axis)
-            return Spectrum(ext1d, spectral_axis=sub_image.spectral_axis)
+            ext1d = np.nansum(sub_img.flux, axis=self.crossdisp_axis)
+            result = Spectrum(ext1d, spectral_axis=sub_img.spectral_axis)
+
+        # Propagate uncertainty: Var(sum) = sum of variances
+        if sub_img.uncertainty is not None:
+            var_sum = np.nansum(sub_img.uncertainty.array, axis=self.crossdisp_axis)
+            uncertainty = VarianceUncertainty(var_sum * sub_img.uncertainty.unit)
+            result = Spectrum(
+                result.flux,
+                spectral_axis=result.spectral_axis,
+                uncertainty=uncertainty
+            )
+        return result
 
     def __rsub__(self, image):
         """

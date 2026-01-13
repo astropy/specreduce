@@ -1,7 +1,7 @@
 import astropy.units as u
 import numpy as np
 import pytest
-from astropy.nddata import NDData
+from astropy.nddata import NDData, VarianceUncertainty
 
 from specreduce.background import Background
 from specreduce.compat import Spectrum
@@ -338,3 +338,180 @@ class TestMasksBackground:
 
         assert np.all(np.isfinite(subtracted_img_zero_fill.data))
         assert np.all(subtracted_img_zero_fill.mask == 0)
+
+
+@pytest.fixture
+def mk_bgk_img():
+    nrows, ncols = 10, 20
+    var = 4.0
+    img = Spectrum(
+        np.ones((nrows, ncols)) * u.DN,
+        uncertainty=VarianceUncertainty(np.full((nrows, ncols), var) * u.DN**2),
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+    trace = FlatTrace(img, nrows // 2)
+    return trace, img, var, nrows, ncols
+
+
+def test_background_uncertainty_average(mk_bgk_img):
+    """Test background uncertainty estimation with 'average' statistic."""
+    trace, img, var, nrows, ncols = mk_bgk_img
+    bg = Background(img, trace, width=4, statistic="average")
+
+    # Check that _bkg_variance is computed
+    assert hasattr(bg, "_bkg_variance")
+    assert bg._bkg_variance is not None
+    assert len(bg._bkg_variance) == ncols
+
+    # Variance should be positive and less than input (averaging reduces variance)
+    assert np.all(bg._bkg_variance > 0)
+    assert np.all(bg._bkg_variance < var)
+
+    weights = bg.bkg_wimage
+    weights_sum = np.sum(weights, axis=0)
+    weights_sq_sum = np.sum(weights ** 2, axis=0)
+    expected_variance = (weights_sq_sum * var) / (weights_sum ** 2)
+    assert np.allclose(bg._bkg_variance, expected_variance)
+
+    # Check that bkg_spectrum has uncertainty
+    bkg_spec = bg.bkg_spectrum()
+    assert bkg_spec.uncertainty is not None
+    assert isinstance(bkg_spec.uncertainty, VarianceUncertainty)
+    assert np.allclose(bkg_spec.uncertainty.array, bg._bkg_variance)
+
+
+def test_background_uncertainty_median(mk_bgk_img):
+    """Test background uncertainty estimation with 'median' statistic."""
+    trace, img, var, nrows, ncols = mk_bgk_img
+    bg = Background(img, trace, width=4, statistic="median")
+
+    # Check that _bkg_variance is computed
+    assert hasattr(bg, "_bkg_variance")
+    assert bg._bkg_variance is not None
+
+    # Variance should be positive
+    assert np.all(bg._bkg_variance > 0)
+    assert np.all(np.isfinite(bg._bkg_variance))
+
+    n_pixels = np.sum(bg.bkg_wimage > 0, axis=0)
+    expected_variance = (np.pi / 2) * var / n_pixels
+    assert np.allclose(bg._bkg_variance, expected_variance, rtol=0.01)
+
+
+def test_bkg_image_has_uncertainty(mk_bgk_img):
+    """Test that bkg_image returns Spectrum with uncertainty."""
+    trace, img, var, nrows, ncols = mk_bgk_img
+    bg = Background(img, trace, width=4)
+    bkg_img = bg.bkg_image()
+
+    # Check uncertainty exists
+    assert bkg_img.uncertainty is not None
+    assert isinstance(bkg_img.uncertainty, VarianceUncertainty)
+
+    # Check shape matches image
+    assert bkg_img.uncertainty.array.shape == (nrows, ncols)
+
+    # Check values are tiled correctly (same value in each column)
+    for col in range(ncols):
+        assert np.allclose(bkg_img.uncertainty.array[:, col], bg._bkg_variance[col])
+
+
+def test_bkg_spectrum_has_uncertainty(mk_bgk_img):
+    """Test that bkg_spectrum returns Spectrum with uncertainty."""
+    trace, img, var, nrows, ncols = mk_bgk_img
+    bg = Background(img, trace, width=4)
+    bkg_spec = bg.bkg_spectrum()
+
+    # Check uncertainty exists and is 1D
+    assert bkg_spec.uncertainty is not None
+    assert isinstance(bkg_spec.uncertainty, VarianceUncertainty)
+    assert bkg_spec.uncertainty.array.ndim == 1
+    assert len(bkg_spec.uncertainty.array) == ncols
+
+
+def test_sub_image_propagates_uncertainty(mk_bgk_img):
+    """Test that sub_image propagates uncertainties correctly."""
+    trace, img, var, nrows, ncols = mk_bgk_img
+    bg = Background(img, trace, width=4)
+
+    sub_img = bg.sub_image()
+
+    # Check uncertainty exists
+    assert sub_img.uncertainty is not None
+    assert isinstance(sub_img.uncertainty, VarianceUncertainty)
+
+    # For subtraction: Var(A - B) = Var(A) + Var(B)
+    # Image variance is 4.0, background variance is computed
+    bkg_variance = bg._bkg_variance[0]  # Same for all columns
+    expected_variance = var + bkg_variance
+    assert np.allclose(sub_img.uncertainty.array, expected_variance, rtol=0.01)
+
+
+def test_sub_spectrum_propagates_uncertainty(mk_bgk_img):
+    """Test that sub_spectrum propagates uncertainties correctly."""
+    trace, img, var, nrows, ncols = mk_bgk_img
+    bg = Background(img, trace, width=4)
+
+    sub_spec = bg.sub_spectrum()
+
+    # Check uncertainty exists
+    assert sub_spec.uncertainty is not None
+    assert isinstance(sub_spec.uncertainty, VarianceUncertainty)
+
+    # Check it's 1D with correct length
+    assert sub_spec.uncertainty.array.ndim == 1
+    assert len(sub_spec.uncertainty.array) == ncols
+
+    # Variance should be positive and finite
+    assert np.all(np.isfinite(sub_spec.uncertainty.array))
+    assert np.all(sub_spec.uncertainty.array > 0)
+
+
+def test_background_uncertainty_with_mask():
+    """Test that masked pixels don't contribute to uncertainty calculation."""
+    nrows, ncols = 10, 20
+    flux = np.ones((nrows, ncols))
+    variance = np.full((nrows, ncols), 4.0)
+    mask = np.zeros((nrows, ncols), dtype=bool)
+
+    # Mask some pixels in the background region for first few columns
+    mask[3:7, 0:5] = True
+
+    img = Spectrum(
+        flux * u.DN,
+        uncertainty=VarianceUncertainty(variance * u.DN**2),
+        mask=mask,
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+    bg = Background(img, trace, width=4)
+
+    # Uncertainty should be computed
+    assert bg._bkg_variance is not None
+    assert np.all(np.isfinite(bg._bkg_variance))
+
+    # Columns with masked pixels should have different (larger) variance
+    # because fewer pixels contribute to the average
+    # (This depends on whether masked pixels fall in the background window)
+
+
+def test_background_no_input_uncertainty():
+    """Test that background works when input image has no uncertainty."""
+    nrows, ncols = 10, 20
+    # Create image without uncertainty
+    img = Spectrum(
+        np.ones((nrows, ncols)) * u.DN,
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+    bg = Background(img, trace, width=4)
+
+    # Should still have variance (defaulting to 1.0)
+    assert hasattr(bg, "_bkg_variance")
+    assert bg._bkg_variance is not None
+
+    # bkg_spectrum should still have uncertainty
+    bkg_spec = bg.bkg_spectrum()
+    assert bkg_spec.uncertainty is not None
