@@ -4,7 +4,8 @@
 New Features
 ^^^^^^^^^^^^
 
-- Added uncertainty propagation to ``specreduce.extract.BoxcarExtract``.
+- Added uncertainty propagation to ``specreduce.extract.BoxcarExtract`` and
+  ``specreduce.extract.HorneExtract``. The extracted spectra have now proper uncertainties.
 
 Other changes
 ^^^^^^^^^^^^^

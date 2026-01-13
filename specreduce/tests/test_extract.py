@@ -536,6 +536,107 @@ def test_horne_interpolated_nbins_fails(mk_test_img):
         ex.spectrum
 
 
+def test_horne_uncertainty_propagation():
+    """Test that HorneExtract propagates uncertainties correctly."""
+    # Create an image with a Gaussian source and uniform variance
+    nrows, ncols = 20, 30
+    input_variance = 4.0
+    img = Spectrum(
+        np.zeros((nrows, ncols)) * u.DN,
+        uncertainty=VarianceUncertainty(np.full((nrows, ncols), input_variance) * u.DN**2),
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+    add_gaussian_source(img, amps=100.0, stddevs=2.0, means=10)
+
+    trace = FlatTrace(img, 10)
+    extracted = HorneExtract(img, trace)()
+
+    # Check uncertainty exists and is the correct type
+    assert extracted.uncertainty is not None
+    assert isinstance(extracted.uncertainty, VarianceUncertainty)
+
+    # Verify uncertainty values are finite and positive
+    assert np.all(np.isfinite(extracted.uncertainty.array))
+    assert np.all(extracted.uncertainty.array > 0)
+
+    # Check units are correct (flux_unit^2)
+    assert extracted.uncertainty.unit == u.DN**2
+
+    # Calculate expected variance analytically.
+    # For optimal extraction: var_out = norms^2 / sum(kernel^2 / var_in)
+    # With uniform variance: var_out = var_in * norms^2 / sum(kernel^2)
+    # where kernel is the normalized spatial profile and norms = sum(kernel) = 1
+    gauss = models.Gaussian1D(amplitude=100.0, mean=10.0, stddev=2.0)
+    kernel = gauss(np.arange(nrows))
+    kernel_normalized = kernel / kernel.sum()
+    expected_variance = input_variance / np.sum(kernel_normalized**2)
+
+    # All columns should have the same uncertainty (uniform source and variance)
+    assert np.allclose(extracted.uncertainty.array, expected_variance, rtol=1e-5)
+
+
+def test_horne_uncertainty_stddev_type():
+    """Test that StdDevUncertainty type is preserved in HorneExtract."""
+    nrows, ncols = 20, 30
+    img = Spectrum(
+        np.zeros((nrows, ncols)) * u.DN,
+        uncertainty=StdDevUncertainty(np.full((nrows, ncols), 2.0) * u.DN),
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+    add_gaussian_source(img, amps=100.0, stddevs=2.0, means=10)
+
+    trace = FlatTrace(img, 10)
+    extracted = HorneExtract(img, trace)()
+
+    assert isinstance(extracted.uncertainty, StdDevUncertainty)
+    assert np.all(np.isfinite(extracted.uncertainty.array))
+    assert np.all(extracted.uncertainty.array > 0)
+    assert extracted.uncertainty.unit == u.DN
+
+
+def test_horne_uncertainty_inverse_variance_type():
+    """Test that InverseVariance type is preserved in HorneExtract."""
+    nrows, ncols = 20, 30
+    img = Spectrum(
+        np.zeros((nrows, ncols)) * u.DN,
+        uncertainty=InverseVariance(np.full((nrows, ncols), 0.25) / u.DN**2),
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+    add_gaussian_source(img, amps=100.0, stddevs=2.0, means=10)
+
+    trace = FlatTrace(img, 10)
+    extracted = HorneExtract(img, trace)()
+
+    assert isinstance(extracted.uncertainty, InverseVariance)
+    assert np.all(np.isfinite(extracted.uncertainty.array))
+    assert np.all(extracted.uncertainty.array > 0)
+    assert extracted.uncertainty.unit == 1 / u.DN**2
+
+
+def test_horne_uncertainty_with_mask():
+    """Test uncertainty propagation with masked pixels in HorneExtract."""
+    nrows, ncols = 20, 30
+    mask = np.zeros((nrows, ncols), dtype=bool)
+    # Mask some pixels at column 5
+    mask[8:12, 5] = True
+
+    img = Spectrum(
+        np.zeros((nrows, ncols)) * u.DN,
+        uncertainty=VarianceUncertainty(np.full((nrows, ncols), 4.0) * u.DN**2),
+        mask=mask,
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+    add_gaussian_source(img, amps=100.0, stddevs=2.0, means=10)
+
+    trace = FlatTrace(img, 10)
+    extracted = HorneExtract(img, trace)()
+
+    assert extracted.uncertainty is not None
+    # Uncertainty at masked column should be larger (fewer valid pixels)
+    # compared to unmasked columns
+    assert extracted.uncertainty.array[5] > extracted.uncertainty.array[0]
+
+
 class TestMasksExtract:
 
     def mk_flat_gauss_img(self, nrows=200, ncols=160, nan_slices=None, add_noise=True):
