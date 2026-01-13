@@ -2,7 +2,13 @@ import numpy as np
 import pytest
 from astropy import units as u
 from astropy.modeling import models
-from astropy.nddata import NDData, VarianceUncertainty, UnknownUncertainty
+from astropy.nddata import (
+    NDData,
+    VarianceUncertainty,
+    StdDevUncertainty,
+    InverseVariance,
+    UnknownUncertainty,
+)
 from astropy.tests.helper import assert_quantity_allclose
 
 from specreduce.background import Background
@@ -117,6 +123,154 @@ def test_boxcar_array_trace(mk_test_img):
     boxcar = BoxcarExtract(image, trace)
     spectrum = boxcar()
     assert np.allclose(spectrum.flux.value, np.full_like(spectrum.flux.value, 75.0))
+
+
+def test_boxcar_uncertainty_propagation():
+    """Test that BoxcarExtract propagates uncertainties correctly."""
+    # Create an image with known uniform flux and uncertainty
+    nrows, ncols = 10, 20
+    flux = np.full((nrows, ncols), 100.0)
+    variance = np.full((nrows, ncols), 4.0)
+
+    img = Spectrum(
+        flux * u.DN,
+        uncertainty=VarianceUncertainty(variance),
+        spectral_axis=np.arange(ncols) * u.pix,
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+    width = 3
+    extracted = BoxcarExtract(img, trace, width=width)()
+
+    # Check uncertainty exists and is the correct type
+    assert extracted.uncertainty is not None
+    assert isinstance(extracted.uncertainty, VarianceUncertainty)
+
+    # For width=3, summing 3 pixels each with variance=4 gives variance=12
+    # (weights are 1.0 for full pixels in aperture)
+    expected_variance = width * 4.0
+    np.testing.assert_allclose(extracted.uncertainty.array, expected_variance, rtol=0.01)
+
+    # Check units are correct (flux_unit^2)
+    assert extracted.uncertainty.unit == u.DN**2
+
+
+def test_boxcar_uncertainty_stddev_type():
+    """Test that StdDevUncertainty type is preserved."""
+    nrows, ncols = 10, 20
+    flux = np.full((nrows, ncols), 100.0)
+    stddev = np.full((nrows, ncols), 2.0)
+
+    img = Spectrum(
+        flux * u.DN, uncertainty=StdDevUncertainty(stddev), spectral_axis=np.arange(ncols) * u.pix
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+    extracted = BoxcarExtract(img, trace, width=3)()
+
+    assert isinstance(extracted.uncertainty, StdDevUncertainty)
+    expected_stddev = np.sqrt(3 * 4.0)
+    np.testing.assert_allclose(extracted.uncertainty.array, expected_stddev, rtol=0.01)
+    assert extracted.uncertainty.unit == u.DN
+
+
+def test_boxcar_uncertainty_inverse_variance_type():
+    """Test that InverseVariance type is preserved."""
+    nrows, ncols = 10, 20
+    flux = np.full((nrows, ncols), 100.0)
+    ivar = np.full((nrows, ncols), 0.25)
+
+    img = Spectrum(
+        flux * u.DN, uncertainty=InverseVariance(ivar), spectral_axis=np.arange(ncols) * u.pix
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+    extracted = BoxcarExtract(img, trace, width=3)()
+
+    assert isinstance(extracted.uncertainty, InverseVariance)
+    expected_ivar = 1.0 / (3 * 4.0)
+    np.testing.assert_allclose(extracted.uncertainty.array, expected_ivar, rtol=0.01)
+    assert extracted.uncertainty.unit == 1 / u.DN**2
+
+
+def test_boxcar_uncertainty_with_nonfinite():
+    """Test uncertainty propagation with nonfinite values in data."""
+    nrows, ncols = 10, 20
+    flux = np.full((nrows, ncols), 100.0)
+    variance = np.full((nrows, ncols), 4.0)
+    flux[5, 5] = np.nan
+
+    img = Spectrum(
+        flux * u.DN,
+        uncertainty=VarianceUncertainty(variance),
+        spectral_axis=np.arange(ncols) * u.pix,
+    )
+
+    trace = FlatTrace(img, 5)
+
+    # With mask_treatment="apply", NaN pixels excluded from both flux and variance
+    extracted = BoxcarExtract(img, trace, width=3, mask_treatment="apply")()
+    assert extracted.uncertainty is not None
+    # Column 5 has only 2 valid pixels instead of 3
+    # Variance formula: (sum w^2 sigma^2) / (sum w)^2 * W^2 = (2*4) / 4 * 9 = 18
+    np.testing.assert_allclose(extracted.uncertainty.array[5], 18.0, rtol=0.01)
+    # Other columns should have normal variance=12
+    np.testing.assert_allclose(extracted.uncertainty.array[0], 12.0, rtol=0.01)
+
+    # With mask_treatment="ignore", NaN in flux propagates to flux but variance
+    # is computed from the variance array which is finite
+    extracted_ignore = BoxcarExtract(img, trace, width=3, mask_treatment="ignore")()
+    assert np.isnan(extracted_ignore.flux.value[5])
+    # Variance is still computed from a finite variance array
+    np.testing.assert_allclose(extracted_ignore.uncertainty.array[5], 12.0, rtol=0.01)
+
+    # Test that NaN in a variance array does propagate
+    variance_with_nan = variance.copy()
+    variance_with_nan[5, 5] = np.nan
+    img_var_nan = Spectrum(
+        np.full((nrows, ncols), 100.0) * u.DN,
+        uncertainty=VarianceUncertainty(variance_with_nan),
+        spectral_axis=np.arange(ncols) * u.pix,
+    )
+    extracted_var_nan = BoxcarExtract(img_var_nan, trace, width=3, mask_treatment="ignore")()
+    assert np.isnan(extracted_var_nan.uncertainty.array[5])
+
+
+def test_boxcar_uncertainty_with_mask():
+    """Test uncertainty propagation with masked pixels."""
+    nrows, ncols = 10, 20
+    flux = np.full((nrows, ncols), 100.0)
+    variance = np.full((nrows, ncols), 4.0)
+    mask = np.zeros((nrows, ncols), dtype=bool)
+
+    # Mask one pixel in the extraction aperture at column 3
+    mask[5, 3] = True
+
+    img = Spectrum(
+        flux * u.DN,
+        uncertainty=VarianceUncertainty(variance),
+        mask=mask,
+        spectral_axis=np.arange(ncols) * u.pix,
+    )
+
+    trace = FlatTrace(img, 5)
+    extracted = BoxcarExtract(img, trace, width=3, mask_treatment="apply")()
+    assert extracted.uncertainty is not None
+    np.testing.assert_allclose(extracted.uncertainty.array[3], 18.0, rtol=0.01)
+    np.testing.assert_allclose(extracted.uncertainty.array[0], 12.0, rtol=0.01)
+
+
+def test_boxcar_no_input_uncertainty():
+    """Test that no uncertainty is returned when input has none."""
+    from astropy.nddata import CCDData
+
+    nrows, ncols = 10, 20
+    flux = np.full((nrows, ncols), 100.0)
+
+    img = CCDData(flux, unit=u.DN)
+    trace = FlatTrace(img, nrows // 2)
+    extracted = BoxcarExtract(img, trace, width=3)()
+    assert extracted.uncertainty is None
 
 
 def test_horne_image_validation(mk_test_img):
