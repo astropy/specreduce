@@ -497,21 +497,34 @@ def test_background_uncertainty_with_mask():
 
 
 def test_background_no_input_uncertainty():
-    """Test that background works when input image has no uncertainty."""
+    """Test that background estimates variance from flux when no uncertainty provided."""
     nrows, ncols = 10, 20
-    # Create image without uncertainty
+
+    # Create image with known noise pattern (no uncertainty provided)
+    np.random.seed(42)
+    noise_stddev = 2.0
+    flux = 100.0 + np.random.normal(0, noise_stddev, (nrows, ncols))
     img = Spectrum(
-        np.ones((nrows, ncols)) * u.DN,
+        flux * u.DN,
         spectral_axis=np.arange(ncols) * u.pix
     )
 
     trace = FlatTrace(img, nrows // 2)
     bg = Background(img, trace, width=4)
 
-    # Should still have variance (defaulting to 1.0)
+    # Should have variance estimated from flux
     assert hasattr(bg, "_bkg_variance")
     assert bg._bkg_variance is not None
 
-    # bkg_spectrum should still have uncertainty
+    # Variance should be positive and finite (estimated from flux, not defaulting to 1.0)
+    assert np.all(bg._bkg_variance >= 0)
+    assert np.all(np.isfinite(bg._bkg_variance))
+
+    # Verify variance was computed from flux by checking it varies with the data
+    # (if it defaulted to 1.0, all values would be identical)
+    # With noisy data, different columns should have different sample variances
+    assert not np.allclose(bg._bkg_variance, 1.0)  # Not defaulting to 1.0
+
+    # bkg_spectrum should have uncertainty
     bkg_spec = bg.bkg_spectrum()
     assert bkg_spec.uncertainty is not None

@@ -103,7 +103,7 @@ class Background(_ImageParser):
         if self.width == 0:
             self._bkg_array = np.zeros(self.image.shape[self.disp_axis])
             self._bkg_variance = np.zeros(self.image.shape[self.disp_axis])
-            self._variance_unit = self.image.unit ** 2
+            self._variance_unit = self.image.unit**2
             return
 
         self._set_traces()
@@ -206,26 +206,34 @@ class Background(_ImageParser):
         img : np.ma.MaskedArray
             The masked image array used for background computation.
         """
-        # Get input variance (default to ones if not provided)
+        # Get input variance (estimate from flux if not provided)
+        self._variance_unit = self.image.unit**2
         if self.image.uncertainty is not None:
-            input_variance = self.image.uncertainty.array
-            if hasattr(self.image.uncertainty, 'unit') and self.image.uncertainty.unit is not None:
-                self._variance_unit = self.image.uncertainty.unit
+            self._orig_uncty_type = type(self.image.uncertainty)
+            if self._orig_uncty_type == VarianceUncertainty:
+                var = self.image.uncertainty.array
             else:
-                self._variance_unit = self.image.unit ** 2
+                var = self.image.uncertainty.represent_as(VarianceUncertainty).array
         else:
-            input_variance = np.ones_like(self.image.data)
-            self._variance_unit = self.image.unit ** 2
+            # Estimate variance from flux values in background region
+            self._orig_uncty_type = VarianceUncertainty
+            bkg_mask = self.bkg_wimage > 0
+            valid_mask = bkg_mask & ~img.mask
+
+            # Compute sample variance along cross-dispersion axis for each column
+            masked_flux = np.ma.masked_array(self.image.data, ~valid_mask)
+            sample_variance = np.ma.var(masked_flux, axis=self.crossdisp_axis)
+
+            # Tile to full image shape (same variance for all pixels in a column)
+            var = np.tile(sample_variance.data, (self.image.shape[0], 1))
 
         # Create masked variance array matching the image mask
-        masked_variance = np.ma.masked_array(input_variance, img.mask)
+        masked_variance = np.ma.masked_array(var, img.mask)
 
         if self.statistic == "average":
             # Var(weighted_mean) = sum(w^2 * var) / (sum w)^2
-            weights_squared = self.bkg_wimage ** 2
-            numerator = np.ma.sum(
-                weights_squared * masked_variance, axis=self.crossdisp_axis
-            )
+            weights_squared = self.bkg_wimage**2
+            numerator = np.ma.sum(weights_squared * masked_variance, axis=self.crossdisp_axis)
             denominator = np.ma.sum(self.bkg_wimage, axis=self.crossdisp_axis) ** 2
             self._bkg_variance = (numerator / denominator).data
 
@@ -235,9 +243,7 @@ class Background(_ImageParser):
             bkg_mask = self.bkg_wimage > 0
             valid_mask = bkg_mask & ~img.mask
             n_pixels = np.sum(valid_mask, axis=self.crossdisp_axis)
-            variance_sum = np.sum(
-                np.where(valid_mask, input_variance, 0), axis=self.crossdisp_axis
-            )
+            variance_sum = np.sum(np.where(valid_mask, var, 0), axis=self.crossdisp_axis)
             mean_variance = variance_sum / n_pixels
             self._bkg_variance = (np.pi / 2) * mean_variance / n_pixels
 
@@ -358,17 +364,16 @@ class Background(_ImageParser):
         image = self._parse_image(image)
         arr = np.tile(self._bkg_array, (image.shape[0], 1))
         var_arr = np.tile(self._bkg_variance, (image.shape[0], 1))
-        uncertainty = VarianceUncertainty(var_arr * self._variance_unit)
+        uncertainty = VarianceUncertainty(var_arr * self._variance_unit).represent_as(
+            self._orig_uncty_type
+        )
 
         if SPECUTILS_LT_2:
             kwargs = {}
         else:
             kwargs = {"spectral_axis_index": arr.ndim - 1}
         return Spectrum(
-            arr * image.unit,
-            spectral_axis=image.spectral_axis,
-            uncertainty=uncertainty,
-            **kwargs
+            arr * image.unit, spectral_axis=image.spectral_axis, uncertainty=uncertainty, **kwargs
         )
 
     def bkg_spectrum(self, image=None, bkg_statistic=None) -> Spectrum:
@@ -390,15 +395,17 @@ class Background(_ImageParser):
             in the same units as the input image (or DN if none were provided).
         """
         if bkg_statistic is not None:
-            warnings.warn("'bkg_statistic' is deprecated and will be removed in a future release. "
-                          "Please use the 'statistic' argument in the Background initializer instead.",  # noqa
-                          DeprecationWarning,)
+            warnings.warn(
+                "'bkg_statistic' is deprecated and will be removed in a future release. "
+                "Please use the 'statistic' argument in the Background initializer instead.",  # noqa
+                DeprecationWarning,
+            )
 
-        uncertainty = VarianceUncertainty(self._bkg_variance * self._variance_unit)
+        uncertainty = VarianceUncertainty(self._bkg_variance * self._variance_unit).represent_as(
+            self._orig_uncty_type
+        )
         return Spectrum(
-            self._bkg_array * self.image.unit,
-            self.image.spectral_axis,
-            uncertainty=uncertainty
+            self._bkg_array * self.image.unit, self.image.spectral_axis, uncertainty=uncertainty
         )
 
     def sub_image(self, image=None) -> Spectrum:
@@ -461,9 +468,7 @@ class Background(_ImageParser):
             var_sum = np.nansum(sub_img.uncertainty.array, axis=self.crossdisp_axis)
             uncertainty = VarianceUncertainty(var_sum * sub_img.uncertainty.unit)
             result = Spectrum(
-                result.flux,
-                spectral_axis=result.spectral_axis,
-                uncertainty=uncertainty
+                result.flux, spectral_axis=result.spectral_axis, uncertainty=uncertainty
             )
         return result
 
