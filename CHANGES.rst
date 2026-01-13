@@ -1,5 +1,10 @@
-1.7.1 (2025-11-2x)
+1.8.0 (2026-01-xx)
 ------------------
+
+New Features
+^^^^^^^^^^^^
+
+- Added uncertainty propagation to ``specreduce.extract.BoxcarExtract``.
 
 Other changes
 ^^^^^^^^^^^^^
