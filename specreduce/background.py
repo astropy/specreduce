@@ -177,7 +177,7 @@ class Background(_ImageParser):
 
         if self.traces == []:
             # assume a flat trace at the image center if nothing is passed in.
-            trace_pos = self.image.shape[self.disp_axis] / 2.0
+            trace_pos = self.image.shape[self.crossdisp_axis] / 2.0
             self.traces = [FlatTrace(self.image, trace_pos)]
 
         if isinstance(self.traces, Trace):
