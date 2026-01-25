@@ -284,16 +284,21 @@ class Background(_ImageParser):
         crossdisp_axis : int
             cross-dispersion axis
         mask_treatment : string
-            The method for handling masked or non-finite data. Choice of ``filter``,
-            ``omit`, or ``zero_fill``. If `filter` is chosen, masked/non-finite data
-            will be filtered during the fit to each bin/column (along disp. axis) to
-            find the peak. If ``omit`` is chosen, columns along disp_axis with any
-            masked/non-finite data values will be fully masked (i.e, 2D mask is
-            collapsed to 1D and applied). If ``zero_fill`` is chosen, masked/non-finite
-            data will be replaced with 0.0 in the input image, and the mask will then
-            be dropped. For all three options, the input mask (optional on input
-            NDData object) will be combined with a mask generated from any non-finite
-            values in the image data.
+            Specifies how to handle masked or non-finite values in the input image.
+            The accepted values are:
+
+            - ``apply``: The image remains unchanged, and any existing mask is combined\
+                with a mask derived from non-finite values.
+            - ``ignore``: The image remains unchanged, and any existing mask is dropped.
+            - ``propagate``: The image remains unchanged, and any masked or non-finite pixel\
+                causes the mask to extend across the entire cross-dispersion axis.
+            - ``zero_fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
+                and the mask is dropped.
+            - ``nan_fill``:  Pixels that are either masked or non-finite are replaced with nan,\
+                and the mask is dropped.
+            - ``apply_mask_only``: The  image and mask are left unmodified.
+            - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
+                new mask is created based on non-finite values.
         """
 
         image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
@@ -333,16 +338,21 @@ class Background(_ImageParser):
         crossdisp_axis : int
             Cross-dispersion axis
         mask_treatment : string
-            The method for handling masked or non-finite data. Choice of ``filter``,
-            ``omit``, or ``zero_fill``. If `filter` is chosen, masked/non-finite data
-            will be filtered during the fit to each bin/column (along disp. axis) to
-            find the peak. If ``omit`` is chosen, columns along disp_axis with any
-            masked/non-finite data values will be fully masked (i.e, 2D mask is
-            collapsed to 1D and applied). If ``zero_fill`` is chosen, masked/non-finite
-            data will be replaced with 0.0 in the input image, and the mask will then
-            be dropped. For all three options, the input mask (optional on input
-            NDData object) will be combined with a mask generated from any non-finite
-            values in the image data.
+            Specifies how to handle masked or non-finite values in the input image.
+            The accepted values are:
+
+            - ``apply``: The image remains unchanged, and any existing mask is combined\
+                with a mask derived from non-finite values.
+            - ``ignore``: The image remains unchanged, and any existing mask is dropped.
+            - ``propagate``: The image remains unchanged, and any masked or non-finite pixel\
+                causes the mask to extend across the entire cross-dispersion axis.
+            - ``zero_fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
+                and the mask is dropped.
+            - ``nan_fill``:  Pixels that are either masked or non-finite are replaced with nan,\
+                and the mask is dropped.
+            - ``apply_mask_only``: The  image and mask are left unmodified.
+            - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
+                new mask is created based on non-finite values.
         """
         image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
         kwargs["traces"] = [trace_object + separation]
