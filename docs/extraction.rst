@@ -44,6 +44,33 @@ flux is scaled according to the effective number of unmasked pixels. When using 
 options (``filter`` or ``omit``), the non-finite values may be propagated or treated
 differently as documented in the API.
 
+Uncertainty propagation
+-----------------------
+
+Both `~specreduce.extract.BoxcarExtract` and `~specreduce.extract.HorneExtract`
+propagate uncertainties from the input image to the extracted 1D spectrum.
+
+For the input image, uncertainties can be provided in two ways:
+
+1. As part of an `~astropy.nddata.NDData` object via ``image.uncertainty``
+2. Via the ``variance`` parameter (for HorneExtract)
+
+The extracted spectrum includes the propagated uncertainty, which can be accessed via
+the ``uncertainty`` attribute:
+
+.. code-block:: python
+
+  extract = BoxcarExtract(image, trace, width=5)
+  spectrum = extract.spectrum
+  print(spectrum.uncertainty)
+
+For `~specreduce.extract.BoxcarExtract`, the uncertainty is propagated through the
+weighted sum over the extraction aperture. For `~specreduce.extract.HorneExtract`,
+the optimal extraction algorithm naturally produces properly weighted uncertainties.
+
+Calling the extraction methods
+------------------------------
+
 The previous examples in this section show how to initialize the BoxcarExtract
 or HorneExtract objects with their required parameters. To extract the 1D
 spectrum

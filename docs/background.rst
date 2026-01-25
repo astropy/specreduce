@@ -32,3 +32,40 @@ and the background-subtracted image via `~specreduce.background.Background.sub_i
 
 The background and trace steps can be done iteratively, to refine an automated
 trace using the background-subtracted image as input.
+
+Outlier rejection
+-----------------
+
+The background estimation supports sigma clipping for outlier rejection, which is useful
+for removing cosmic rays and other artifacts from the background region. The ``sigma``
+parameter controls the number of standard deviations used for clipping (default is 5.0).
+Set ``sigma=None`` to disable sigma clipping.
+
+.. code-block:: python
+
+  # Use tighter sigma clipping for aggressive outlier rejection
+  bg = Background.two_sided(image, trace, separation=5, width=4, sigma=3.0)
+
+  # Disable sigma clipping
+  bg = Background.two_sided(image, trace, separation=5, width=4, sigma=None)
+
+Uncertainty propagation
+-----------------------
+
+The `~specreduce.background.Background` class propagates uncertainties through
+background subtraction. When the input image is an `~astropy.nddata.NDData` object
+with ``image.uncertainty`` provided, the uncertainties are propagated using variance
+formulas appropriate for the chosen statistic (``average`` or ``median``). When no
+uncertainty is provided, it is estimated from the variance of flux values in the
+background region.
+
+The background image, background spectrum, and background-subtracted outputs all
+include proper uncertainties:
+
+.. code-block:: python
+
+  bg = Background.two_sided(image, trace, separation=5, width=4)
+
+  # Access background with uncertainty
+  bkg_spec = bg.bkg_spectrum()
+  print(bkg_spec.uncertainty)
