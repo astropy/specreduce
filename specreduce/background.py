@@ -104,6 +104,10 @@ class Background(_ImageParser):
             self._bkg_array = np.zeros(self.image.shape[self.disp_axis])
             self._bkg_variance = np.zeros(self.image.shape[self.disp_axis])
             self._variance_unit = self.image.unit**2
+            self._orig_uncty_type = (
+                type(self.image.uncertainty) if self.image.uncertainty is not None
+                else VarianceUncertainty
+            )
             return
 
         self._set_traces()
@@ -464,9 +468,13 @@ class Background(_ImageParser):
             result = Spectrum(ext1d, spectral_axis=sub_img.spectral_axis)
 
         # Propagate uncertainty: Var(sum) = sum of variances
+        # Must convert to variance before summing, then convert back to original type
         if sub_img.uncertainty is not None:
-            var_sum = np.nansum(sub_img.uncertainty.array, axis=self.crossdisp_axis)
-            uncertainty = VarianceUncertainty(var_sum * sub_img.uncertainty.unit)
+            var_uncert = sub_img.uncertainty.represent_as(VarianceUncertainty)
+            var_sum = np.nansum(var_uncert.array, axis=self.crossdisp_axis)
+            uncertainty = VarianceUncertainty(var_sum * var_uncert.unit).represent_as(
+                self._orig_uncty_type
+            )
             result = Spectrum(
                 result.flux, spectral_axis=result.spectral_axis, uncertainty=uncertainty
             )

@@ -1,7 +1,7 @@
 import astropy.units as u
 import numpy as np
 import pytest
-from astropy.nddata import NDData, VarianceUncertainty
+from astropy.nddata import NDData, VarianceUncertainty, StdDevUncertainty, InverseVariance
 
 from specreduce.background import Background
 from specreduce.compat import Spectrum
@@ -528,3 +528,69 @@ def test_background_no_input_uncertainty():
     # bkg_spectrum should have uncertainty
     bkg_spec = bg.bkg_spectrum()
     assert bkg_spec.uncertainty is not None
+
+
+def test_background_uncertainty_stddev_type():
+    """Test that StdDevUncertainty type is preserved in Background output."""
+    nrows, ncols = 10, 20
+    stddev = 2.0  # stddev=2 means variance=4
+    img = Spectrum(
+        np.ones((nrows, ncols)) * 10 * u.DN,
+        uncertainty=StdDevUncertainty(np.full((nrows, ncols), stddev) * u.DN),
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+    bg = Background(img, trace, width=4)
+
+    # bkg_spectrum should return StdDevUncertainty
+    bkg_spec = bg.bkg_spectrum()
+    assert bkg_spec.uncertainty is not None
+    assert isinstance(bkg_spec.uncertainty, StdDevUncertainty)
+
+    # bkg_image should return StdDevUncertainty
+    bkg_img = bg.bkg_image()
+    assert bkg_img.uncertainty is not None
+    assert isinstance(bkg_img.uncertainty, StdDevUncertainty)
+
+    # sub_spectrum should return StdDevUncertainty
+    sub_spec = bg.sub_spectrum()
+    assert sub_spec.uncertainty is not None
+    assert isinstance(sub_spec.uncertainty, StdDevUncertainty)
+
+    # Values should be positive and finite
+    assert np.all(bkg_spec.uncertainty.array > 0)
+    assert np.all(np.isfinite(bkg_spec.uncertainty.array))
+
+
+def test_background_uncertainty_inverse_variance_type():
+    """Test that InverseVariance type is preserved in Background output."""
+    nrows, ncols = 10, 20
+    ivar = 0.25  # ivar=0.25 means variance=4
+    img = Spectrum(
+        np.ones((nrows, ncols)) * 10 * u.DN,
+        uncertainty=InverseVariance(np.full((nrows, ncols), ivar) / u.DN**2),
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+    bg = Background(img, trace, width=4)
+
+    # bkg_spectrum should return InverseVariance
+    bkg_spec = bg.bkg_spectrum()
+    assert bkg_spec.uncertainty is not None
+    assert isinstance(bkg_spec.uncertainty, InverseVariance)
+
+    # bkg_image should return InverseVariance
+    bkg_img = bg.bkg_image()
+    assert bkg_img.uncertainty is not None
+    assert isinstance(bkg_img.uncertainty, InverseVariance)
+
+    # sub_spectrum should return InverseVariance
+    sub_spec = bg.sub_spectrum()
+    assert sub_spec.uncertainty is not None
+    assert isinstance(sub_spec.uncertainty, InverseVariance)
+
+    # Values should be positive and finite
+    assert np.all(bkg_spec.uncertainty.array > 0)
+    assert np.all(np.isfinite(bkg_spec.uncertainty.array))
