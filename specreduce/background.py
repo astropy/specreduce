@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from astropy import units as u
 from astropy.nddata import VarianceUncertainty
+from astropy.stats import sigma_clip
 from astropy.utils.decorators import deprecated_attribute
 
 from specreduce.compat import SPECUTILS_LT_2, Spectrum
@@ -58,9 +59,13 @@ class Background(_ImageParser):
             and the mask is dropped.
         - ``nan_fill``:  Pixels that are either masked or non-finite are replaced with nan,\
             and the mask is dropped.
-        - ``apply_mask_only``: The  image and mask are left unmodified.
-        - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
+        - ``apply_mask_only``: The image and mask are left unmodified.
+        - ``apply_nan_only``: The image is left unmodified, the old mask is dropped, and a\
             new mask is created based on non-finite values.
+    sigma
+        Number of standard deviations for sigma clipping outlier rejection.
+        Clipping is applied column-by-column along the cross-dispersion axis
+        within the background aperture. If None, no sigma clipping is performed.
 
 """
 
@@ -75,6 +80,7 @@ class Background(_ImageParser):
     disp_axis: int = 1
     crossdisp_axis: int = 0
     mask_treatment: MaskingOption = "apply"
+    sigma: float | None = 5.0
     _valid_mask_treatment_methods = (
         "apply",
         "ignore",
@@ -108,6 +114,7 @@ class Background(_ImageParser):
                 type(self.image.uncertainty) if self.image.uncertainty is not None
                 else VarianceUncertainty
             )
+            self._outlier_mask = np.zeros(self.image.shape, dtype=bool)
             return
 
         self._set_traces()
@@ -153,14 +160,33 @@ class Background(_ImageParser):
 
         self.bkg_wimage = bkg_wimage
 
+        # Apply sigma clipping for outlier rejection if enabled
+        if self.sigma is not None:
+            # Temporarily set mask to exclude pixels outside the background window for clipping
+            original_mask = img.mask.copy()
+            temp_mask = (self.bkg_wimage == 0) | original_mask
+            img.mask = temp_mask
+            # Apply sigma clipping column by column
+            clipped = sigma_clip(img, sigma=self.sigma, axis=self.crossdisp_axis,
+                                 masked=True, copy=False)
+            # Store only the NEW clipped mask (exclude pixels that were already masked)
+            self._outlier_mask = clipped.mask & ~temp_mask
+            # Restore original mask
+            img.mask = original_mask
+        else:
+            self._outlier_mask = np.zeros_like(img.data, dtype=bool)
+
+        combined_mask = img.mask | self._outlier_mask
+
         if self.statistic == "average":
-            self._bkg_array = np.ma.average(img, weights=self.bkg_wimage, axis=self.crossdisp_axis)
+            img_masked = np.ma.masked_array(img.data, combined_mask)
+            self._bkg_array = np.ma.average(img_masked, weights=self.bkg_wimage,
+                                            axis=self.crossdisp_axis)
 
         elif self.statistic == "median":
-            # combine where background weight image is 0 with image masked (which already
-            # accounts for non-finite data that wasn't already masked)
-            img.mask = np.logical_or(self.bkg_wimage == 0, self.image.mask)
-            self._bkg_array = np.ma.median(img, axis=self.crossdisp_axis)
+            combined_mask = combined_mask | (self.bkg_wimage == 0)
+            img_masked = np.ma.masked_array(img.data, combined_mask)
+            self._bkg_array = np.ma.median(img_masked, axis=self.crossdisp_axis)
         else:
             raise ValueError("statistic must be 'average' or 'median'")
 
@@ -210,6 +236,9 @@ class Background(_ImageParser):
         img : np.ma.MaskedArray
             The masked image array used for background computation.
         """
+        # Combined mask includes original mask and sigma-clipped pixels
+        combined_mask = img.mask | self._outlier_mask
+
         # Get input variance (estimate from flux if not provided)
         self._variance_unit = self.image.unit**2
         if self.image.uncertainty is not None:
@@ -222,7 +251,7 @@ class Background(_ImageParser):
             # Estimate variance from flux values in background region
             self._orig_uncty_type = VarianceUncertainty
             bkg_mask = self.bkg_wimage > 0
-            valid_mask = bkg_mask & ~img.mask
+            valid_mask = bkg_mask & ~combined_mask
 
             # Compute sample variance along cross-dispersion axis for each column
             masked_flux = np.ma.masked_array(self.image.data, ~valid_mask)
@@ -231,8 +260,8 @@ class Background(_ImageParser):
             # Tile to full image shape (same variance for all pixels in a column)
             var = np.tile(sample_variance.data, (self.image.shape[0], 1))
 
-        # Create masked variance array matching the image mask
-        masked_variance = np.ma.masked_array(var, img.mask)
+        # Create masked variance array using combined mask
+        masked_variance = np.ma.masked_array(var, combined_mask)
 
         if self.statistic == "average":
             # Var(weighted_mean) = sum(w^2 * var) / (sum w)^2
@@ -245,7 +274,7 @@ class Background(_ImageParser):
             # Var(median) ~ (pi/2) * var / n for approximately normal data
             # Use mean variance of included pixels
             bkg_mask = self.bkg_wimage > 0
-            valid_mask = bkg_mask & ~img.mask
+            valid_mask = bkg_mask & ~combined_mask
             n_pixels = np.sum(valid_mask, axis=self.crossdisp_axis)
             variance_sum = np.sum(np.where(valid_mask, var, 0), axis=self.crossdisp_axis)
             mean_variance = variance_sum / n_pixels

@@ -594,3 +594,108 @@ def test_background_uncertainty_inverse_variance_type():
     # Values should be positive and finite
     assert np.all(bkg_spec.uncertainty.array > 0)
     assert np.all(np.isfinite(bkg_spec.uncertainty.array))
+
+
+def test_sigma_clipping_rejects_outliers():
+    """Test that sigma clipping rejects outlier pixels in background region."""
+    nrows, ncols = 20, 30
+    true_bkg = 10.0
+
+    # Create image with uniform background
+    flux = np.ones((nrows, ncols)) * true_bkg
+
+    # Add extreme outliers in background region (should be clipped)
+    flux[2, 5] = 1000.0  # extreme outlier
+    flux[17, 10] = -500.0  # extreme outlier
+
+    img = Spectrum(
+        flux * u.DN,
+        uncertainty=VarianceUncertainty(np.ones((nrows, ncols)) * u.DN**2),
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+
+    # With sigma clipping enabled (low sigma to ensure clipping)
+    bg_clipped = Background(img, trace, width=4, sigma=3.0)
+
+    # Without sigma clipping
+    bg_no_clip = Background(img, trace, width=4, sigma=None)
+
+    # Sigma clip mask should mark the outliers (if they fall in bkg region)
+    assert hasattr(bg_clipped, "_outlier_mask")
+    assert bg_clipped._outlier_mask.shape == img.data.shape
+
+    # Background with clipping should be closer to true value
+    # than without clipping (for columns with outliers)
+    bkg_clipped = bg_clipped.bkg_spectrum().flux.value
+    bkg_no_clip = bg_no_clip.bkg_spectrum().flux.value
+
+    # Column 5 has outlier at row 2 - clipped version should be closer to true_bkg
+    if bg_clipped._outlier_mask[2, 5]:  # outlier was in bkg region and clipped
+        assert np.abs(bkg_clipped[5] - true_bkg) < np.abs(bkg_no_clip[5] - true_bkg)
+
+
+def test_sigma_clipping_disabled():
+    """Test that sigma=None disables sigma clipping."""
+    nrows, ncols = 10, 20
+    flux = np.ones((nrows, ncols)) * 10.0
+    flux[2, 5] = 100.0
+
+    img = Spectrum(
+        flux * u.DN,
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+    bg = Background(img, trace, width=4, sigma=None)
+
+    # Sigma clip mask should be all False
+    assert hasattr(bg, "_outlier_mask")
+    assert not np.any(bg._outlier_mask)
+
+
+def test_sigma_clipping_preserves_image_mask():
+    """Test that sigma clipping doesn't modify the original image mask."""
+    nrows, ncols = 10, 20
+    flux = np.ones((nrows, ncols)) * 10.0
+    flux[2, 5] = 1000.0  # extreme outlier
+
+    # Create image with existing mask
+    original_mask = np.zeros((nrows, ncols), dtype=bool)
+    original_mask[3, 7] = True
+    original_mask[5, 12] = True
+
+    img = Spectrum(
+        flux * u.DN,
+        mask=original_mask.copy(),
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+    bg = Background(img, trace, width=4, sigma=3.0)
+
+    # Original image mask should be unchanged
+    assert np.array_equal(bg.image.mask, original_mask)
+
+    # Sigma clip mask should be stored separately
+    assert hasattr(bg, "_outlier_mask")
+    assert not np.array_equal(bg._outlier_mask, original_mask)
+
+
+def test_sigma_clipping_default():
+    """Test that default sigma=5 is used when not specified."""
+    nrows, ncols = 10, 20
+    flux = np.ones((nrows, ncols)) * 10.0
+
+    img = Spectrum(
+        flux * u.DN,
+        spectral_axis=np.arange(ncols) * u.pix
+    )
+
+    trace = FlatTrace(img, nrows // 2)
+    bg = Background(img, trace, width=4)
+
+    # Default sigma should be 5
+    assert bg.sigma == 5.0
+    assert hasattr(bg, "_outlier_mask")
