@@ -6,6 +6,14 @@ New Features
 
 - Added uncertainty propagation to ``specreduce.extract.BoxcarExtract`` and
   ``specreduce.extract.HorneExtract``. The extracted spectra have now proper uncertainties.
+- Added uncertainty propagation to ``specreduce.background.Background``. The
+  ``bkg_image()``, ``bkg_spectrum()``, ``sub_image()``, and ``sub_spectrum()`` methods
+  now return spectra with proper uncertainties. When input image has uncertainty, it is
+  propagated using variance formulas appropriate for the chosen statistic. When no
+  uncertainty is provided, it is estimated from the flux values in the background region.
+- Added optional ``sigma`` parameter to ``specreduce.background.Background`` for sigma
+  clipping outlier rejection in background estimation. Default is 5.0; set to ``None``
+  to disable.
 
 Other changes
 ^^^^^^^^^^^^^
