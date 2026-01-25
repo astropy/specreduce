@@ -131,7 +131,7 @@ def test_trace_inputs(mk_test_img_raw):
     # When `Background` object is created with no Trace object passed in it should
     # create a FlatTrace in the middle of the image (according to disp. axis)
     background = Background(image, width=5)
-    assert np.all(background.traces[0].trace.data == image.shape[1] / 2.0)
+    assert np.all(background.traces[0].trace.data == image.shape[0] / 2.0)
 
     # FlatTrace(s) should be created if number or list of numbers is passed in for `traces`
     background = Background(image, 10.0, width=5)
