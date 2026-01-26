@@ -80,7 +80,7 @@ class Background(_ImageParser):
     disp_axis: int = 1
     crossdisp_axis: int = 0
     mask_treatment: MaskingOption = "apply"
-    sigma: float | None = 5.0
+    sigma: None | float = 5.0
     _valid_mask_treatment_methods = (
         "apply",
         "ignore",
