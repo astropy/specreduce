@@ -32,7 +32,7 @@ class Background(_ImageParser):
     ----------
     image
         Image with 2-D spectral image data
-    traces : List, `specreduce.tracing.Trace`, int, float
+    traces
         Individual or list of trace object(s) (or integers/floats to define
         FlatTraces) to extract the background. If None, a ``FlatTrace`` at the
         center of the image (according to ``disp_axis``) will be used.
@@ -286,7 +286,6 @@ class Background(_ImageParser):
         Determine the background from an image for subtraction centered around
         an input trace.
 
-
         Example: ::
 
             trace = FitTrace(image, guess=trace_pos)
@@ -294,43 +293,24 @@ class Background(_ImageParser):
 
         Parameters
         ----------
-        image : `~astropy.nddata.NDData`-like or array-like
+        image
             Image with 2-D spectral image data. Assumes cross-dispersion
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1.
-        trace_object : `~specreduce.tracing.Trace`
-            estimated trace of the spectrum to center the background traces
-        separation : float
-            separation from ``trace_object`` for the background regions
-        width : float
-            width of each background aperture in pixels
-        statistic : string
-            statistic to use when computing the background.  'average' will
-            account for partial pixel weights, 'median' will include all partial
-            pixels.
-        disp_axis
-            dispersion axis
-        crossdisp_axis
-            cross-dispersion axis
-        mask_treatment
-            Specifies how to handle masked or non-finite values in the input image.
-            The accepted values are:
+        trace_object
+            Estimated trace of the spectrum to center the background traces.
+        separation
+            Separation from ``trace_object`` for the background regions.
+        **kwargs
+            Additional keyword arguments passed to the `Background` constructor.
+            See `Background` for available options including ``width``, ``statistic``,
+            ``disp_axis``, ``crossdisp_axis``, ``mask_treatment``, and ``sigma``.
 
-            - ``apply``: The image remains unchanged, and any existing mask is combined\
-                with a mask derived from non-finite values.
-            - ``ignore``: The image remains unchanged, and any existing mask is dropped.
-            - ``propagate``: The image remains unchanged, and any masked or non-finite pixel\
-                causes the mask to extend across the entire cross-dispersion axis.
-            - ``zero_fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
-                and the mask is dropped.
-            - ``nan_fill``:  Pixels that are either masked or non-finite are replaced with nan,\
-                and the mask is dropped.
-            - ``apply_mask_only``: The  image and mask are left unmodified.
-            - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
-                new mask is created based on non-finite values.
-
+        Returns
+        -------
+        `Background`
+            A Background object with two-sided background regions.
         """
-
         image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
         kwargs["traces"] = [trace_object - separation, trace_object + separation]
         return cls(image=image, **kwargs)
@@ -348,42 +328,24 @@ class Background(_ImageParser):
 
         Parameters
         ----------
-        image : `~astropy.nddata.NDData`-like or array-like
+        image
             Image with 2-D spectral image data. Assumes cross-dispersion
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1.
-        trace_object : `~specreduce.tracing.Trace`
-            Estimated trace of the spectrum to center the background traces
-        separation : float
-            Separation from ``trace_object`` for the background, positive will be
+        trace_object
+            Estimated trace of the spectrum to center the background trace.
+        separation
+            Separation from ``trace_object`` for the background. Positive will be
             above the trace, negative below.
-        width : float
-            Width of each background aperture in pixels
-        statistic : string
-            Statistic to use when computing the background.  'average' will
-            account for partial pixel weights, 'median' will include all partial
-            pixels.
-        disp_axis : int
-            Dispersion axis
-        crossdisp_axis : int
-            Cross-dispersion axis
-        mask_treatment
-            Specifies how to handle masked or non-finite values in the input image.
-            The accepted values are:
+        **kwargs
+            Additional keyword arguments passed to the `Background` constructor.
+            See `Background` for available options including ``width``, ``statistic``,
+            ``disp_axis``, ``crossdisp_axis``, ``mask_treatment``, and ``sigma``.
 
-            - ``apply``: The image remains unchanged, and any existing mask is combined\
-                with a mask derived from non-finite values.
-            - ``ignore``: The image remains unchanged, and any existing mask is dropped.
-            - ``propagate``: The image remains unchanged, and any masked or non-finite pixel\
-                causes the mask to extend across the entire cross-dispersion axis.
-            - ``zero_fill``: Pixels that are either masked or non-finite are replaced with 0.0,\
-                and the mask is dropped.
-            - ``nan_fill``:  Pixels that are either masked or non-finite are replaced with nan,\
-                and the mask is dropped.
-            - ``apply_mask_only``: The  image and mask are left unmodified.
-            - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
-                new mask is created based on non-finite values.
-
+        Returns
+        -------
+        `Background`
+            A Background object with a one-sided background region.
         """
         image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
         kwargs["traces"] = [trace_object + separation]
@@ -427,15 +389,18 @@ class Background(_ImageParser):
 
         Parameters
         ----------
-        image : `~astropy.nddata.NDData`-like or array-like, optional
+        image
             Image with 2D spectral image data. Assumes cross-dispersion
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1. If None, will extract the background
-            from ``image`` used to initialize the class. [default: None]
+            from ``image`` used to initialize the class.
+        bkg_statistic
+            Deprecated. Use ``statistic`` parameter in the `Background`
+            constructor instead.
 
         Returns
         -------
-        spec : `~specutils.Spectrum`
+        `~specutils.Spectrum1D`
             The background 1D spectrum, with flux and uncertainty expressed
             in the same units as the input image (or DN if none were provided).
         """
@@ -459,14 +424,16 @@ class Background(_ImageParser):
 
         Parameters
         ----------
-        image : nddata-compatible image or None
-            image with 2D spectral image data.  If None, will extract
-            the background from ``image`` used to initialize the class.
+        image
+            `~astropy.nddata.NDData`-like or array-like 2D spectral image data.
+            If None, will extract the background from ``image`` used to
+            initialize the class.
 
         Returns
         -------
-        spec : `~specutils.Spectrum`
-            Spectrum object with same shape as ``image``.
+        `~specutils.Spectrum`
+            Spectrum object with same shape as ``image``, including propagated
+            uncertainty.
         """
         image = self._parse_image(image)
 
@@ -524,5 +491,15 @@ class Background(_ImageParser):
     def __rsub__(self, image):
         """
         Subtract the background from an image.
+
+        Parameters
+        ----------
+        image
+            `~astropy.nddata.NDData`-like or array-like 2D spectral image data.
+
+        Returns
+        -------
+        `~specutils.Spectrum`
+            Background-subtracted image with propagated uncertainty.
         """
         return self.sub_image(image)

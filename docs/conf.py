@@ -207,7 +207,8 @@ intersphinx_mapping.update(
 # ArrayLike from numpy.typing is not properly resolved by intersphinx
 nitpick_ignore = [
     ("py:class", "ArrayLike"),
-    ("py:class", "numpy._typing.ArrayLike")
+    ("py:class", "numpy._typing.ArrayLike"),
+    ("py:class", "specutils.spectra.spectrum1d.Spectrum1D"),
 ]
 
 # -- Options for linkcheck output -------------------------------------------
