@@ -308,11 +308,11 @@ class Background(_ImageParser):
             statistic to use when computing the background.  'average' will
             account for partial pixel weights, 'median' will include all partial
             pixels.
-        disp_axis : int
+        disp_axis
             dispersion axis
-        crossdisp_axis : int
+        crossdisp_axis
             cross-dispersion axis
-        mask_treatment : string
+        mask_treatment
             Specifies how to handle masked or non-finite values in the input image.
             The accepted values are:
 
@@ -328,6 +328,7 @@ class Background(_ImageParser):
             - ``apply_mask_only``: The  image and mask are left unmodified.
             - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
                 new mask is created based on non-finite values.
+
         """
 
         image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
@@ -366,7 +367,7 @@ class Background(_ImageParser):
             Dispersion axis
         crossdisp_axis : int
             Cross-dispersion axis
-        mask_treatment : string
+        mask_treatment
             Specifies how to handle masked or non-finite values in the input image.
             The accepted values are:
 
@@ -382,6 +383,7 @@ class Background(_ImageParser):
             - ``apply_mask_only``: The  image and mask are left unmodified.
             - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
                 new mask is created based on non-finite values.
+
         """
         image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
         kwargs["traces"] = [trace_object + separation]
