@@ -207,6 +207,7 @@ intersphinx_mapping.update(
 # ArrayLike from numpy.typing is not properly resolved by intersphinx
 nitpick_ignore = [
     ("py:class", "ArrayLike"),
+    ("py:class", "numpy._typing.ArrayLike")
 ]
 
 # -- Options for linkcheck output -------------------------------------------
