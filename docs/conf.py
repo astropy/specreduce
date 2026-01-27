@@ -211,6 +211,15 @@ nitpick_ignore = [
     ("py:class", "specutils.spectra.spectrum1d.Spectrum1D"),
 ]
 
+# Ignore complex type annotations that can't be cross-referenced
+# These come from autodoc processing dataclass fields with Literal, Union, and generic types
+nitpick_ignore_regex = [
+    (r"py:obj", r"typing\.Literal\[.*"),      # Literal types with string values
+    (r"py:class", r"tuple\[.*"),               # Generic tuple types
+    (r"py:class", r"None \| dict\[.*"),        # Union types with dict
+    (r"py:class", r"dict\[.*"),                # Generic dict types
+]
+
 # -- Options for linkcheck output -------------------------------------------
 linkcheck_retry = 5
 linkcheck_ignore = [
