@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from astropy import units as u
+from astropy.nddata import VarianceUncertainty
+from astropy.stats import sigma_clip
 from astropy.utils.decorators import deprecated_attribute
 
 from specreduce.compat import SPECUTILS_LT_2, Spectrum
@@ -30,7 +32,7 @@ class Background(_ImageParser):
     ----------
     image
         Image with 2-D spectral image data
-    traces : List, `specreduce.tracing.Trace`, int, float
+    traces
         Individual or list of trace object(s) (or integers/floats to define
         FlatTraces) to extract the background. If None, a ``FlatTrace`` at the
         center of the image (according to ``disp_axis``) will be used.
@@ -57,9 +59,13 @@ class Background(_ImageParser):
             and the mask is dropped.
         - ``nan_fill``:  Pixels that are either masked or non-finite are replaced with nan,\
             and the mask is dropped.
-        - ``apply_mask_only``: The  image and mask are left unmodified.
-        - ``apply_nan_only``: The  image is left unmodified, the old mask is dropped, and a\
+        - ``apply_mask_only``: The image and mask are left unmodified.
+        - ``apply_nan_only``: The image is left unmodified, the old mask is dropped, and a\
             new mask is created based on non-finite values.
+    sigma
+        Number of standard deviations for sigma clipping outlier rejection.
+        Clipping is applied column-by-column along the cross-dispersion axis
+        within the background aperture. If None, no sigma clipping is performed.
 
 """
 
@@ -74,6 +80,7 @@ class Background(_ImageParser):
     disp_axis: int = 1
     crossdisp_axis: int = 0
     mask_treatment: MaskingOption = "apply"
+    sigma: None | float = 5.0
     _valid_mask_treatment_methods = (
         "apply",
         "ignore",
@@ -101,6 +108,13 @@ class Background(_ImageParser):
             raise ValueError("width must be positive")
         if self.width == 0:
             self._bkg_array = np.zeros(self.image.shape[self.disp_axis])
+            self._bkg_variance = np.zeros(self.image.shape[self.disp_axis])
+            self._variance_unit = self.image.unit**2
+            self._orig_uncty_type = (
+                type(self.image.uncertainty) if self.image.uncertainty is not None
+                else VarianceUncertainty
+            )
+            self._outlier_mask = np.zeros(self.image.shape, dtype=bool)
             return
 
         self._set_traces()
@@ -146,16 +160,38 @@ class Background(_ImageParser):
 
         self.bkg_wimage = bkg_wimage
 
+        # Apply sigma clipping for outlier rejection if enabled
+        if self.sigma is not None:
+            # Temporarily set mask to exclude pixels outside the background window for clipping
+            original_mask = img.mask.copy()
+            temp_mask = (self.bkg_wimage == 0) | original_mask
+            img.mask = temp_mask
+            # Apply sigma clipping column by column
+            clipped = sigma_clip(img, sigma=self.sigma, axis=self.crossdisp_axis,
+                                 masked=True, copy=False)
+            # Store only the NEW clipped mask (exclude pixels that were already masked)
+            self._outlier_mask = clipped.mask & ~temp_mask
+            # Restore original mask
+            img.mask = original_mask
+        else:
+            self._outlier_mask = np.zeros_like(img.data, dtype=bool)
+
+        combined_mask = img.mask | self._outlier_mask
+
         if self.statistic == "average":
-            self._bkg_array = np.ma.average(img, weights=self.bkg_wimage, axis=self.crossdisp_axis)
+            img_masked = np.ma.masked_array(img.data, combined_mask)
+            self._bkg_array = np.ma.average(img_masked, weights=self.bkg_wimage,
+                                            axis=self.crossdisp_axis)
 
         elif self.statistic == "median":
-            # combine where background weight image is 0 with image masked (which already
-            # accounts for non-finite data that wasn't already masked)
-            img.mask = np.logical_or(self.bkg_wimage == 0, self.image.mask)
-            self._bkg_array = np.ma.median(img, axis=self.crossdisp_axis)
+            combined_mask = combined_mask | (self.bkg_wimage == 0)
+            img_masked = np.ma.masked_array(img.data, combined_mask)
+            self._bkg_array = np.ma.median(img_masked, axis=self.crossdisp_axis)
         else:
             raise ValueError("statistic must be 'average' or 'median'")
+
+        # Compute background variance for uncertainty propagation
+        self._compute_bkg_variance(img)
 
     def _set_traces(self):
         """Determine `traces` from input. If an integer/float or list if int/float
@@ -167,7 +203,7 @@ class Background(_ImageParser):
 
         if self.traces == []:
             # assume a flat trace at the image center if nothing is passed in.
-            trace_pos = self.image.shape[self.disp_axis] / 2.0
+            trace_pos = self.image.shape[self.crossdisp_axis] / 2.0
             self.traces = [FlatTrace(self.image, trace_pos)]
 
         if isinstance(self.traces, Trace):
@@ -192,12 +228,63 @@ class Background(_ImageParser):
                     "the middle of the image."
                 )
 
+    def _compute_bkg_variance(self, img):
+        """Compute background variance for uncertainty propagation.
+
+        Parameters
+        ----------
+        img : np.ma.MaskedArray
+            The masked image array used for background computation.
+        """
+        # Combined mask includes original mask and sigma-clipped pixels
+        combined_mask = img.mask | self._outlier_mask
+
+        # Get input variance (estimate from flux if not provided)
+        self._variance_unit = self.image.unit**2
+        if self.image.uncertainty is not None:
+            self._orig_uncty_type = type(self.image.uncertainty)
+            if self._orig_uncty_type == VarianceUncertainty:
+                var = self.image.uncertainty.array
+            else:
+                var = self.image.uncertainty.represent_as(VarianceUncertainty).array
+        else:
+            # Estimate variance from flux values in background region
+            self._orig_uncty_type = VarianceUncertainty
+            bkg_mask = self.bkg_wimage > 0
+            valid_mask = bkg_mask & ~combined_mask
+
+            # Compute sample variance along cross-dispersion axis for each column
+            masked_flux = np.ma.masked_array(self.image.data, ~valid_mask)
+            sample_variance = np.ma.var(masked_flux, axis=self.crossdisp_axis)
+
+            # Tile to full image shape (same variance for all pixels in a column)
+            var = np.tile(sample_variance.data, (self.image.shape[0], 1))
+
+        # Create masked variance array using combined mask
+        masked_variance = np.ma.masked_array(var, combined_mask)
+
+        if self.statistic == "average":
+            # Var(weighted_mean) = sum(w^2 * var) / (sum w)^2
+            weights_squared = self.bkg_wimage**2
+            numerator = np.ma.sum(weights_squared * masked_variance, axis=self.crossdisp_axis)
+            denominator = np.ma.sum(self.bkg_wimage, axis=self.crossdisp_axis) ** 2
+            self._bkg_variance = (numerator / denominator).data
+
+        elif self.statistic == "median":
+            # Var(median) ~ (pi/2) * var / n for approximately normal data
+            # Use mean variance of included pixels
+            bkg_mask = self.bkg_wimage > 0
+            valid_mask = bkg_mask & ~combined_mask
+            n_pixels = np.sum(valid_mask, axis=self.crossdisp_axis)
+            variance_sum = np.sum(np.where(valid_mask, var, 0), axis=self.crossdisp_axis)
+            mean_variance = variance_sum / n_pixels
+            self._bkg_variance = (np.pi / 2) * mean_variance / n_pixels
+
     @classmethod
     def two_sided(cls, image, trace_object, separation, **kwargs):
         """
         Determine the background from an image for subtraction centered around
         an input trace.
-
 
         Example: ::
 
@@ -206,37 +293,24 @@ class Background(_ImageParser):
 
         Parameters
         ----------
-        image : `~astropy.nddata.NDData`-like or array-like
+        image
             Image with 2-D spectral image data. Assumes cross-dispersion
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1.
-        trace_object : `~specreduce.tracing.Trace`
-            estimated trace of the spectrum to center the background traces
-        separation : float
-            separation from ``trace_object`` for the background regions
-        width : float
-            width of each background aperture in pixels
-        statistic : string
-            statistic to use when computing the background.  'average' will
-            account for partial pixel weights, 'median' will include all partial
-            pixels.
-        disp_axis : int
-            dispersion axis
-        crossdisp_axis : int
-            cross-dispersion axis
-        mask_treatment : string
-            The method for handling masked or non-finite data. Choice of ``filter``,
-            ``omit`, or ``zero_fill``. If `filter` is chosen, masked/non-finite data
-            will be filtered during the fit to each bin/column (along disp. axis) to
-            find the peak. If ``omit`` is chosen, columns along disp_axis with any
-            masked/non-finite data values will be fully masked (i.e, 2D mask is
-            collapsed to 1D and applied). If ``zero_fill`` is chosen, masked/non-finite
-            data will be replaced with 0.0 in the input image, and the mask will then
-            be dropped. For all three options, the input mask (optional on input
-            NDData object) will be combined with a mask generated from any non-finite
-            values in the image data.
-        """
+        trace_object
+            Estimated trace of the spectrum to center the background traces.
+        separation
+            Separation from ``trace_object`` for the background regions.
+        **kwargs
+            Additional keyword arguments passed to the `Background` constructor.
+            See `Background` for available options including ``width``, ``statistic``,
+            ``disp_axis``, ``crossdisp_axis``, ``mask_treatment``, and ``sigma``.
 
+        Returns
+        -------
+        `Background`
+            A Background object with two-sided background regions.
+        """
         image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
         kwargs["traces"] = [trace_object - separation, trace_object + separation]
         return cls(image=image, **kwargs)
@@ -254,42 +328,30 @@ class Background(_ImageParser):
 
         Parameters
         ----------
-        image : `~astropy.nddata.NDData`-like or array-like
+        image
             Image with 2-D spectral image data. Assumes cross-dispersion
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1.
-        trace_object : `~specreduce.tracing.Trace`
-            Estimated trace of the spectrum to center the background traces
-        separation : float
-            Separation from ``trace_object`` for the background, positive will be
+        trace_object
+            Estimated trace of the spectrum to center the background trace.
+        separation
+            Separation from ``trace_object`` for the background. Positive will be
             above the trace, negative below.
-        width : float
-            Width of each background aperture in pixels
-        statistic : string
-            Statistic to use when computing the background.  'average' will
-            account for partial pixel weights, 'median' will include all partial
-            pixels.
-        disp_axis : int
-            Dispersion axis
-        crossdisp_axis : int
-            Cross-dispersion axis
-        mask_treatment : string
-            The method for handling masked or non-finite data. Choice of ``filter``,
-            ``omit``, or ``zero_fill``. If `filter` is chosen, masked/non-finite data
-            will be filtered during the fit to each bin/column (along disp. axis) to
-            find the peak. If ``omit`` is chosen, columns along disp_axis with any
-            masked/non-finite data values will be fully masked (i.e, 2D mask is
-            collapsed to 1D and applied). If ``zero_fill`` is chosen, masked/non-finite
-            data will be replaced with 0.0 in the input image, and the mask will then
-            be dropped. For all three options, the input mask (optional on input
-            NDData object) will be combined with a mask generated from any non-finite
-            values in the image data.
+        **kwargs
+            Additional keyword arguments passed to the `Background` constructor.
+            See `Background` for available options including ``width``, ``statistic``,
+            ``disp_axis``, ``crossdisp_axis``, ``mask_treatment``, and ``sigma``.
+
+        Returns
+        -------
+        `Background`
+            A Background object with a one-sided background region.
         """
         image = _ImageParser._get_data_from_image(image) if image is not None else cls.image
         kwargs["traces"] = [trace_object + separation]
         return cls(image=image, **kwargs)
 
-    def bkg_image(self, image=None):
+    def bkg_image(self, image=None) -> Spectrum:
         """
         Expose the background tiled to the dimension of ``image``.
 
@@ -303,59 +365,75 @@ class Background(_ImageParser):
 
         Returns
         -------
-        spec : `~specutils.Spectrum1D`
-            Spectrum object with same shape as ``image``.
+        spec : `~specutils.Spectrum`
+            Spectrum object with same shape as ``image``, including uncertainty.
         """
         image = self._parse_image(image)
         arr = np.tile(self._bkg_array, (image.shape[0], 1))
+        var_arr = np.tile(self._bkg_variance, (image.shape[0], 1))
+        uncertainty = VarianceUncertainty(var_arr * self._variance_unit).represent_as(
+            self._orig_uncty_type
+        )
+
         if SPECUTILS_LT_2:
             kwargs = {}
         else:
             kwargs = {"spectral_axis_index": arr.ndim - 1}
         return Spectrum(
-            arr * image.unit,
-            spectral_axis=image.spectral_axis, **kwargs
+            arr * image.unit, spectral_axis=image.spectral_axis, uncertainty=uncertainty, **kwargs
         )
 
-    def bkg_spectrum(self, image=None, bkg_statistic=None):
+    def bkg_spectrum(self, image=None, bkg_statistic=None) -> Spectrum:
         """
         Expose the 1D spectrum of the background.
 
         Parameters
         ----------
-        image : `~astropy.nddata.NDData`-like or array-like, optional
-            Image with 2-D spectral image data. Assumes cross-dispersion
+        image
+            Image with 2D spectral image data. Assumes cross-dispersion
             (spatial) direction is axis 0 and dispersion (wavelength)
             direction is axis 1. If None, will extract the background
-            from ``image`` used to initialize the class. [default: None]
+            from ``image`` used to initialize the class.
+        bkg_statistic
+            Deprecated. Use ``statistic`` parameter in the `Background`
+            constructor instead.
 
         Returns
         -------
-        spec : `~specutils.Spectrum1D`
-            The background 1-D spectrum, with flux expressed in the same
-            units as the input image (or DN if none were provided).
+        `~specutils.Spectrum1D`
+            The background 1D spectrum, with flux and uncertainty expressed
+            in the same units as the input image (or DN if none were provided).
         """
         if bkg_statistic is not None:
-            warnings.warn("'bkg_statistic' is deprecated and will be removed in a future release. "
-                          "Please use the 'statistic' argument in the Background initializer instead.",  # noqa
-                          DeprecationWarning,)
+            warnings.warn(
+                "'bkg_statistic' is deprecated and will be removed in a future release. "
+                "Please use the 'statistic' argument in the Background initializer instead.",  # noqa
+                DeprecationWarning,
+            )
 
-        return Spectrum(self._bkg_array * self.image.unit, self.image.spectral_axis)
+        uncertainty = VarianceUncertainty(self._bkg_variance * self._variance_unit).represent_as(
+            self._orig_uncty_type
+        )
+        return Spectrum(
+            self._bkg_array * self.image.unit, self.image.spectral_axis, uncertainty=uncertainty
+        )
 
-    def sub_image(self, image=None):
+    def sub_image(self, image=None) -> Spectrum:
         """
         Subtract the computed background from image.
 
         Parameters
         ----------
-        image : nddata-compatible image or None
-            image with 2D spectral image data.  If None, will extract
-            the background from ``image`` used to initialize the class.
+        image
+            `~astropy.nddata.NDData`-like or array-like 2D spectral image data.
+            If None, will extract the background from ``image`` used to
+            initialize the class.
 
         Returns
         -------
-        spec : `~specutils.Spectrum`
-            Spectrum object with same shape as ``image``.
+        `~specutils.Spectrum`
+            Spectrum object with same shape as ``image``, including propagated
+            uncertainty.
         """
         image = self._parse_image(image)
 
@@ -370,7 +448,7 @@ class Background(_ImageParser):
         # https://docs.astropy.org/en/stable/nddata/mixins/ndarithmetic.html
         return image.subtract(self.bkg_image(image), **kwargs)
 
-    def sub_spectrum(self, image=None):
+    def sub_spectrum(self, image=None) -> Spectrum:
         """
         Expose the 1D spectrum of the background-subtracted image.
 
@@ -383,22 +461,45 @@ class Background(_ImageParser):
         Returns
         -------
         spec : `~specutils.Spectrum`
-            The background 1D spectrum, with flux expressed in the same
-            units as the input image (or u.DN if none were provided) and
-            the spectral axis expressed in pixel units.
+            The background-subtracted 1D spectrum, with flux and uncertainty
+            expressed in the same units as the input image (or u.DN if none
+            were provided) and the spectral axis expressed in pixel units.
         """
-        sub_image = self.sub_image(image=image)
+        sub_img = self.sub_image(image=image)
 
         try:
-            return sub_image.collapse(np.nansum, axis=self.crossdisp_axis)
+            result = sub_img.collapse(np.nansum, axis=self.crossdisp_axis)
         except u.UnitTypeError:
             # can't collapse with a spectral axis in pixels because
             # SpectralCoord only allows frequency/wavelength equivalent units...
-            ext1d = np.nansum(sub_image.flux, axis=self.crossdisp_axis)
-            return Spectrum(ext1d, spectral_axis=sub_image.spectral_axis)
+            ext1d = np.nansum(sub_img.flux, axis=self.crossdisp_axis)
+            result = Spectrum(ext1d, spectral_axis=sub_img.spectral_axis)
+
+        # Propagate uncertainty: Var(sum) = sum of variances
+        # Must convert to variance before summing, then convert back to original type
+        if sub_img.uncertainty is not None:
+            var_uncert = sub_img.uncertainty.represent_as(VarianceUncertainty)
+            var_sum = np.nansum(var_uncert.array, axis=self.crossdisp_axis)
+            uncertainty = VarianceUncertainty(var_sum * var_uncert.unit).represent_as(
+                self._orig_uncty_type
+            )
+            result = Spectrum(
+                result.flux, spectral_axis=result.spectral_axis, uncertainty=uncertainty
+            )
+        return result
 
     def __rsub__(self, image):
         """
         Subtract the background from an image.
+
+        Parameters
+        ----------
+        image
+            `~astropy.nddata.NDData`-like or array-like 2D spectral image data.
+
+        Returns
+        -------
+        `~specutils.Spectrum`
+            Background-subtracted image with propagated uncertainty.
         """
         return self.sub_image(image)
