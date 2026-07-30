@@ -210,6 +210,7 @@ nitpick_ignore_regex = [
     (r"py:class", r"tuple\[.*"),               # Generic tuple types
     (r"py:class", r"None \| dict\[.*"),        # Union types with dict
     (r"py:class", r"dict\[.*"),                # Generic dict types
+    (r"py:class", r"numpy\._typing\..*"),
 ]
 
 # -- Options for linkcheck output -------------------------------------------
