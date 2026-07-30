@@ -24,6 +24,7 @@ test = [
     "tox",
 ]
 docs = [
+    "numpy<=2.5",
     "sphinx-astropy[confv3]>=1.11",
     "sphinx-copybutton",
     "sphinx-design",

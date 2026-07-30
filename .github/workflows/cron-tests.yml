@@ -29,6 +29,10 @@ jobs:
       envs: |
         - name: Check URLs in docs
           linux: linkcheck
+          libraries:
+            apt:
+              - pandoc
+              - graphviz
 
         - name: Python 3.14 on Linux with pre-releases
           linux: py314-test-alldeps-predeps
