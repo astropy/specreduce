@@ -231,6 +231,20 @@ solution, but it is also stored in ``WavelengthCalibration1D.solution``.
     :attr:`~specreduce.wavesol1d.WavelengthSolution1D.gwcs` attribute. This is particularly
     useful for attaching the calibration to a :class:`~specutils.Spectrum` object.
 
+*   **Export a FITS WCS**: Use :meth:`~specreduce.wavesol1d.WavelengthSolution1D.wcs` to get a
+    standard `~astropy.wcs.WCS` object that approximates the solution with the FITS WCS Paper III
+    grating dispersion function (``WAVE-GRA`` for vacuum or ``AWAV-GRA`` for air wavelengths,
+    selected by the ``wave_air`` flag). Unlike the lossless
+    :attr:`~specreduce.wavesol1d.WavelengthSolution1D.gwcs` representation, the returned WCS is a
+    numerical fit to the polynomial solution and can be serialized into a FITS header readable by
+    any FITS-compliant software; a warning is emitted if the fit deviates from the exact solution
+    by more than ``max_residual`` pixels.
+
+    .. code-block:: python
+
+        header = ws.wcs().to_header()
+        print(header)
+
 *   **Rebin Spectrum**: Resample a spectrum onto a new wavelength grid using
     :meth:`~specreduce.wavesol1d.WavelengthSolution1D.resample`. The rebinning is
     flux-conserving, meaning the integrated flux in the output spectrum matches the integrated flux

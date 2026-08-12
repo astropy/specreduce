@@ -2,13 +2,15 @@ import asdf
 import astropy.units as u
 import numpy as np
 import pytest
-from astropy.modeling import models
+from astropy.modeling import models, fitting
 from astropy.modeling.polynomial import Polynomial1D
 from astropy.nddata import StdDevUncertainty
 from gwcs import coordinate_frames, wcs
-from specreduce.wavesol1d import _diff_poly1d, WavelengthSolution1D
+from astropy.utils.exceptions import AstropyUserWarning
+from astropy.wcs import WCS as astropy_WCS
 from specutils import Spectrum
 
+from specreduce.wavesol1d import _diff_poly1d, WavelengthSolution1D
 
 ref_pixel = 250.0
 p2w = models.Shift(ref_pixel) | models.Polynomial1D(degree=3, c0=1, c1=0.2, c2=0.001)
@@ -24,6 +26,33 @@ def mk_ws_without_transform():
 @pytest.fixture
 def mk_ws_with_transform():
     return WavelengthSolution1D(p2w, pix_bounds, u.angstrom)
+
+
+def _make_gra_solution(npix: int, wave_air: bool = False) -> WavelengthSolution1D:
+    """Create a solution whose polynomial closely follows a true grating dispersion curve."""
+    wt = astropy_WCS(naxis=1)
+    wt.wcs.ctype = ["AWAV-GRA"]
+    wt.wcs.cunit = ["Angstrom"]
+    wt.wcs.crpix = [npix // 2]
+    wt.wcs.crval = [5410.0]
+    wt.wcs.cdelt = [2.4]
+    wt.wcs.set_pv([(1, 0, 5.0e5), (1, 1, 1.0), (1, 2, 8.05)])
+    x = np.arange(npix)
+    ref_pixel = npix // 2 - 1
+    lam = wt.wcs_pix2world(x[:, None] + 1.0, 1)[:, 0] * 1e10
+    poly = fitting.LinearLSQFitter()(Polynomial1D(3), x - ref_pixel, lam)
+    m = models.Shift(-ref_pixel) | poly
+    return WavelengthSolution1D(m, (0, npix), u.angstrom, wave_air=wave_air)
+
+
+@pytest.fixture(scope="module")
+def gra_solution():
+    return _make_gra_solution(512, wave_air=True)
+
+
+@pytest.fixture(scope="module")
+def gra_fitted_wcs(gra_solution):
+    return gra_solution.wcs(seed=1)
 
 
 @pytest.fixture
@@ -68,6 +97,10 @@ def test_init():
 
     ws = WavelengthSolution1D(None, pix_bounds, u.angstrom)
     assert ws._p2w is None
+
+    assert ws.wave_air is False
+    ws = WavelengthSolution1D(p2w, pix_bounds, u.angstrom, wave_air=True)
+    assert ws.wave_air is True
 
 
 def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
@@ -131,6 +164,59 @@ def test_wcs_creates_valid_gwcs_object(mk_ws_with_transform):
     assert wcs_obj is not None
     assert isinstance(wcs_obj, wcs.WCS)
     assert wcs_obj.output_frame.unit[0] == u.angstrom
+
+
+def test_wcs_gra_round_trip(gra_solution, gra_fitted_wcs):
+    ws, w = gra_solution, gra_fitted_wcs
+    assert isinstance(w, astropy_WCS)
+    assert w.wcs.ctype[0] == "AWAV-GRA"
+    x = np.arange(*ws.bounds_pix)
+    res_pix = (w.wcs_pix2world(x[:, None] + 1.0, 1)[:, 0] * 1e10 - ws.p2w(x)) / ws.p2w_dldx(x)
+    assert np.max(np.abs(res_pix)) < 0.1
+
+
+def test_wcs_ctype_air_vacuum():
+    ws_air = _make_gra_solution(128, wave_air=True)
+    ws_vac = _make_gra_solution(128, wave_air=False)
+    assert ws_air.wcs(npix_subsample=32, seed=2).wcs.ctype[0] == "AWAV-GRA"
+    assert ws_vac.wcs(npix_subsample=32, seed=2).wcs.ctype[0] == "WAVE-GRA"
+    assert ws_air.wcs(wave_air=False, npix_subsample=32, seed=2).wcs.ctype[0] == "WAVE-GRA"
+    assert ws_vac.wcs(wave_air=True, npix_subsample=32, seed=2).wcs.ctype[0] == "AWAV-GRA"
+
+
+def test_wcs_warning_on_poor_fit():
+    ws = _make_gra_solution(128)
+    with pytest.warns(AstropyUserWarning, match="lossless"):
+        w = ws.wcs(max_residual=0.0, npix_subsample=32, seed=2)
+    assert isinstance(w, astropy_WCS)
+
+
+def test_wcs_deterministic():
+    ws = _make_gra_solution(128)
+    w1 = ws.wcs(npix_subsample=32, seed=7)
+    w2 = ws.wcs(npix_subsample=32, seed=7)
+    np.testing.assert_array_equal(w1.wcs.crpix, w2.wcs.crpix)
+    np.testing.assert_array_equal(w1.wcs.crval, w2.wcs.crval)
+    np.testing.assert_array_equal(w1.wcs.cdelt, w2.wcs.cdelt)
+    assert w1.wcs.get_pv() == w2.wcs.get_pv()
+
+
+def test_wcs_header_round_trip(gra_solution, gra_fitted_wcs):
+    w = gra_fitted_wcs
+    w2 = astropy_WCS(w.to_header())
+    x = np.arange(*gra_solution.bounds_pix)[:, None] + 1.0
+    np.testing.assert_allclose(w2.wcs_pix2world(x, 1), w.wcs_pix2world(x, 1), rtol=1e-12)
+
+
+def test_wcs_raises_without_transform(mk_ws_without_transform):
+    with pytest.raises(ValueError, match="Wavelength solution not set."):
+        mk_ws_without_transform.wcs()
+
+
+def test_wcs_raises_for_non_length_unit():
+    ws = WavelengthSolution1D(p2w, pix_bounds, u.Hz)
+    with pytest.raises(ValueError, match="length unit"):
+        ws.wcs()
 
 
 def test_asdf_round_trip_is_lossless(tmp_path):
