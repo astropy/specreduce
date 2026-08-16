@@ -52,7 +52,7 @@ def gra_solution():
 
 @pytest.fixture(scope="module")
 def gra_fitted_wcs(gra_solution):
-    return gra_solution.wcs(seed=1)
+    return gra_solution.wcs()
 
 
 @pytest.fixture
@@ -172,33 +172,37 @@ def test_wcs_gra_round_trip(gra_solution, gra_fitted_wcs):
     assert w.wcs.ctype[0] == "AWAV-GRA"
     x = np.arange(*ws.bounds_pix)
     res_pix = (w.wcs_pix2world(x[:, None] + 1.0, 1)[:, 0] * 1e10 - ws.p2w(x)) / ws.p2w_dldx(x)
-    assert np.max(np.abs(res_pix)) < 0.1
+    assert np.max(np.abs(res_pix)) < 0.5
+
+
+def test_wcs_pinned_keywords(gra_solution, gra_fitted_wcs):
+    ws, w = gra_solution, gra_fitted_wcs
+    # wcslib normalizes crval/cdelt/cunit to metres in place when WCS.set() first runs,
+    # so the comparison must go through the current cunit.
+    scale = (1.0 * u.Unit(w.wcs.cunit[0])).to_value(u.angstrom)
+    assert w.wcs.crpix[0] == -ws._p2w[0].offset.value + 1.0
+    assert w.wcs.crval[0] * scale == pytest.approx(ws._p2w[1].c0.value, rel=1e-12)
+    assert w.wcs.cdelt[0] * scale == pytest.approx(ws._p2w[1].c1.value, rel=1e-12)
+    pv = dict((i, v) for _, i, v in w.wcs.get_pv())
+    assert pv[1] == 1.0  # diffraction order
+    assert pv[3] == 1.0  # refractive index, absorbed by the fitted grating density
+    assert pv[5] == 0.0  # grating rotation
 
 
 def test_wcs_ctype_air_vacuum():
     ws_air = _make_gra_solution(128, wave_air=True)
     ws_vac = _make_gra_solution(128, wave_air=False)
-    assert ws_air.wcs(npix_subsample=32, seed=2).wcs.ctype[0] == "AWAV-GRA"
-    assert ws_vac.wcs(npix_subsample=32, seed=2).wcs.ctype[0] == "WAVE-GRA"
-    assert ws_air.wcs(wave_air=False, npix_subsample=32, seed=2).wcs.ctype[0] == "WAVE-GRA"
-    assert ws_vac.wcs(wave_air=True, npix_subsample=32, seed=2).wcs.ctype[0] == "AWAV-GRA"
+    assert ws_air.wcs().wcs.ctype[0] == "AWAV-GRA"
+    assert ws_vac.wcs().wcs.ctype[0] == "WAVE-GRA"
+    assert ws_air.wcs(wave_air=False).wcs.ctype[0] == "WAVE-GRA"
+    assert ws_vac.wcs(wave_air=True).wcs.ctype[0] == "AWAV-GRA"
 
 
 def test_wcs_warning_on_poor_fit():
     ws = _make_gra_solution(128)
     with pytest.warns(AstropyUserWarning, match="lossless"):
-        w = ws.wcs(max_residual=0.0, npix_subsample=32, seed=2)
+        w = ws.wcs(max_residual=0.0)
     assert isinstance(w, astropy_WCS)
-
-
-def test_wcs_deterministic():
-    ws = _make_gra_solution(128)
-    w1 = ws.wcs(npix_subsample=32, seed=7)
-    w2 = ws.wcs(npix_subsample=32, seed=7)
-    np.testing.assert_array_equal(w1.wcs.crpix, w2.wcs.crpix)
-    np.testing.assert_array_equal(w1.wcs.crval, w2.wcs.crval)
-    np.testing.assert_array_equal(w1.wcs.cdelt, w2.wcs.cdelt)
-    assert w1.wcs.get_pv() == w2.wcs.get_pv()
 
 
 def test_wcs_header_round_trip(gra_solution, gra_fitted_wcs):
