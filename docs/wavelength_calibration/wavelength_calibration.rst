@@ -213,9 +213,10 @@ Several tools help assess the quality of the wavelength solution:
 5. Using the Wavelength Solution
 ********************************
 
-The fitted wavelength solution is stored as a :class:`~specreduce.wavesol1d.WavelengthSolution1D`
-instance that you can use to transform and resample spectra. The fitting methods return the
-solution, but it is also stored in ``WavelengthCalibration1D.solution``.
+The fitted polynomial wavelength solution is stored as a
+:class:`~specreduce.wavesol1d .WavelengthSolution1D` instance that you can use to transform and
+resample spectra. The fitting methods return the solution, but it is also stored in
+`WavelengthCalibration1D.solution`.
 
 *   **Convert Coordinates**: Use :meth:`~specreduce.wavesol1d.WavelengthSolution1D.pix_to_wav` and
     :meth:`~specreduce.wavesol1d.WavelengthSolution1D.wav_to_pix` to convert between pixel and
@@ -227,23 +228,23 @@ solution, but it is also stored in ``WavelengthCalibration1D.solution``.
         wavelengths = ws.pix_to_wav(pixels)
         print(wavelengths)
 
-*   **Get WCS Object**: Access the `~gwcs.wcs.WCS` object representing the solution via the
-    :attr:`~specreduce.wavesol1d.WavelengthSolution1D.gwcs` attribute. This is particularly
-    useful for attaching the calibration to a :class:`~specutils.Spectrum` object.
-
 *   **Export a FITS WCS**: Use :meth:`~specreduce.wavesol1d.WavelengthSolution1D.wcs` to get a
-    standard `~astropy.wcs.WCS` object that approximates the solution with the FITS WCS Paper III
-    grating dispersion function (``WAVE-GRA`` for vacuum or ``AWAV-GRA`` for air wavelengths,
-    selected by the ``wave_air`` flag). Unlike the lossless
-    :attr:`~specreduce.wavesol1d.WavelengthSolution1D.gwcs` representation, the returned WCS is a
-    numerical fit to the polynomial solution and can be serialized into a FITS header readable by
-    any FITS-compliant software; a warning is emitted if the fit deviates from the exact solution
-    by more than ``max_residual`` pixels.
+    standard `~astropy.wcs.WCS` object that approximates the polynomial solution with the FITS WCS
+    Paper III grating dispersion function. The returned WCS is a numerical fit to the
+    polynomial solution and can be serialized into a FITS header readable by any FITS-compliant
+    software, or attached to a :class:`~specutils.Spectrum` object. A warning
+    is emitted if the fit deviates from the polynomial solution by more than ``max_residual``
+    pixels.
 
     .. code-block:: python
 
         header = ws.wcs().to_header()
         print(header)
+
+*   **Export a GWCS Object**: Access the `~gwcs.wcs.WCS` object representing the polynomial
+    wavelength solution via the :attr:`~specreduce.wavesol1d.WavelengthSolution1D.gwcs` attribute.
+    This is particularly useful for attaching the calibration to a :class:`~specutils.Spectrum`
+    object.
 
 *   **Rebin Spectrum**: Resample a spectrum onto a new wavelength grid using
     :meth:`~specreduce.wavesol1d.WavelengthSolution1D.resample`. The rebinning is
