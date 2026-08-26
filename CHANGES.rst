@@ -23,6 +23,14 @@ New Features
   (``AWAV-GRA``) and vacuum (``WAVE-GRI``) spectral axis types in FITS WCS
   export. [#NNN]
 
+API Changes
+^^^^^^^^^^^
+
+- The legacy ``specreduce.wavelength_calibration.WavelengthCalibration1D``
+  class (deprecated since v1.7.0) now emits an ``AstropyDeprecationWarning``
+  on instantiation, and its removal has been rescheduled from v2.0 to v1.11.
+  Use ``specreduce.wavecal1d.WavelengthCalibration1D`` instead. [#NNN]
+
 1.9.0 (2026-05-06)
 ------------------
 

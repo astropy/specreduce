@@ -78,7 +78,7 @@ The reduction workflow follows a modular pipeline: **Trace → Background → Ex
 
 - **table_utils.py**: Shared helpers for the QTable structures used across modules.
 
-- **wavelength_calibration.py**: Legacy wavelength calibration (deprecated in v1.7.0, removal in v2.0)
+- **wavelength_calibration.py**: Legacy wavelength calibration (deprecated in v1.7.0, removal in v1.11)
 
 - **fluxcal.py**: `FluxCalibration` class for flux calibration with magnitude-to-flux conversion and airmass extinction correction
 
