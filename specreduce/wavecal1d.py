@@ -146,7 +146,7 @@ class WavelengthCalibration1D:
         wave_air
             Boolean indicating whether the input wavelengths correspond to air rather than vacuum;
             by default `False`, meaning vacuum wavelengths. The flag is also stored in the
-            wavelength solution, where it selects between the 'AWAV-GRA' and 'WAVE-GRA' axis
+            wavelength solution, where it selects between the 'AWAV-GRA' and 'WAVE-GRI' axis
             types in FITS WCS export.
         """
         self.unit = unit

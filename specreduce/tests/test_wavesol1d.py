@@ -172,7 +172,7 @@ def test_wcs_gra_round_trip(gra_solution, gra_fitted_wcs):
     assert w.wcs.ctype[0] == "AWAV-GRA"
     x = np.arange(*ws.bounds_pix)
     res_pix = (w.wcs_pix2world(x[:, None] + 1.0, 1)[:, 0] * 1e10 - ws.p2w(x)) / ws.p2w_dldx(x)
-    assert np.max(np.abs(res_pix)) < 0.5
+    assert np.max(np.abs(res_pix)) < 0.1
 
 
 def test_wcs_pinned_keywords(gra_solution, gra_fitted_wcs):
@@ -193,8 +193,8 @@ def test_wcs_ctype_air_vacuum():
     ws_air = _make_gra_solution(128, wave_air=True)
     ws_vac = _make_gra_solution(128, wave_air=False)
     assert ws_air.wcs().wcs.ctype[0] == "AWAV-GRA"
-    assert ws_vac.wcs().wcs.ctype[0] == "WAVE-GRA"
-    assert ws_air.wcs(wave_air=False).wcs.ctype[0] == "WAVE-GRA"
+    assert ws_vac.wcs().wcs.ctype[0] == "WAVE-GRI"
+    assert ws_air.wcs(wave_air=False).wcs.ctype[0] == "WAVE-GRI"
     assert ws_vac.wcs(wave_air=True).wcs.ctype[0] == "AWAV-GRA"
 
 
@@ -220,6 +220,61 @@ def test_wcs_raises_without_transform(mk_ws_without_transform):
 def test_wcs_raises_for_non_length_unit():
     ws = WavelengthSolution1D(p2w, pix_bounds, u.Hz)
     with pytest.raises(ValueError, match="length unit"):
+        ws.wcs()
+
+
+def _assert_wcs_matches_solution(ws, scale, npix=512, limit=0.5):
+    w = ws.wcs()
+    x = np.arange(0, npix)
+    lam_fit = w.wcs_pix2world(x[:, None] + 1.0, 1)[:, 0] * scale
+    assert np.all(np.isfinite(lam_fit))
+    res_pix = (lam_fit - ws.p2w(x)) / ws.p2w_dldx(x)
+    assert np.max(np.abs(res_pix)) < limit
+
+
+def test_wcs_red_ir_solution():
+    # A K-band solution: the grating fit must converge far from the optical regime.
+    poly = Polynomial1D(3, c0=24000.0, c1=2.4, c2=5e-5, c3=-2e-8)
+    ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.angstrom)
+    _assert_wcs_matches_solution(ws, 1e10)
+
+
+def test_wcs_micron_unit():
+    # 'micron' has no FITS unit string of its own; export must use the FITS format ('um').
+    poly = Polynomial1D(3, c0=2.4, c1=2.4e-4, c2=5e-9, c3=-2e-12)
+    ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.micron)
+    _assert_wcs_matches_solution(ws, 1e6)
+
+
+def test_wcs_uv_vacuum_solution():
+    # A vacuum axis exported as 'WAVE-GRA' would pass through wcslib's air-refraction
+    # model, which is invalid below ~2000 A; vacuum solutions must use 'WAVE-GRI'.
+    poly = Polynomial1D(3, c0=1600.0, c1=0.6, c2=1e-5, c3=-5e-9)
+    ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.angstrom)
+    assert ws.wcs().wcs.ctype[0] == "WAVE-GRI"
+    _assert_wcs_matches_solution(ws, 1e10, limit=0.1)
+
+
+def test_wcs_raises_on_nonfinite_solution():
+    poly = Polynomial1D(3, c0=5410.0, c1=2.4, c2=np.nan, c3=0.0)
+    ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.angstrom)
+    with pytest.raises(ValueError, match="non-finite"):
+        ws.wcs()
+
+
+def test_wcs_raises_for_non_power_series_model():
+    cheb = models.Chebyshev1D(3, c0=5410.0, c1=600.0, c2=5.0, c3=-1.0)
+    ws = WavelengthSolution1D(models.Shift(-255) | cheb, (0, 512), u.angstrom)
+    with pytest.raises(TypeError, match="Polynomial1D"):
+        ws.wcs()
+
+
+def test_wcs_raises_when_fit_degenerate():
+    # Metre-scale "wavelengths": no grating within the parameter bounds can reproduce
+    # this, so every residual evaluation is unphysical and the fit must fail loudly.
+    poly = Polynomial1D(1, c0=1e10, c1=2.4)
+    ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.angstrom)
+    with pytest.raises(RuntimeError, match="grating dispersion"):
         ws.wcs()
 
 

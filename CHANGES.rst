@@ -12,7 +12,7 @@ New Features
 
 - Added a ``WavelengthSolution1D.wcs()`` method that exports the wavelength
   solution as a standard FITS ``astropy.wcs.WCS`` object by fitting the
-  WCS Paper III grating dispersion function (``WAVE-GRA`` or ``AWAV-GRA``)
+  WCS Paper III grating dispersion function (``WAVE-GRI`` or ``AWAV-GRA``)
   to the solution. The reference pixel keywords (CRPIX, CRVAL, CDELT) are
   set exactly from the solution model and only the grating PV terms are
   fitted, and a warning is emitted if the approximation deviates from the
@@ -20,7 +20,7 @@ New Features
 
 - The ``wave_air`` flag given to ``WavelengthCalibration1D`` is now stored
   in the resulting ``WavelengthSolution1D``, where it selects between air
-  (``AWAV-GRA``) and vacuum (``WAVE-GRA``) spectral axis types in FITS WCS
+  (``AWAV-GRA``) and vacuum (``WAVE-GRI``) spectral axis types in FITS WCS
   export. [#NNN]
 
 1.9.0 (2026-05-06)

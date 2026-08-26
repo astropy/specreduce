@@ -11,7 +11,7 @@ import numpy as np
 from astropy.modeling import models, CompoundModel
 from astropy.nddata import VarianceUncertainty
 from astropy.utils.exceptions import AstropyUserWarning
-from astropy.wcs import WCS
+from astropy.wcs import WCS, InvalidTransformError
 from gwcs import coordinate_frames
 from numpy.ma import MaskedArray
 from numpy.typing import ArrayLike, NDArray
@@ -63,7 +63,7 @@ def _make_gra_wcs(
     cdelt
         Linear dispersion at the reference pixel.
     ctype
-        Spectral axis type, either 'AWAV-GRA' (air) or 'WAVE-GRA' (vacuum).
+        Spectral axis type, either 'AWAV-GRA' (air) or 'WAVE-GRI' (vacuum).
     cunit
         Wavelength unit string.
 
@@ -92,60 +92,31 @@ def _make_gra_wcs(
     return w
 
 
-def _gra_residuals(
-    p: ArrayLike, crpix: float, crval: float, cdelt: float, x_fits: NDArray, lam: NDArray,
-    ctype: str, cunit: str, m_to_unit: float,
-) -> NDArray:
-    """Compute the residuals between a grating dispersion WCS and the exact solution.
-
-    Parameters
-    ----------
-    p
-        Grating parameters as in `_make_gra_wcs`.
-    crpix
-        Reference pixel in the one-based FITS convention.
-    crval
-        Wavelength at the reference pixel.
-    cdelt
-        Linear dispersion at the reference pixel.
-    x_fits
-        Pixel coordinates as a (npt, 1) array in the one-based FITS convention.
-    lam
-        Exact wavelengths at ``x_fits`` in the solution unit.
-    ctype
-        Spectral axis type, either 'AWAV-GRA' (air) or 'WAVE-GRA' (vacuum).
-    cunit
-        Wavelength unit string.
-    m_to_unit
-        Conversion factor from metres to the solution unit, needed because wcslib returns
-        metres for a spectral axis regardless of the CUNIT.
-
-    Returns
-    -------
-    Residual wavelengths in the solution unit. Unphysical parameter combinations, for which
-    wcslib raises or returns non-finite values, yield large finite residuals to keep the
-    optimizer within the valid parameter space.
-    """
-    try:
-        w = _make_gra_wcs(p, crpix, crval, cdelt, ctype, cunit)
-        res = w.wcs_pix2world(x_fits, 1)[:, 0] * m_to_unit - lam
-    except Exception:
-        return np.full(lam.size, 1e8)
-    return np.where(np.isfinite(res), res, 1e8)
+GRA_SENTINEL = 1e8
+"""Residual value standing in for unphysical grating parameter combinations."""
 
 
 def _fit_gra_dispersion(
-    x_fits: NDArray, lam: NDArray, crpix: float, crval: float, cdelt: float, ctype: str,
-    cunit: str, m_to_unit: float,
-) -> NDArray:
+    x_fits: NDArray,
+    lam: NDArray,
+    crpix: float,
+    crval: float,
+    cdelt: float,
+    ctype: str,
+    cunit: str,
+    m_to_unit: float,
+) -> optimize.OptimizeResult:
     """Fit the WCS Paper III grating dispersion function to an exact wavelength solution.
 
     Fits the four free grating parameters (g, alpha, nrp, theta) with a single bounded
     least-squares run. The reference pixel keywords (CRPIX, CRVAL, CDELT) are exact
     statements about the wavelength solution and pin the value and slope of the dispersion
     function at the reference pixel, which makes the problem unimodal enough for a local
-    optimizer started from a fixed initial guess. The bounds fence off the region where
-    the grating equation goes out of the arcsin domain.
+    optimizer. The initial grating density is the Littrow-configuration value at the
+    reference wavelength, which places the starting point inside the arcsin domain of the
+    grating equation for any reference wavelength, and pixels for which wcslib returns
+    non-finite values yield large finite residuals that keep the optimizer within the
+    valid parameter space.
 
     Parameters
     ----------
@@ -160,23 +131,56 @@ def _fit_gra_dispersion(
     cdelt
         Fixed linear dispersion at the reference pixel.
     ctype
-        Spectral axis type, either 'AWAV-GRA' (air) or 'WAVE-GRA' (vacuum).
+        Spectral axis type, either 'AWAV-GRA' (air) or 'WAVE-GRI' (vacuum).
     cunit
-        Wavelength unit string.
+        Wavelength unit string in the FITS format.
     m_to_unit
-        Conversion factor from metres to the solution unit.
+        Conversion factor from metres to the solution unit, needed because wcslib returns
+        metres for a spectral axis regardless of the CUNIT.
 
     Returns
     -------
-    The optimized grating parameters as in `_make_gra_wcs`.
+    The `~scipy.optimize.OptimizeResult` of the fit, where ``x`` holds the optimized
+    grating parameters as in `_make_gra_wcs` and ``fun`` the residual wavelengths in the
+    solution unit.
+
+    Raises
+    ------
+    RuntimeError
+        If the grating dispersion function cannot be evaluated anywhere along the
+        spectral axis at the fitted parameters.
     """
-    p0 = [5e5, 10.0, 0.0, 0.0]  # g, alpha, nrp, theta
+
+    def residuals(p: NDArray) -> NDArray:
+        try:
+            w = _make_gra_wcs(p, crpix, crval, cdelt, ctype, cunit)
+            res = w.wcs_pix2world(x_fits, 1)[:, 0] * m_to_unit - lam
+        except InvalidTransformError:
+            return np.full(lam.size, GRA_SENTINEL)
+        return np.where(np.isfinite(res), res, GRA_SENTINEL)
+
+    lam_ref_m = crval / m_to_unit
+    g0 = float(np.clip(2.0 * np.sin(np.radians(10.0)) / lam_ref_m, 1e3, 1e7))
+    p0 = [g0, 10.0, 0.0, 0.0]  # g, alpha, nrp, theta
+
+    # Set the WCS once outside the fit so that parameter-independent configuration errors
+    # (such as an invalid CUNIT) propagate instead of being fenced off as unphysical
+    # parameter combinations. Out-of-domain grating parameters do not raise here: wcslib
+    # signals them with non-finite coordinates handled in `residuals`.
+    _make_gra_wcs(p0, crpix, crval, cdelt, ctype, cunit).wcs.set()
+
     bounds = ([1e3, -89.9, -1e7, -89.9], [1e7, 89.9, 1e7, 89.9])
     fit = optimize.least_squares(
-        _gra_residuals, p0, args=(crpix, crval, cdelt, x_fits, lam, ctype, cunit, m_to_unit),
-        bounds=bounds, method="trf", x_scale=[1e5, 10.0, 1e4, 10.0],
+        residuals, p0, bounds=bounds, method="trf", x_scale=[g0, 10.0, 1e4, 10.0]
     )
-    return fit.x
+    if np.all(fit.fun == GRA_SENTINEL):
+        raise RuntimeError(
+            "The grating dispersion function could not be evaluated anywhere along the "
+            "spectral axis: the wavelength solution is outside the parameter space "
+            "reachable by the 'WAVE-GRI'/'AWAV-GRA' dispersion model. The 'gwcs' property "
+            "provides a lossless representation."
+        )
+    return fit
 
 
 class WavelengthSolution1D:
@@ -300,15 +304,18 @@ class WavelengthSolution1D:
 
         Fits the FITS WCS Paper III grating dispersion function to the exact
         pixel-to-wavelength model and returns the result as a standard `~astropy.wcs.WCS`
-        object with a 'AWAV-GRA' (air) or 'WAVE-GRA' (vacuum) spectral axis that can be
+        object with an 'AWAV-GRA' (air) or 'WAVE-GRI' (vacuum) spectral axis that can be
         serialized into a FITS header and evaluated by any FITS-compliant reader.
 
         Parameters
         ----------
         wave_air
             Whether the spectral axis represents air rather than vacuum wavelengths,
-            selecting between the 'AWAV-GRA' and 'WAVE-GRA' axis types. If `None`, the
-            value given in the initialization is used.
+            selecting between the 'AWAV-GRA' and 'WAVE-GRI' axis types. If `None`, the
+            value given in the initialization is used. The flag only declares what the
+            solution's wavelengths mean: no air-vacuum conversion is applied to the
+            wavelength values, so overriding it relabels the axis without changing the
+            numbers.
         max_residual
             Maximum allowed absolute deviation between the fitted dispersion function and
             the exact solution in pixels. A fit exceeding this limit emits an
@@ -317,6 +324,19 @@ class WavelengthSolution1D:
         Returns
         -------
         A 1D `~astropy.wcs.WCS` using the Paper III grating dispersion function.
+
+        Raises
+        ------
+        ValueError
+            If the wavelength solution is not set, its unit is not a length unit, or it
+            produces non-finite values within the pixel bounds.
+        TypeError
+            If the wavelength solution does not use a power-series
+            `~astropy.modeling.polynomial.Polynomial1D` model.
+        RuntimeError
+            If the grating dispersion function cannot be evaluated anywhere along the
+            spectral axis, meaning the solution is outside the parameter space reachable
+            by the dispersion model.
 
         Notes
         -----
@@ -339,15 +359,26 @@ class WavelengthSolution1D:
         from any grating dispersion curve, and the lossless :attr:`gwcs` property should
         be used instead.
 
+        Vacuum solutions use 'WAVE-GRI' (grating in vacuo) rather than 'WAVE-GRA' because
+        the GRA algorithm is native to air wavelengths: pairing it with a vacuum axis
+        would route every evaluation through wcslib's air-refraction model, which is not
+        valid below ~200 nm.
+
         Note also that wcslib normalizes spectral axes to SI units, so evaluating the
-        returned WCS yields wavelengths in metres regardless of the CUNIT.
+        returned WCS yields wavelengths in metres regardless of the CUNIT, and serializing
+        it with ``to_header()`` likewise writes CRVAL and CDELT in metres with CUNIT 'm'.
         """
         if self._p2w is None:
             raise ValueError("Wavelength solution not set.")
+        if not isinstance(self._p2w[1], models.Polynomial1D):
+            raise TypeError(
+                "FITS WCS export requires the wavelength solution to use a power-series "
+                f"Polynomial1D model, got {type(self._p2w[1]).__name__}."
+            )
 
         air = self.wave_air if wave_air is None else wave_air
-        ctype = "AWAV-GRA" if air else "WAVE-GRA"
-        cunit = self.unit.to_string()
+        ctype = "AWAV-GRA" if air else "WAVE-GRI"
+        cunit = self.unit.to_string("fits")
 
         try:
             m_to_unit = (1.0 * u.m).to_value(self.unit)
@@ -360,12 +391,18 @@ class WavelengthSolution1D:
         x_model = np.arange(self.bounds_pix[0], self.bounds_pix[1])
         x_fits = x_model[:, None] + 1.0
         lam = self.p2w(x_model)
+        if not np.all(np.isfinite(lam)):
+            raise ValueError(
+                "The wavelength solution produces non-finite values within the pixel "
+                "bounds and cannot be exported as a FITS WCS."
+            )
 
-        popt = _fit_gra_dispersion(x_fits, lam, crpix, crval, cdelt, ctype, cunit, m_to_unit)
-        w = _make_gra_wcs(popt, crpix, crval, cdelt, ctype, cunit)
+        fit = _fit_gra_dispersion(x_fits, lam, crpix, crval, cdelt, ctype, cunit, m_to_unit)
+        w = _make_gra_wcs(fit.x, crpix, crval, cdelt, ctype, cunit)
 
-        res_wav = _gra_residuals(popt, crpix, crval, cdelt, x_fits, lam, ctype, cunit, m_to_unit)
-        max_res = float(np.max(np.abs(res_wav / self.p2w_dldx(x_model))))
+        with np.errstate(divide="ignore", invalid="ignore"):
+            res_pix = np.abs(fit.fun / self.p2w_dldx(x_model))
+        max_res = float(np.nanmax(res_pix)) if np.any(np.isfinite(res_pix)) else np.inf
         if max_res > max_residual:
             warnings.warn(
                 f"The fitted FITS WCS deviates from the wavelength solution by up to "
