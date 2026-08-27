@@ -10,7 +10,7 @@ New Features
   be written with the specutils 'wcs1d-fits' format. The fitted WCS is now cached
   per air/vacuum axis type and invalidated when the pixel-to-wavelength
   transformation changes, so one solution can be applied to many spectra without
-  refitting the grism dispersion function. [#NNN]
+  refitting the grism dispersion function. [#316]
 
 - Added ``WavelengthSolution1D.to_asdf()`` and ``WavelengthSolution1D.from_asdf()``
   for serializing a wavelength solution losslessly into an ASDF file. Only the
@@ -23,12 +23,12 @@ New Features
   to the solution. The reference pixel keywords (CRPIX, CRVAL, CDELT) are
   set exactly from the solution model and only the grating PV terms are
   fitted, and a warning is emitted if the approximation deviates from the
-  exact solution by more than a given number of pixels. [#NNN]
+  exact solution by more than a given number of pixels. [#316]
 
 - The ``wave_air`` flag given to ``WavelengthCalibration1D`` is now stored
   in the resulting ``WavelengthSolution1D``, where it selects between air
   (``AWAV-GRA``) and vacuum (``WAVE-GRI``) spectral axis types in FITS WCS
-  export. [#NNN]
+  export. [#316]
 
 API Changes
 ^^^^^^^^^^^
@@ -36,7 +36,7 @@ API Changes
 - The legacy ``specreduce.wavelength_calibration.WavelengthCalibration1D``
   class (deprecated since v1.7.0) now emits an ``AstropyDeprecationWarning``
   on instantiation, and its removal has been rescheduled from v2.0 to v1.11.
-  Use ``specreduce.wavecal1d.WavelengthCalibration1D`` instead. [#NNN]
+  Use ``specreduce.wavecal1d.WavelengthCalibration1D`` instead. [#316]
 
 1.9.0 (2026-05-06)
 ------------------
