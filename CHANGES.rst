@@ -5,6 +5,13 @@
 New Features
 ^^^^^^^^^^^^
 
+- Added a ``WavelengthSolution1D.attach_wcs()`` method that returns a copy of a
+  pixel-space spectrum carrying the fitted FITS WCS as its spectral axis, ready to
+  be written with the specutils 'wcs1d-fits' format. The fitted WCS is now cached
+  per air/vacuum axis type and invalidated when the pixel-to-wavelength
+  transformation changes, so one solution can be applied to many spectra without
+  refitting the grism dispersion function. [#NNN]
+
 - Added ``WavelengthSolution1D.to_asdf()`` and ``WavelengthSolution1D.from_asdf()``
   for serializing a wavelength solution losslessly into an ASDF file. Only the
   coordinate transformation is stored, as a GWCS object whose bounding box carries

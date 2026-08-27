@@ -2,6 +2,7 @@ import asdf
 import astropy.units as u
 import numpy as np
 import pytest
+from astropy.io import fits
 from astropy.modeling import models, fitting
 from astropy.modeling.polynomial import Polynomial1D
 from astropy.nddata import StdDevUncertainty
@@ -58,7 +59,7 @@ def gra_fitted_wcs(gra_solution):
 @pytest.fixture
 def mk_spectrum():
     return Spectrum(
-        flux=np.ones(pix_bounds[1]) * u.DN,
+        flux=np.ones(pix_bounds[1]) * u.count,
         spectral_axis=np.arange(pix_bounds[1]) * u.pix,
         uncertainty=StdDevUncertainty(np.ones(pix_bounds[1])),
     )
@@ -111,7 +112,7 @@ def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
     resampled = ws.resample(spectrum, nbins=50)
     assert resampled is not None
     assert len(resampled.flux) == 50
-    assert resampled.flux.unit == u.DN / u.angstrom
+    assert resampled.flux.unit == u.count / u.angstrom
 
     pix_edges = np.arange(spectrum.spectral_axis.size + 1) - 0.5
     f0 = (spectrum.flux.value * np.diff(ws._p2w(pix_edges))).sum()
@@ -276,6 +277,78 @@ def test_wcs_raises_when_fit_degenerate():
     ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.angstrom)
     with pytest.raises(RuntimeError, match="grism dispersion"):
         ws.wcs()
+
+
+def test_attach_wcs_attaches_fitted_wcs(gra_solution, gra_fitted_wcs):
+    ws = gra_solution
+    npix = ws.bounds_pix[1]
+    sp = Spectrum(
+        flux=np.arange(npix) * u.count,
+        spectral_axis=np.arange(npix) * u.pix,
+        uncertainty=StdDevUncertainty(np.full(npix, 0.5)),
+        mask=np.zeros(npix, dtype=bool),
+        meta={"OBJECT": "test"},
+    )
+    cal = ws.attach_wcs(sp)
+
+    assert isinstance(cal.wcs, astropy_WCS)
+    assert cal.wcs.wcs.ctype[0] == gra_fitted_wcs.wcs.ctype[0]
+    np.testing.assert_array_equal(cal.flux, sp.flux)
+    np.testing.assert_array_equal(cal.uncertainty.array, sp.uncertainty.array)
+    np.testing.assert_array_equal(cal.mask, sp.mask)
+    assert cal.meta == sp.meta
+
+    # The spectral axis must follow the solution to within the fitted residual.
+    x = np.arange(npix)
+    res_pix = (cal.spectral_axis.to_value(u.angstrom) - ws.p2w(x)) / ws.p2w_dldx(x)
+    assert np.max(np.abs(res_pix)) < 0.1
+
+
+def test_attach_wcs_result_writes_as_wcs1d_fits(gra_solution, tmp_path):
+    npix = gra_solution.bounds_pix[1]
+    sp = Spectrum(flux=np.arange(npix) * u.count, spectral_axis=np.arange(npix) * u.pix)
+    cal = gra_solution.attach_wcs(sp)
+
+    path = tmp_path / "calibrated.fits"
+    cal.write(path, format="wcs1d-fits")
+    back = Spectrum.read(path, format="wcs1d-fits")
+
+    assert fits.getheader(path)["CTYPE1"] == "AWAV-GRA"
+    np.testing.assert_allclose(back.spectral_axis.to_value(u.m), cal.spectral_axis.to_value(u.m))
+    np.testing.assert_allclose(back.flux.value, cal.flux.value)
+
+
+def test_wcs_is_cached_and_invalidated():
+    # A dedicated solution: the test clears the cache, which a shared fixture would carry
+    # into every test that follows.
+    ws = _make_gra_solution(128, wave_air=True)
+    assert ws.wcs() is not None
+    assert True in ws._wcs_cache
+
+    # A second call must reuse the fit but still hand out an independent object.
+    w1, w2 = ws.wcs(), ws.wcs()
+    assert w1 is not w2
+    np.testing.assert_array_equal(w1.wcs.get_pv(), w2.wcs.get_pv())
+
+    # Both axis types are cached separately.
+    ws.wcs(wave_air=False)
+    assert set(ws._wcs_cache) == {True, False}
+
+    ws.p2w = ws.p2w
+    assert ws._wcs_cache == {}
+
+
+def test_attach_wcs_raises_on_length_mismatch(gra_solution):
+    sp = Spectrum(flux=np.ones(13) * u.count, spectral_axis=np.arange(13) * u.pix)
+    with pytest.raises(ValueError, match="13 pixels"):
+        gra_solution.attach_wcs(sp)
+
+
+def test_attach_wcs_raises_on_multidimensional_flux(gra_solution):
+    npix = gra_solution.bounds_pix[1]
+    sp = Spectrum(flux=np.ones((3, npix)) * u.count, spectral_axis=np.arange(npix) * u.pix)
+    with pytest.raises(ValueError, match="one-dimensional"):
+        gra_solution.attach_wcs(sp)
 
 
 def test_asdf_round_trip_is_lossless(tmp_path):

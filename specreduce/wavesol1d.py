@@ -223,6 +223,7 @@ class WavelengthSolution1D:
         self._unit_str = unit.to_string("latex")
         self.bounds_pix: tuple[int, int] = bounds_pix
         self.bounds_wav: tuple[float, float] | None = None
+        self._wcs_cache: dict[bool, tuple[tuple, float]] = {}
         self._p2w: None | CompoundModel = None
         self.p2w = p2w
 
@@ -242,6 +243,7 @@ class WavelengthSolution1D:
             del self.w2p
         if "gwcs" in self.__dict__:
             del self.gwcs
+        self._wcs_cache.clear()
 
     @cached_property
     def p2w_dldx(self) -> CompoundModel:
@@ -312,6 +314,10 @@ class WavelengthSolution1D:
         'WAVE-GRI' (vacuum) spectral axis that can be serialized into a FITS header and
         evaluated by any FITS-compliant reader.
 
+        The fit is cached per air/vacuum axis type and invalidated whenever the
+        pixel-to-wavelength transformation changes. Each call returns an independent copy
+        of the cached WCS, so the caller is free to modify the result.
+
         Parameters
         ----------
         wave_air
@@ -377,6 +383,39 @@ class WavelengthSolution1D:
         returned WCS yields wavelengths in metres regardless of the CUNIT, and serializing
         it with ``to_header()`` likewise writes CRVAL and CDELT in metres with CUNIT 'm'.
         """
+        air = self.wave_air if wave_air is None else wave_air
+        if air not in self._wcs_cache:
+            self._wcs_cache[air] = self._fit_wcs(air)
+        args, max_res = self._wcs_cache[air]
+
+        if max_res > max_residual:
+            warnings.warn(
+                f"The fitted FITS WCS deviates from the wavelength solution by up to "
+                f"{max_res:.2f} pixels, exceeding the given limit of {max_residual} pixels. "
+                f"The 'gwcs' property provides a lossless representation.",
+                AstropyUserWarning,
+            )
+        return _make_grism_wcs(*args)
+
+    def _fit_wcs(self, air: bool) -> tuple[tuple, float]:
+        """Fit the grism dispersion function to the wavelength solution.
+
+        Caching the arguments of `_make_grism_wcs` rather than the fitted WCS itself keeps
+        every call to :meth:`wcs` returning a pristine object: wcslib normalizes a WCS to SI
+        units in place the first time it is evaluated, so a shared or copied instance would
+        hand out metres where a freshly built one still carries the solution unit. Rebuilding
+        costs microseconds against the milliseconds of the fit.
+
+        Parameters
+        ----------
+        air
+            Whether the spectral axis represents air rather than vacuum wavelengths.
+
+        Returns
+        -------
+        The arguments needed to rebuild the fitted `~astropy.wcs.WCS` and the largest
+        deviation from the exact solution within the pixel bounds in pixels.
+        """
         if self._p2w is None:
             raise ValueError("Wavelength solution not set.")
         if not isinstance(self._p2w[1], models.Polynomial1D):
@@ -385,7 +424,6 @@ class WavelengthSolution1D:
                 f"Polynomial1D model, got {type(self._p2w[1]).__name__}."
             )
 
-        air = self.wave_air if wave_air is None else wave_air
         ctype = "AWAV-GRA" if air else "WAVE-GRI"
         cunit = self.unit.to_string("fits")
 
@@ -407,19 +445,81 @@ class WavelengthSolution1D:
             )
 
         fit = _fit_grism_dispersion(x_fits, lam, crpix, crval, cdelt, ctype, cunit, m_to_unit)
-        w = _make_grism_wcs(fit.x, crpix, crval, cdelt, ctype, cunit)
 
         with np.errstate(divide="ignore", invalid="ignore"):
             res_pix = np.abs(fit.fun / self.p2w_dldx(x_model))
         max_res = float(np.nanmax(res_pix)) if np.any(np.isfinite(res_pix)) else np.inf
-        if max_res > max_residual:
-            warnings.warn(
-                f"The fitted FITS WCS deviates from the wavelength solution by up to "
-                f"{max_res:.2f} pixels, exceeding the given limit of {max_residual} pixels. "
-                f"The 'gwcs' property provides a lossless representation.",
-                AstropyUserWarning,
+        return (fit.x, crpix, crval, cdelt, ctype, cunit), max_res
+
+    def attach_wcs(
+        self, spectrum: Spectrum, wave_air: bool | None = None, max_residual: float = 1.0
+    ) -> Spectrum:
+        """Attach the fitted FITS WCS to a copy of a pixel-space spectrum.
+
+        Returns a new `~specutils.Spectrum` holding the flux, uncertainty, mask, and metadata
+        of the given spectrum with the FITS WCS returned by :meth:`wcs` as its world
+        coordinate system. The samples are left where they are and only their spectral
+        coordinates change, so the result can be written with the specutils 'wcs1d-fits'
+        format, which stores the flux as an image and the wavelength solution as WCS header
+        keywords. Use :meth:`resample` instead to rebin the flux onto a wavelength grid.
+
+        The fitted WCS is cached per air/vacuum axis type and reused, so applying one
+        solution to many spectra runs the grism fit only once. The cache is cleared whenever
+        the pixel-to-wavelength transformation changes.
+
+        Parameters
+        ----------
+        spectrum
+            A pixel-space spectrum sampled on the pixel grid the solution was fitted on.
+        wave_air
+            Whether the spectral axis represents air rather than vacuum wavelengths. If
+            `None`, the value given in the initialization is used.
+        max_residual
+            Maximum allowed absolute deviation between the fitted dispersion function and
+            the exact solution in pixels. A fit exceeding this limit emits an
+            `~astropy.utils.exceptions.AstropyUserWarning`.
+
+        Returns
+        -------
+        A spectrum with the same flux as the input and a FITS WCS spectral axis.
+
+        Raises
+        ------
+        ValueError
+            If the spectrum is not one-dimensional, or if its length does not match the
+            pixel range the solution was fitted over.
+
+        Notes
+        -----
+        The spectrum is assumed to be sampled one flux value per pixel over the solution's
+        pixel bounds, which is what the calibration produces: the WCS maps array index i to
+        the solution's pixel i, and a length mismatch means the spectrum does not share the
+        pixel grid the solution was derived on.
+
+        Because wcslib normalizes spectral axes to SI units, the spectral axis of the
+        returned spectrum is in metres regardless of the solution unit.
+        """
+        if spectrum.flux.ndim != 1:
+            raise ValueError(
+                f"Applying a wavelength solution requires a one-dimensional spectrum, got "
+                f"{spectrum.flux.ndim} dimensions."
             )
-        return w
+
+        npix = spectrum.flux.shape[0]
+        npix_solution = self.bounds_pix[1] - self.bounds_pix[0]
+        if npix != npix_solution:
+            raise ValueError(
+                f"The spectrum has {npix} pixels but the wavelength solution was fitted "
+                f"over {npix_solution}."
+            )
+
+        return Spectrum(
+            flux=spectrum.flux,
+            wcs=self.wcs(wave_air=wave_air, max_residual=max_residual),
+            uncertainty=spectrum.uncertainty,
+            mask=spectrum.mask,
+            meta=spectrum.meta,
+        )
 
     def to_asdf(self, path: str | Path, **kwargs) -> None:
         """Serialize the wavelength solution into an ASDF file.
