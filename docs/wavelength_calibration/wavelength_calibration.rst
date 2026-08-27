@@ -230,7 +230,7 @@ resample spectra. The fitting methods return the solution, but it is also stored
 
 *   **Export a FITS WCS**: Use :meth:`~specreduce.wavesol1d.WavelengthSolution1D.wcs` to get a
     standard `~astropy.wcs.WCS` object that approximates the polynomial solution with the FITS WCS
-    Paper III grating dispersion function. The returned WCS is a numerical fit to the
+    Paper III grism dispersion function. The returned WCS is a numerical fit to the
     polynomial solution and can be serialized into a FITS header readable by any FITS-compliant
     software, or attached to a :class:`~specutils.Spectrum` object. A warning
     is emitted if the fit deviates from the polynomial solution by more than ``max_residual``

@@ -29,7 +29,7 @@ def mk_ws_with_transform():
 
 
 def _make_gra_solution(npix: int, wave_air: bool = False) -> WavelengthSolution1D:
-    """Create a solution whose polynomial closely follows a true grating dispersion curve."""
+    """Create a solution whose polynomial closely follows a true grism dispersion curve."""
     wt = astropy_WCS(naxis=1)
     wt.wcs.ctype = ["AWAV-GRA"]
     wt.wcs.cunit = ["Angstrom"]
@@ -184,9 +184,9 @@ def test_wcs_pinned_keywords(gra_solution, gra_fitted_wcs):
     assert w.wcs.crval[0] * scale == pytest.approx(ws._p2w[1].c0.value, rel=1e-12)
     assert w.wcs.cdelt[0] * scale == pytest.approx(ws._p2w[1].c1.value, rel=1e-12)
     pv = dict((i, v) for _, i, v in w.wcs.get_pv())
-    assert pv[1] == 1.0  # diffraction order
-    assert pv[3] == 1.0  # refractive index, absorbed by the fitted grating density
-    assert pv[5] == 0.0  # grating rotation
+    assert pv[1] == 1.0  # interference order, absorbed by the fitted ruling density
+    assert pv[3] == 1.0  # prism refractive index, absorbed by the fitted incidence angle
+    assert pv[5] == 0.0  # grating tilt, absorbed by the fitted ruling density
 
 
 def test_wcs_ctype_air_vacuum():
@@ -274,7 +274,7 @@ def test_wcs_raises_when_fit_degenerate():
     # this, so every residual evaluation is unphysical and the fit must fail loudly.
     poly = Polynomial1D(1, c0=1e10, c1=2.4)
     ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.angstrom)
-    with pytest.raises(RuntimeError, match="grating dispersion"):
+    with pytest.raises(RuntimeError, match="grism dispersion"):
         ws.wcs()
 
 

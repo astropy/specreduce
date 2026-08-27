@@ -45,17 +45,21 @@ def _diff_poly1d(m: models.Polynomial1D) -> models.Polynomial1D:
     return models.Polynomial1D(m.degree - 1, **coeffs)
 
 
-def _make_gra_wcs(
+def _make_grism_wcs(
     p: ArrayLike, crpix: float, crval: float, cdelt: float, ctype: str, cunit: str
 ) -> WCS:
-    """Create a 1D FITS WCS using the WCS Paper III grating dispersion function.
+    """Create a 1D FITS WCS using the WCS Paper III grism dispersion function.
+
+    The grism dispersion function and its PV parameters are defined in Greisen et al.
+    (2006, A&A 446, 747), Sect. 5.1 and Table 6.
 
     Parameters
     ----------
     p
-        Fitted grating parameters (g, alpha, nrp, theta): the effective grating density
-        [1/m], the incidence angle [deg], the derivative of the refractive index with
-        respect to wavelength at the reference wavelength [1/m], and the camera angle [deg].
+        Fitted grism parameters (g, alpha, nrp, theta): the effective grating ruling
+        density [1/m], the incidence angle [deg], the derivative of the prism refractive
+        index with respect to wavelength at the reference wavelength [1/m], and the
+        camera angle [deg].
     crpix
         Reference pixel in the one-based FITS convention.
     crval
@@ -69,7 +73,7 @@ def _make_gra_wcs(
 
     Returns
     -------
-    A 1D `~astropy.wcs.WCS` with a grating dispersion spectral axis.
+    A 1D `~astropy.wcs.WCS` with a grism dispersion spectral axis.
     """
     g, alpha, nrp, theta = p
     w = WCS(naxis=1)
@@ -80,23 +84,23 @@ def _make_gra_wcs(
     w.wcs.cdelt = [cdelt]
     w.wcs.set_pv(
         [
-            (1, 0, g),  # effective grating density [1/m], absorbs the refractive index
-            (1, 1, 1.0),  # diffraction order, fixed (enters only as a product with g)
-            (1, 2, alpha),  # incidence angle [deg]
-            (1, 3, 1.0),  # refractive index, fixed (enters only as a product with g)
-            (1, 4, nrp),  # dn/dlambda at the reference wavelength [1/m]
-            (1, 5, 0.0),  # grating rotation, fixed (degenerate with the grating density)
-            (1, 6, theta),  # camera angle [deg]
+            (1, 0, g),  # G: effective ruling density [1/m], absorbs m and cos(eps)
+            (1, 1, 1.0),  # m: interference order, fixed (enters only in the product G*m)
+            (1, 2, alpha),  # alpha: incidence angle [deg], absorbs n_r
+            (1, 3, 1.0),  # n_r: prism refractive index, fixed (enters only via n_r*sin(alpha))
+            (1, 4, nrp),  # n'_r: dn/dlambda at the reference wavelength [1/m]
+            (1, 5, 0.0),  # eps: grating tilt, fixed (enters only via G*m/cos(eps))
+            (1, 6, theta),  # theta: camera angle [deg]
         ]
     )
     return w
 
 
-GRA_SENTINEL = 1e8
-"""Residual value standing in for unphysical grating parameter combinations."""
+GRISM_SENTINEL = 1e8
+"""Residual value standing in for unphysical grism parameter combinations."""
 
 
-def _fit_gra_dispersion(
+def _fit_grism_dispersion(
     x_fits: NDArray,
     lam: NDArray,
     crpix: float,
@@ -106,17 +110,17 @@ def _fit_gra_dispersion(
     cunit: str,
     m_to_unit: float,
 ) -> optimize.OptimizeResult:
-    """Fit the WCS Paper III grating dispersion function to an exact wavelength solution.
+    """Fit the WCS Paper III grism dispersion function to an exact wavelength solution.
 
-    Fits the four free grating parameters (g, alpha, nrp, theta) with a single bounded
+    Fits the four free grism parameters (g, alpha, nrp, theta) with a single bounded
     least-squares run. The reference pixel keywords (CRPIX, CRVAL, CDELT) are exact
     statements about the wavelength solution and pin the value and slope of the dispersion
     function at the reference pixel, which makes the problem unimodal enough for a local
-    optimizer. The initial grating density is the Littrow-configuration value at the
+    optimizer. The initial ruling density is the Littrow-configuration value at the
     reference wavelength, which places the starting point inside the arcsin domain of the
-    grating equation for any reference wavelength, and pixels for which wcslib returns
-    non-finite values yield large finite residuals that keep the optimizer within the
-    valid parameter space.
+    grism equation (Greisen et al. 2006, Eq. 68) for any reference wavelength, and pixels
+    for which wcslib returns non-finite values yield large finite residuals that keep the
+    optimizer within the valid parameter space.
 
     Parameters
     ----------
@@ -141,23 +145,23 @@ def _fit_gra_dispersion(
     Returns
     -------
     The `~scipy.optimize.OptimizeResult` of the fit, where ``x`` holds the optimized
-    grating parameters as in `_make_gra_wcs` and ``fun`` the residual wavelengths in the
+    grism parameters as in `_make_grism_wcs` and ``fun`` the residual wavelengths in the
     solution unit.
 
     Raises
     ------
     RuntimeError
-        If the grating dispersion function cannot be evaluated anywhere along the
+        If the grism dispersion function cannot be evaluated anywhere along the
         spectral axis at the fitted parameters.
     """
 
     def residuals(p: NDArray) -> NDArray:
         try:
-            w = _make_gra_wcs(p, crpix, crval, cdelt, ctype, cunit)
+            w = _make_grism_wcs(p, crpix, crval, cdelt, ctype, cunit)
             res = w.wcs_pix2world(x_fits, 1)[:, 0] * m_to_unit - lam
         except InvalidTransformError:
-            return np.full(lam.size, GRA_SENTINEL)
-        return np.where(np.isfinite(res), res, GRA_SENTINEL)
+            return np.full(lam.size, GRISM_SENTINEL)
+        return np.where(np.isfinite(res), res, GRISM_SENTINEL)
 
     lam_ref_m = crval / m_to_unit
     g0 = float(np.clip(2.0 * np.sin(np.radians(10.0)) / lam_ref_m, 1e3, 1e7))
@@ -165,17 +169,17 @@ def _fit_gra_dispersion(
 
     # Set the WCS once outside the fit so that parameter-independent configuration errors
     # (such as an invalid CUNIT) propagate instead of being fenced off as unphysical
-    # parameter combinations. Out-of-domain grating parameters do not raise here: wcslib
+    # parameter combinations. Out-of-domain grism parameters do not raise here: wcslib
     # signals them with non-finite coordinates handled in `residuals`.
-    _make_gra_wcs(p0, crpix, crval, cdelt, ctype, cunit).wcs.set()
+    _make_grism_wcs(p0, crpix, crval, cdelt, ctype, cunit).wcs.set()
 
     bounds = ([1e3, -89.9, -1e7, -89.9], [1e7, 89.9, 1e7, 89.9])
     fit = optimize.least_squares(
         residuals, p0, bounds=bounds, method="trf", x_scale=[g0, 10.0, 1e4, 10.0]
     )
-    if np.all(fit.fun == GRA_SENTINEL):
+    if np.all(fit.fun == GRISM_SENTINEL):
         raise RuntimeError(
-            "The grating dispersion function could not be evaluated anywhere along the "
+            "The grism dispersion function could not be evaluated anywhere along the "
             "spectral axis: the wavelength solution is outside the parameter space "
             "reachable by the 'WAVE-GRI'/'AWAV-GRA' dispersion model. The 'gwcs' property "
             "provides a lossless representation."
@@ -302,10 +306,11 @@ class WavelengthSolution1D:
     def wcs(self, wave_air: bool | None = None, max_residual: float = 1.0) -> WCS:
         """Fit and return a FITS WCS approximating the wavelength solution.
 
-        Fits the FITS WCS Paper III grating dispersion function to the exact
-        pixel-to-wavelength model and returns the result as a standard `~astropy.wcs.WCS`
-        object with an 'AWAV-GRA' (air) or 'WAVE-GRI' (vacuum) spectral axis that can be
-        serialized into a FITS header and evaluated by any FITS-compliant reader.
+        Fits the FITS WCS Paper III grism dispersion function (Greisen et al. 2006,
+        A&A 446, 747, Sect. 5.1) to the exact pixel-to-wavelength model and returns the
+        result as a standard `~astropy.wcs.WCS` object with an 'AWAV-GRA' (air) or
+        'WAVE-GRI' (vacuum) spectral axis that can be serialized into a FITS header and
+        evaluated by any FITS-compliant reader.
 
         Parameters
         ----------
@@ -323,7 +328,7 @@ class WavelengthSolution1D:
 
         Returns
         -------
-        A 1D `~astropy.wcs.WCS` using the Paper III grating dispersion function.
+        A 1D `~astropy.wcs.WCS` using the Paper III grism dispersion function.
 
         Raises
         ------
@@ -334,7 +339,7 @@ class WavelengthSolution1D:
             If the wavelength solution does not use a power-series
             `~astropy.modeling.polynomial.Polynomial1D` model.
         RuntimeError
-            If the grating dispersion function cannot be evaluated anywhere along the
+            If the grism dispersion function cannot be evaluated anywhere along the
             spectral axis, meaning the solution is outside the parameter space reachable
             by the dispersion model.
 
@@ -343,26 +348,30 @@ class WavelengthSolution1D:
         The reference pixel keywords are exact statements about the wavelength solution
         rather than fit parameters: CRPIX is the solution's reference pixel, and CRVAL and
         CDELT are the value and derivative of the solution polynomial at that pixel. Only
-        the four grating terms (the grating density PV1_0, the incidence angle PV1_2, the
-        refractive index derivative PV1_4, and the camera angle PV1_6) are fitted, so all
-        approximation error lives in the PV terms, and the residual is zero in both value
-        and slope at the reference pixel and grows towards the chip edges.
+        four grism terms (the grating ruling density PV1_0, the incidence angle PV1_2,
+        the refractive index derivative PV1_4, and the camera angle PV1_6; see Greisen
+        et al. 2006, Table 6) are fitted, so all approximation error lives in the PV
+        terms, and the residual is zero in both value and slope at the reference pixel
+        and grows towards the chip edges.
 
-        The grating dispersion function cannot represent an arbitrary polynomial exactly,
+        The grism dispersion function cannot represent an arbitrary polynomial exactly,
         so the returned WCS is a numerical approximation of the wavelength solution and
-        the fitted PV values are effective rather than physical: the refractive index
-        PV1_3 is fixed at 1 because it enters the dispersion function only through its
-        product with the grating density, making the fitted PV1_0 an effective density
-        that absorbs the refractive index, and PV1_4 acts as a curvature absorber rather
-        than a measure of air dispersion. No spectrograph physics should be read from the
-        fitted PV values. If the fit fails to reach ``max_residual``, the solution is far
-        from any grating dispersion curve, and the lossless :attr:`gwcs` property should
-        be used instead.
+        the fitted PV values are effective rather than physical. The remaining Table 6
+        parameters are fixed at values that make them redundant with the fitted ones: the
+        interference order PV1_1 and the grating tilt PV1_5 enter the grism equation only
+        through the combination G*m/cos(eps), so they are absorbed by the fitted ruling
+        density, and the prism refractive index PV1_3 is fixed at 1 (the paper's plain
+        grating case) because it enters only through the product n_r*sin(alpha) and is
+        absorbed by the fitted incidence angle; PV1_4 acts as a curvature absorber rather
+        than a measure of glass dispersion. No spectrograph physics should be read from
+        the fitted PV values. If the fit fails to reach ``max_residual``, the solution is
+        far from any grism dispersion curve, and the lossless :attr:`gwcs` property
+        should be used instead.
 
-        Vacuum solutions use 'WAVE-GRI' (grating in vacuo) rather than 'WAVE-GRA' because
-        the GRA algorithm is native to air wavelengths: pairing it with a vacuum axis
-        would route every evaluation through wcslib's air-refraction model, which is not
-        valid below ~200 nm.
+        Vacuum solutions use 'WAVE-GRI' (grism in vacuum, Sect. 5.1.2 of the paper)
+        rather than 'WAVE-GRA' because the GRA algorithm (Sect. 5.1.4) is native to air
+        wavelengths: pairing it with a vacuum axis would route every evaluation through
+        wcslib's air-refraction model, which is not valid below ~200 nm.
 
         Note also that wcslib normalizes spectral axes to SI units, so evaluating the
         returned WCS yields wavelengths in metres regardless of the CUNIT, and serializing
@@ -397,8 +406,8 @@ class WavelengthSolution1D:
                 "bounds and cannot be exported as a FITS WCS."
             )
 
-        fit = _fit_gra_dispersion(x_fits, lam, crpix, crval, cdelt, ctype, cunit, m_to_unit)
-        w = _make_gra_wcs(fit.x, crpix, crval, cdelt, ctype, cunit)
+        fit = _fit_grism_dispersion(x_fits, lam, crpix, crval, cdelt, ctype, cunit, m_to_unit)
+        w = _make_grism_wcs(fit.x, crpix, crval, cdelt, ctype, cunit)
 
         with np.errstate(divide="ignore", invalid="ignore"):
             res_pix = np.abs(fit.fun / self.p2w_dldx(x_model))

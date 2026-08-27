@@ -68,7 +68,7 @@ The reduction workflow follows a modular pipeline: **Trace → Background → Ex
 
 - **wavecal1d.py**: Current wavelength calibration implementation using `WavelengthCalibration1D`. Supports automated line matching, template matching, and produces GWCS-based WCS objects.
 
-- **wavesol1d.py**: `WavelengthSolution1D` — manages the pixel↔wavelength polynomial mapping underlying the calibration. Exports the solution as a lossless GWCS (`gwcs` property) or as a standard FITS WCS fitted with the Paper III grating dispersion function (`wcs()` method, `WAVE-GRI`/`AWAV-GRA`).
+- **wavesol1d.py**: `WavelengthSolution1D` — manages the pixel↔wavelength polynomial mapping underlying the calibration. Exports the solution as a lossless GWCS (`gwcs` property) or as a standard FITS WCS fitted with the Paper III grism dispersion function (`wcs()` method, `WAVE-GRI`/`AWAV-GRA`).
 
 - **line_matching.py**: Helpers for matching detected lines to reference line lists.
 
