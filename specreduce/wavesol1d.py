@@ -1,6 +1,9 @@
 from functools import cached_property
+from pathlib import Path
 from typing import Callable
+from copy import deepcopy
 
+import asdf
 import astropy.units as u
 import gwcs
 import numpy as np
@@ -44,6 +47,7 @@ class WavelengthSolution1D:
         p2w: None | CompoundModel,
         bounds_pix: tuple[int, int],
         unit: u.Unit,
+        wave_air: bool = False,
     ) -> None:
         """Class defining a one-dimensional wavelength solution.
 
@@ -64,8 +68,12 @@ class WavelengthSolution1D:
             The lower and upper pixel bounds defining the range of the spectrum.
         unit
             The wavelength unit.
+        wave_air
+            Whether the solution maps pixels to air rather than vacuum wavelengths; by
+            default `False`, meaning vacuum wavelengths.
         """
         self.unit = unit
+        self.wave_air = wave_air
         self._unit_str = unit.to_string("latex")
         self.bounds_pix: tuple[int, int] = bounds_pix
         self.bounds_wav: tuple[float, float] | None = None
@@ -148,6 +156,104 @@ class WavelengthSolution1D:
         )
         pipeline = [(pixel_frame, self._p2w), (spectral_frame, None)]
         return gwcs.wcs.WCS(pipeline)
+
+    def to_asdf(self, path: str | Path, **kwargs) -> None:
+        """Serialize the wavelength solution into an ASDF file.
+
+        Stores the pixel-to-wavelength transformation as a GWCS object under the
+        'wavelength_solution' key of the ASDF tree. The transformation is written as an
+        analytic model rather than as a tabulated array, so the solution read back is
+        identical to the one written, and the file can be opened by any ASDF-aware tool
+        without specreduce. This is the lossless counterpart of :meth:`wcs`, which
+        approximates the solution closely enough to fit into a FITS header.
+
+        Only the coordinate transformation is stored: the line lists, matched-line tables,
+        and fit diagnostics held by the calibration that produced the solution are not
+        included.
+
+        Parameters
+        ----------
+        path
+            File to write to, given either as a path or as a writable file object.
+        **kwargs
+            Additional keyword arguments passed to `asdf.AsdfFile.write_to`.
+
+        Raises
+        ------
+        ValueError
+            If the wavelength solution is not set.
+
+        Notes
+        -----
+        The pixel bounds travel as the bounding box of the exported GWCS, which is the
+        idiomatic way to declare the domain over which a GWCS is valid. The bounding box is
+        set on the exported object only: the :attr:`gwcs` property is deliberately left
+        unbounded, because a bounded GWCS returns NaN outside its box instead of
+        extrapolating.
+
+        The air-wavelength flag is stored as a separate 'wave_air' entry because it states
+        what the wavelengths mean rather than how they are computed, and neither GWCS
+        spectral frames nor their physical types can express it.
+        """
+        if self._p2w is None:
+            raise ValueError("Wavelength solution not set.")
+
+        w = deepcopy(self.gwcs)
+        w.bounding_box = (self.bounds_pix,)
+        tree = {"wavelength_solution": {"gwcs": w, "wave_air": bool(self.wave_air)}}
+        asdf.AsdfFile(tree).write_to(path, **kwargs)
+
+    @classmethod
+    def from_asdf(cls, path: str | Path) -> "WavelengthSolution1D":
+        """Create a wavelength solution from an ASDF file written by :meth:`to_asdf`.
+
+        Parameters
+        ----------
+        path
+            File to read from, given either as a path or as a readable file object.
+
+        Returns
+        -------
+        The wavelength solution stored in the file.
+
+        Raises
+        ------
+        ValueError
+            If the file holds no wavelength solution written by :meth:`to_asdf`, if the
+            stored GWCS carries no bounding box giving the pixel bounds, or if its
+            transformation is not a shift followed by a polynomial.
+        """
+        with asdf.open(path, lazy_load=False) as af:
+            try:
+                node = af["wavelength_solution"]
+                w = node["gwcs"]
+                wave_air = node["wave_air"]
+            except (KeyError, TypeError):
+                raise ValueError(
+                    "The ASDF file contains no wavelength solution written by "
+                    "WavelengthSolution1D.to_asdf."
+                )
+
+            bbox = w.bounding_box
+            if bbox is None:
+                raise ValueError(
+                    "The stored GWCS carries no bounding box giving the pixel bounds of "
+                    "the wavelength solution."
+                )
+            bounds_pix = bbox.bounding_box()
+            unit = u.Unit(w.output_frame.unit[0])
+            p2w = w.forward_transform.copy()
+
+        # The bounding box lives on the forward transform, so drop it to keep the
+        # restored transformation extrapolating exactly like the one that was written.
+        del p2w.bounding_box
+
+        if not (isinstance(p2w, CompoundModel) and isinstance(p2w[0], models.Shift)):
+            raise ValueError(
+                "WavelengthSolution1D requires the stored transformation to be a shift "
+                f"followed by a polynomial, got {p2w.__class__.__name__}."
+            )
+        return cls(p2w, (int(bounds_pix[0]), int(bounds_pix[1])), unit, wave_air=bool(wave_air))
 
     def resample(
         self,

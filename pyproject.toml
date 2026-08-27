@@ -15,6 +15,7 @@ dependencies = [
     "specutils>=2.0",
     "matplotlib>=3.10",
     "gwcs",
+    "asdf>=3.3",
 ]
 
 [project.optional-dependencies]

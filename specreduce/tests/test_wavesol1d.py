@@ -1,10 +1,11 @@
+import asdf
 import astropy.units as u
 import numpy as np
 import pytest
 from astropy.modeling import models
 from astropy.modeling.polynomial import Polynomial1D
 from astropy.nddata import StdDevUncertainty
-from gwcs import wcs
+from gwcs import coordinate_frames, wcs
 from specreduce.wavesol1d import _diff_poly1d, WavelengthSolution1D
 from specutils import Spectrum
 
@@ -130,3 +131,73 @@ def test_wcs_creates_valid_gwcs_object(mk_ws_with_transform):
     assert wcs_obj is not None
     assert isinstance(wcs_obj, wcs.WCS)
     assert wcs_obj.output_frame.unit[0] == u.angstrom
+
+
+def test_asdf_round_trip_is_lossless(tmp_path):
+    ws = WavelengthSolution1D(p2w, pix_bounds, u.angstrom, wave_air=True)
+    path = tmp_path / "solution.asdf"
+    ws.to_asdf(path)
+    rs = WavelengthSolution1D.from_asdf(path)
+
+    assert rs.unit == ws.unit
+    assert rs.wave_air == ws.wave_air
+    assert rs.bounds_pix == ws.bounds_pix
+    assert rs.ref_pixel == ws.ref_pixel
+    assert isinstance(rs.p2w[1], Polynomial1D)
+    np.testing.assert_array_equal(rs.p2w.parameters, ws.p2w.parameters)
+
+    # The transform must be reproduced exactly, extrapolation outside the bounds included.
+    x = np.linspace(pix_bounds[0] - 50, pix_bounds[1] + 50, 137)
+    np.testing.assert_array_equal(rs.pix_to_wav(x), ws.pix_to_wav(x))
+    np.testing.assert_array_equal(rs.p2w_dldx(x), ws.p2w_dldx(x))
+
+
+def test_asdf_export_leaves_solution_unbounded(tmp_path, mk_ws_with_transform):
+    ws = mk_ws_with_transform
+    ws.to_asdf(tmp_path / "solution.asdf")
+
+    # The pixel bounds travel as the GWCS bounding box, which GWCS stores on the forward
+    # transform. Exporting must not bound the live solution, whose GWCS extrapolates.
+    assert ws.gwcs.bounding_box is None
+    with pytest.raises(NotImplementedError):
+        ws.p2w.bounding_box
+
+    rs = WavelengthSolution1D.from_asdf(tmp_path / "solution.asdf")
+    assert rs.gwcs.bounding_box is None
+    with pytest.raises(NotImplementedError):
+        rs.p2w.bounding_box
+
+
+def test_to_asdf_raises_without_transform(mk_ws_without_transform, tmp_path):
+    with pytest.raises(ValueError, match="not set"):
+        mk_ws_without_transform.to_asdf(tmp_path / "solution.asdf")
+
+
+def test_from_asdf_raises_on_foreign_file(tmp_path):
+    path = tmp_path / "foreign.asdf"
+    asdf.AsdfFile({"something_else": 1}).write_to(path)
+    with pytest.raises(ValueError, match="no wavelength solution"):
+        WavelengthSolution1D.from_asdf(path)
+
+
+def test_from_asdf_raises_without_bounding_box(tmp_path, mk_ws_with_transform):
+    ws = mk_ws_with_transform
+    path = tmp_path / "unbounded.asdf"
+    tree = {"wavelength_solution": {"gwcs": ws.gwcs, "wave_air": False}}
+    asdf.AsdfFile(tree).write_to(path)
+    with pytest.raises(ValueError, match="no bounding box"):
+        WavelengthSolution1D.from_asdf(path)
+
+
+def test_from_asdf_raises_on_unsupported_transform(tmp_path):
+    pixel_frame = coordinate_frames.CoordinateFrame(
+        1, "SPECTRAL", (0,), axes_names=["x"], unit=[u.pix]
+    )
+    spectral_frame = coordinate_frames.SpectralFrame(axes_names=("wavelength",), unit=[u.angstrom])
+    w = wcs.WCS([(pixel_frame, Polynomial1D(2, c0=1, c1=2)), (spectral_frame, None)])
+    w.bounding_box = (pix_bounds,)
+
+    path = tmp_path / "unsupported.asdf"
+    asdf.AsdfFile({"wavelength_solution": {"gwcs": w, "wave_air": False}}).write_to(path)
+    with pytest.raises(ValueError, match="shift followed by a polynomial"):
+        WavelengthSolution1D.from_asdf(path)

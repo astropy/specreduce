@@ -1,4 +1,15 @@
 
+1.10.0 (unreleased)
+-------------------
+
+New Features
+^^^^^^^^^^^^
+
+- Added ``WavelengthSolution1D.to_asdf()`` and ``WavelengthSolution1D.from_asdf()``
+  for serializing a wavelength solution losslessly into an ASDF file. Only the
+  coordinate transformation is stored, as a GWCS object whose bounding box carries
+  the pixel bounds, so the restored solution reproduces the original exactly. [#NNN]
+
 1.9.0 (2026-05-06)
 ------------------
 
