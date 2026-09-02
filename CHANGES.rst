@@ -38,6 +38,12 @@ API Changes
   on instantiation, and its removal has been rescheduled from v2.0 to v1.11.
   Use ``specreduce.wavecal1d.WavelengthCalibration1D`` instead. [#316]
 
+Other changes
+^^^^^^^^^^^^^
+
+- Dropped support for Python 3.11. The minimum supported Python version is
+  now 3.12.
+
 1.9.0 (2026-05-06)
 ------------------
 
