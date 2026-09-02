@@ -214,9 +214,9 @@ Several tools help assess the quality of the wavelength solution:
 ********************************
 
 The fitted polynomial wavelength solution is stored as a
-:class:`~specreduce.wavesol1d .WavelengthSolution1D` instance that you can use to transform and
-resample spectra. The fitting methods return the solution, but it is also stored in
-`WavelengthCalibration1D.solution`.
+:class:`~specreduce.wavesol1d.WavelengthSolution1D` instance that you can use to transform and
+resample spectra. The fitting methods return the solution, but it is also stored in the
+``solution`` attribute of :class:`~specreduce.wavecal1d.WavelengthCalibration1D`.
 
 *   **Convert Coordinates**: Use :meth:`~specreduce.wavesol1d.WavelengthSolution1D.pix_to_wav` and
     :meth:`~specreduce.wavesol1d.WavelengthSolution1D.wav_to_pix` to convert between pixel and
