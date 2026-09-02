@@ -164,8 +164,7 @@ class WavelengthSolution1D:
         'wavelength_solution' key of the ASDF tree. The transformation is written as an
         analytic model rather than as a tabulated array, so the solution read back is
         identical to the one written, and the file can be opened by any ASDF-aware tool
-        without specreduce. This is the lossless counterpart of :meth:`wcs`, which
-        approximates the solution closely enough to fit into a FITS header.
+        without specreduce.
 
         Only the coordinate transformation is stored: the line lists, matched-line tables,
         and fit diagnostics held by the calibration that produced the solution are not
