@@ -9,6 +9,22 @@ from numpy.testing import assert_allclose
 
 from specreduce import WavelengthCalibration1D
 
+# The legacy WavelengthCalibration1D emits an AstropyDeprecationWarning on instantiation;
+# ignore it module-wide so the functional tests keep running until the class is removed.
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:The WavelengthCalibration1D class is deprecated:"
+    "astropy.utils.exceptions.AstropyDeprecationWarning"
+)
+
+
+def test_deprecation_warning(spec1d):
+    from astropy.utils.exceptions import AstropyDeprecationWarning
+
+    centers = [0, 10, 20, 30]
+    w = [5000, 5100, 5198, 5305] * u.AA
+    with pytest.warns(AstropyDeprecationWarning, match="v1.11"):
+        WavelengthCalibration1D(spec1d, line_pixels=centers, line_wavelengths=w)
+
 
 def test_linear_from_list(spec1d):
     centers = [0, 10, 20, 30]

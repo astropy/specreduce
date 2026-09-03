@@ -2,13 +2,16 @@ import asdf
 import astropy.units as u
 import numpy as np
 import pytest
-from astropy.modeling import models
+from astropy.io import fits
+from astropy.modeling import models, fitting
 from astropy.modeling.polynomial import Polynomial1D
 from astropy.nddata import StdDevUncertainty
 from gwcs import coordinate_frames, wcs
-from specreduce.wavesol1d import _diff_poly1d, WavelengthSolution1D
+from astropy.utils.exceptions import AstropyUserWarning
+from astropy.wcs import WCS as astropy_WCS
 from specutils import Spectrum
 
+from specreduce.wavesol1d import _diff_poly1d, WavelengthSolution1D
 
 ref_pixel = 250.0
 p2w = models.Shift(ref_pixel) | models.Polynomial1D(degree=3, c0=1, c1=0.2, c2=0.001)
@@ -26,10 +29,37 @@ def mk_ws_with_transform():
     return WavelengthSolution1D(p2w, pix_bounds, u.angstrom)
 
 
+def _make_gra_solution(npix: int, wave_air: bool = False) -> WavelengthSolution1D:
+    """Create a solution whose polynomial closely follows a true grism dispersion curve."""
+    wt = astropy_WCS(naxis=1)
+    wt.wcs.ctype = ["AWAV-GRA"]
+    wt.wcs.cunit = ["Angstrom"]
+    wt.wcs.crpix = [npix // 2]
+    wt.wcs.crval = [5410.0]
+    wt.wcs.cdelt = [2.4]
+    wt.wcs.set_pv([(1, 0, 5.0e5), (1, 1, 1.0), (1, 2, 8.05)])
+    x = np.arange(npix)
+    ref_pixel = npix // 2 - 1
+    lam = wt.wcs_pix2world(x[:, None] + 1.0, 1)[:, 0] * 1e10
+    poly = fitting.LinearLSQFitter()(Polynomial1D(3), x - ref_pixel, lam)
+    m = models.Shift(-ref_pixel) | poly
+    return WavelengthSolution1D(m, (0, npix), u.angstrom, wave_air=wave_air)
+
+
+@pytest.fixture(scope="module")
+def gra_solution():
+    return _make_gra_solution(512, wave_air=True)
+
+
+@pytest.fixture(scope="module")
+def gra_fitted_wcs(gra_solution):
+    return gra_solution.wcs()
+
+
 @pytest.fixture
 def mk_spectrum():
     return Spectrum(
-        flux=np.ones(pix_bounds[1]) * u.DN,
+        flux=np.ones(pix_bounds[1]) * u.count,
         spectral_axis=np.arange(pix_bounds[1]) * u.pix,
         uncertainty=StdDevUncertainty(np.ones(pix_bounds[1])),
     )
@@ -69,6 +99,10 @@ def test_init():
     ws = WavelengthSolution1D(None, pix_bounds, u.angstrom)
     assert ws._p2w is None
 
+    assert ws.wave_air is False
+    ws = WavelengthSolution1D(p2w, pix_bounds, u.angstrom, wave_air=True)
+    assert ws.wave_air is True
+
 
 def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
     ws = mk_ws_with_transform
@@ -78,7 +112,7 @@ def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
     resampled = ws.resample(spectrum, nbins=50)
     assert resampled is not None
     assert len(resampled.flux) == 50
-    assert resampled.flux.unit == u.DN / u.angstrom
+    assert resampled.flux.unit == u.count / u.angstrom
 
     pix_edges = np.arange(spectrum.spectral_axis.size + 1) - 0.5
     f0 = (spectrum.flux.value * np.diff(ws._p2w(pix_edges))).sum()
@@ -131,6 +165,190 @@ def test_wcs_creates_valid_gwcs_object(mk_ws_with_transform):
     assert wcs_obj is not None
     assert isinstance(wcs_obj, wcs.WCS)
     assert wcs_obj.output_frame.unit[0] == u.angstrom
+
+
+def test_wcs_gra_round_trip(gra_solution, gra_fitted_wcs):
+    ws, w = gra_solution, gra_fitted_wcs
+    assert isinstance(w, astropy_WCS)
+    assert w.wcs.ctype[0] == "AWAV-GRA"
+    x = np.arange(*ws.bounds_pix)
+    res_pix = (w.wcs_pix2world(x[:, None] + 1.0, 1)[:, 0] * 1e10 - ws.p2w(x)) / ws.p2w_dldx(x)
+    assert np.max(np.abs(res_pix)) < 0.1
+
+
+def test_wcs_pinned_keywords(gra_solution, gra_fitted_wcs):
+    ws, w = gra_solution, gra_fitted_wcs
+    # wcslib normalizes crval/cdelt/cunit to metres in place when WCS.set() first runs,
+    # so the comparison must go through the current cunit.
+    scale = (1.0 * u.Unit(w.wcs.cunit[0])).to_value(u.angstrom)
+    assert w.wcs.crpix[0] == -ws._p2w[0].offset.value + 1.0
+    assert w.wcs.crval[0] * scale == pytest.approx(ws._p2w[1].c0.value, rel=1e-12)
+    assert w.wcs.cdelt[0] * scale == pytest.approx(ws._p2w[1].c1.value, rel=1e-12)
+    pv = dict((i, v) for _, i, v in w.wcs.get_pv())
+    assert pv[1] == 1.0  # interference order, absorbed by the fitted ruling density
+    assert pv[3] == 1.0  # prism refractive index, absorbed by the fitted incidence angle
+    assert pv[5] == 0.0  # grating tilt, absorbed by the fitted ruling density
+
+
+def test_wcs_ctype_air_vacuum():
+    ws_air = _make_gra_solution(128, wave_air=True)
+    ws_vac = _make_gra_solution(128, wave_air=False)
+    assert ws_air.wcs().wcs.ctype[0] == "AWAV-GRA"
+    assert ws_vac.wcs().wcs.ctype[0] == "WAVE-GRI"
+    assert ws_air.wcs(wave_air=False).wcs.ctype[0] == "WAVE-GRI"
+    assert ws_vac.wcs(wave_air=True).wcs.ctype[0] == "AWAV-GRA"
+
+
+def test_wcs_warning_on_poor_fit():
+    ws = _make_gra_solution(128)
+    with pytest.warns(AstropyUserWarning, match="lossless"):
+        w = ws.wcs(max_residual=0.0)
+    assert isinstance(w, astropy_WCS)
+
+
+def test_wcs_header_round_trip(gra_solution, gra_fitted_wcs):
+    w = gra_fitted_wcs
+    w2 = astropy_WCS(w.to_header())
+    x = np.arange(*gra_solution.bounds_pix)[:, None] + 1.0
+    np.testing.assert_allclose(w2.wcs_pix2world(x, 1), w.wcs_pix2world(x, 1), rtol=1e-12)
+
+
+def test_wcs_raises_without_transform(mk_ws_without_transform):
+    with pytest.raises(ValueError, match="Wavelength solution not set."):
+        mk_ws_without_transform.wcs()
+
+
+def test_wcs_raises_for_non_length_unit():
+    ws = WavelengthSolution1D(p2w, pix_bounds, u.Hz)
+    with pytest.raises(ValueError, match="length unit"):
+        ws.wcs()
+
+
+def _assert_wcs_matches_solution(ws, scale, npix=512, limit=0.5):
+    w = ws.wcs()
+    x = np.arange(0, npix)
+    lam_fit = w.wcs_pix2world(x[:, None] + 1.0, 1)[:, 0] * scale
+    assert np.all(np.isfinite(lam_fit))
+    res_pix = (lam_fit - ws.p2w(x)) / ws.p2w_dldx(x)
+    assert np.max(np.abs(res_pix)) < limit
+
+
+def test_wcs_red_ir_solution():
+    # A K-band solution: the grating fit must converge far from the optical regime.
+    poly = Polynomial1D(3, c0=24000.0, c1=2.4, c2=5e-5, c3=-2e-8)
+    ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.angstrom)
+    _assert_wcs_matches_solution(ws, 1e10)
+
+
+def test_wcs_micron_unit():
+    # 'micron' has no FITS unit string of its own; export must use the FITS format ('um').
+    poly = Polynomial1D(3, c0=2.4, c1=2.4e-4, c2=5e-9, c3=-2e-12)
+    ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.micron)
+    _assert_wcs_matches_solution(ws, 1e6)
+
+
+def test_wcs_uv_vacuum_solution():
+    # A vacuum axis exported as 'WAVE-GRA' would pass through wcslib's air-refraction
+    # model, which is invalid below ~2000 A; vacuum solutions must use 'WAVE-GRI'.
+    poly = Polynomial1D(3, c0=1600.0, c1=0.6, c2=1e-5, c3=-5e-9)
+    ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.angstrom)
+    assert ws.wcs().wcs.ctype[0] == "WAVE-GRI"
+    _assert_wcs_matches_solution(ws, 1e10, limit=0.1)
+
+
+def test_wcs_raises_on_nonfinite_solution():
+    poly = Polynomial1D(3, c0=5410.0, c1=2.4, c2=np.nan, c3=0.0)
+    ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.angstrom)
+    with pytest.raises(ValueError, match="non-finite"):
+        ws.wcs()
+
+
+def test_wcs_raises_for_non_power_series_model():
+    cheb = models.Chebyshev1D(3, c0=5410.0, c1=600.0, c2=5.0, c3=-1.0)
+    ws = WavelengthSolution1D(models.Shift(-255) | cheb, (0, 512), u.angstrom)
+    with pytest.raises(TypeError, match="Polynomial1D"):
+        ws.wcs()
+
+
+def test_wcs_raises_when_fit_degenerate():
+    # Metre-scale "wavelengths": no grating within the parameter bounds can reproduce
+    # this, so every residual evaluation is unphysical and the fit must fail loudly.
+    poly = Polynomial1D(1, c0=1e10, c1=2.4)
+    ws = WavelengthSolution1D(models.Shift(-255) | poly, (0, 512), u.angstrom)
+    with pytest.raises(RuntimeError, match="grism dispersion"):
+        ws.wcs()
+
+
+def test_attach_wcs_attaches_fitted_wcs(gra_solution, gra_fitted_wcs):
+    ws = gra_solution
+    npix = ws.bounds_pix[1]
+    sp = Spectrum(
+        flux=np.arange(npix) * u.count,
+        spectral_axis=np.arange(npix) * u.pix,
+        uncertainty=StdDevUncertainty(np.full(npix, 0.5)),
+        mask=np.zeros(npix, dtype=bool),
+        meta={"OBJECT": "test"},
+    )
+    cal = ws.attach_wcs(sp)
+
+    assert isinstance(cal.wcs, astropy_WCS)
+    assert cal.wcs.wcs.ctype[0] == gra_fitted_wcs.wcs.ctype[0]
+    np.testing.assert_array_equal(cal.flux, sp.flux)
+    np.testing.assert_array_equal(cal.uncertainty.array, sp.uncertainty.array)
+    np.testing.assert_array_equal(cal.mask, sp.mask)
+    assert cal.meta == sp.meta
+
+    # The spectral axis must follow the solution to within the fitted residual.
+    x = np.arange(npix)
+    res_pix = (cal.spectral_axis.to_value(u.angstrom) - ws.p2w(x)) / ws.p2w_dldx(x)
+    assert np.max(np.abs(res_pix)) < 0.1
+
+
+def test_attach_wcs_result_writes_as_wcs1d_fits(gra_solution, tmp_path):
+    npix = gra_solution.bounds_pix[1]
+    sp = Spectrum(flux=np.arange(npix) * u.count, spectral_axis=np.arange(npix) * u.pix)
+    cal = gra_solution.attach_wcs(sp)
+
+    path = tmp_path / "calibrated.fits"
+    cal.write(path, format="wcs1d-fits")
+    back = Spectrum.read(path, format="wcs1d-fits")
+
+    assert fits.getheader(path)["CTYPE1"] == "AWAV-GRA"
+    np.testing.assert_allclose(back.spectral_axis.to_value(u.m), cal.spectral_axis.to_value(u.m))
+    np.testing.assert_allclose(back.flux.value, cal.flux.value)
+
+
+def test_wcs_is_cached_and_invalidated():
+    # A dedicated solution: the test clears the cache, which a shared fixture would carry
+    # into every test that follows.
+    ws = _make_gra_solution(128, wave_air=True)
+    assert ws.wcs() is not None
+    assert True in ws._wcs_cache
+
+    # A second call must reuse the fit but still hand out an independent object.
+    w1, w2 = ws.wcs(), ws.wcs()
+    assert w1 is not w2
+    np.testing.assert_array_equal(w1.wcs.get_pv(), w2.wcs.get_pv())
+
+    # Both axis types are cached separately.
+    ws.wcs(wave_air=False)
+    assert set(ws._wcs_cache) == {True, False}
+
+    ws.p2w = ws.p2w
+    assert ws._wcs_cache == {}
+
+
+def test_attach_wcs_raises_on_length_mismatch(gra_solution):
+    sp = Spectrum(flux=np.ones(13) * u.count, spectral_axis=np.arange(13) * u.pix)
+    with pytest.raises(ValueError, match="13 pixels"):
+        gra_solution.attach_wcs(sp)
+
+
+def test_attach_wcs_raises_on_multidimensional_flux(gra_solution):
+    npix = gra_solution.bounds_pix[1]
+    sp = Spectrum(flux=np.ones((3, npix)) * u.count, spectral_axis=np.arange(npix) * u.pix)
+    with pytest.raises(ValueError, match="one-dimensional"):
+        gra_solution.attach_wcs(sp)
 
 
 def test_asdf_round_trip_is_lossless(tmp_path):

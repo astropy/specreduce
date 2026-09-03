@@ -145,7 +145,9 @@ class WavelengthCalibration1D:
 
         wave_air
             Boolean indicating whether the input wavelengths correspond to air rather than vacuum;
-            by default `False`, meaning vacuum wavelengths.
+            by default `False`, meaning vacuum wavelengths. The flag is also stored in the
+            wavelength solution, where it selects between the 'AWAV-GRA' and 'WAVE-GRI' axis
+            types in FITS WCS export.
         """
         self.unit = unit
         self._unit_str = unit.to_string("latex")
@@ -164,7 +166,7 @@ class WavelengthCalibration1D:
         self._trees: list[KDTree] | None = None
 
         self._fit: optimize.OptimizeResult | None = None
-        self.solution = WavelengthSolution1D(None, pix_bounds, unit)
+        self.solution = WavelengthSolution1D(None, pix_bounds, unit, wave_air=wave_air)
 
         # Read and store the observational data if given. The user can provide either a list of arc
         # spectra as Spectrum objects or a list of line pixel position arrays. An attempt to give

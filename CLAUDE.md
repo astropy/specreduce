@@ -68,7 +68,7 @@ The reduction workflow follows a modular pipeline: **Trace → Background → Ex
 
 - **wavecal1d.py**: Current wavelength calibration implementation using `WavelengthCalibration1D`. Supports automated line matching, template matching, and produces GWCS-based WCS objects.
 
-- **wavesol1d.py**: `WavelengthSolution1D` — manages the pixel↔wavelength polynomial mapping underlying the calibration.
+- **wavesol1d.py**: `WavelengthSolution1D` — manages the pixel↔wavelength polynomial mapping underlying the calibration. Exports the solution as a lossless GWCS (`gwcs` property) or as a standard FITS WCS fitted with the Paper III grism dispersion function (`wcs()` method, `WAVE-GRI`/`AWAV-GRA`).
 
 - **line_matching.py**: Helpers for matching detected lines to reference line lists.
 
@@ -78,7 +78,7 @@ The reduction workflow follows a modular pipeline: **Trace → Background → Ex
 
 - **table_utils.py**: Shared helpers for the QTable structures used across modules.
 
-- **wavelength_calibration.py**: Legacy wavelength calibration (deprecated in v1.7.0, removal in v2.0)
+- **wavelength_calibration.py**: Legacy wavelength calibration (deprecated in v1.7.0, removal in v1.11)
 
 - **fluxcal.py**: `FluxCalibration` class for flux calibration with magnitude-to-flux conversion and airmass extinction correction
 

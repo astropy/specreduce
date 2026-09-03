@@ -5,6 +5,7 @@ from astropy import units as u
 from astropy.modeling.fitting import LMLSQFitter, LinearLSQFitter
 from astropy.modeling.models import Linear1D
 from astropy.table import QTable, hstack
+from astropy.utils.decorators import deprecated
 from gwcs import coordinate_frames as cf
 from gwcs import wcs
 
@@ -24,6 +25,13 @@ def _check_arr_monotonic(arr):
     return sorted_increasing or sorted_decreasing
 
 
+@deprecated(
+    since="1.7",
+    message=(
+        "The {name} {obj_type} is deprecated and will be removed in specreduce v1.11. "
+        "Use `specreduce.wavecal1d.WavelengthCalibration1D` instead."
+    ),
+)
 class WavelengthCalibration1D():
 
     def __init__(self, input_spectrum, matched_line_list=None, line_pixels=None,

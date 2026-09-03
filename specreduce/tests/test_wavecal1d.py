@@ -66,7 +66,12 @@ def mk_arc():
 def test_init(mk_arc, mk_lines):
     arc = mk_arc
     obs_lines, cat_lines = mk_lines
-    WavelengthCalibration1D(arc_spectra=arc, line_lists=cat_lines, ref_pixel=ref_pixel)
+    wc = WavelengthCalibration1D(arc_spectra=arc, line_lists=cat_lines, ref_pixel=ref_pixel)
+    assert wc.solution.wave_air is False
+    wc = WavelengthCalibration1D(
+        arc_spectra=arc, line_lists=cat_lines, ref_pixel=ref_pixel, wave_air=True
+    )
+    assert wc.solution.wave_air is True
     WavelengthCalibration1D(
         obs_lines=obs_lines,
         line_lists=cat_lines,
