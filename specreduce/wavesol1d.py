@@ -310,9 +310,17 @@ class WavelengthSolution1D:
 
         Fits the FITS WCS Paper III grism dispersion function (Greisen et al. 2006,
         A&A 446, 747, Sect. 5.1) to the exact pixel-to-wavelength model and returns the
-        result as a standard `~astropy.wcs.WCS` object with an 'AWAV-GRA' (air) or
-        'WAVE-GRI' (vacuum) spectral axis that can be serialized into a FITS header and
-        evaluated by any FITS-compliant reader.
+        result as a standard `~astropy.wcs.WCS` object that can be serialized into a FITS
+        header and evaluated by any FITS-compliant reader. The spectral axis type is
+        'AWAV-GRA' for air wavelengths or 'WAVE-GRI' for vacuum wavelengths.
+
+        Note on the naming: despite appearances, neither algorithm code refers to a
+        grating versus a grism. Both 'GRA' and 'GRI' denote the same Paper III grism
+        dispersion algorithm, and the trailing letter only identifies the medium the
+        wavelengths are measured in: 'GRA' is the grism dispersion relation for air
+        wavelengths and 'GRI' the one for vacuum wavelengths. The algorithm code is
+        therefore always paired with the matching coordinate type: 'AWAV' (air
+        wavelength) with 'GRA', and 'WAVE' (vacuum wavelength) with 'GRI'.
 
         The fit is cached per air/vacuum axis type and invalidated whenever the
         pixel-to-wavelength transformation changes. Each call returns an independent copy
@@ -374,10 +382,11 @@ class WavelengthSolution1D:
         far from any grism dispersion curve, and the lossless :attr:`gwcs` property
         should be used instead.
 
-        Vacuum solutions use 'WAVE-GRI' (grism in vacuum, Sect. 5.1.2 of the paper)
-        rather than 'WAVE-GRA' because the GRA algorithm (Sect. 5.1.4) is native to air
-        wavelengths: pairing it with a vacuum axis would route every evaluation through
-        wcslib's air-refraction model, which is not valid below ~200 nm.
+        Vacuum solutions use 'WAVE-GRI' (the grism-in-vacuum form of the algorithm,
+        Sect. 5.1.2 of the paper) rather than 'WAVE-GRA' because the 'GRA' form
+        (Sect. 5.1.4) is native to air wavelengths: pairing it with a vacuum axis would
+        route every evaluation through wcslib's air-refraction model, which is not valid
+        below ~200 nm.
 
         Note also that wcslib normalizes spectral axes to SI units, so evaluating the
         returned WCS yields wavelengths in metres regardless of the CUNIT, and serializing
