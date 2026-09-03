@@ -5,7 +5,7 @@ import pytest
 from astropy.io import fits
 from astropy.modeling import models, fitting
 from astropy.modeling.polynomial import Polynomial1D
-from astropy.nddata import StdDevUncertainty
+from astropy.nddata import StdDevUncertainty, VarianceUncertainty
 from gwcs import coordinate_frames, wcs
 from astropy.utils.exceptions import AstropyUserWarning
 from astropy.wcs import WCS as astropy_WCS
@@ -419,3 +419,31 @@ def test_from_asdf_raises_on_unsupported_transform(tmp_path):
     asdf.AsdfFile({"wavelength_solution": {"gwcs": w, "wave_air": False}}).write_to(path)
     with pytest.raises(ValueError, match="shift followed by a polynomial"):
         WavelengthSolution1D.from_asdf(path)
+
+
+def test_resample_propagates_variance(mk_ws_with_transform):
+    ws = mk_ws_with_transform
+    npix = pix_bounds[1]
+    sigma = 3.0
+    spectrum = Spectrum(
+        flux=np.ones(npix) * u.count,
+        spectral_axis=np.arange(npix) * u.pix,
+        uncertainty=StdDevUncertainty(np.full(npix, sigma)),
+    )
+    result = ws.resample(spectrum, nbins=10)
+    var = result.uncertainty.represent_as(VarianceUncertainty).array
+    dl = np.diff(result.spectral_axis.value)[0]
+    dldx = np.diff(ws.p2w(np.arange(npix + 1) - 0.5))
+
+    # The output is sum(w * f * dldx) / dl, so the variance of an interior bin is
+    # sum(w**2 * sigma**2 * dldx**2) / dl**2 over the contributing pixels.
+    ibin = 5
+    edges = result.spectral_axis.value[ibin] + np.array([-0.5, 0.5]) * dl
+    x_edges = ws.wav_to_pix(edges) + 0.5
+    i1, i2 = np.floor(x_edges).astype(int)
+    w = np.zeros(npix)
+    w[i1 + 1 : i2] = 1.0
+    w[i1] = 1.0 - (x_edges[0] - i1)
+    w[i2] = x_edges[1] - i2
+    expected = (w**2 * sigma**2 * dldx**2).sum() / dl**2
+    np.testing.assert_allclose(var[ibin], expected, rtol=1e-6)

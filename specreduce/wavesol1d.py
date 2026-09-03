@@ -712,11 +712,11 @@ class WavelengthSolution1D:
                 sl = slice(i1, i2 + 1)
                 w = weights[sl]
                 flux_wl[i] = (w * flux[sl] * dldx[sl]).sum()
-                ucty_wl[i] = (w**2 * ucty[sl] * dldx[sl]).sum()
+                ucty_wl[i] = (w**2 * ucty[sl] * dldx[sl] ** 2).sum()
             else:
                 fracw = bin_edges_pix[i + 1] - bin_edges_pix[i]
                 flux_wl[i] = fracw * flux[i1] * dldx[i1]
-                ucty_wl[i] = fracw**2 * ucty[i1] * dldx[i1]
+                ucty_wl[i] = fracw**2 * ucty[i1] * dldx[i1] ** 2
 
         bin_widths_wav = np.diff(bin_edges_wav)
         flux_wl = flux_wl / bin_widths_wav * spectrum.flux.unit / self.unit
