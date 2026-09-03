@@ -5,6 +5,14 @@
 New Features
 ^^^^^^^^^^^^
 
+- Added a ``WavelengthSolution1D.wcs()`` method that exports the wavelength
+  solution as a standard FITS ``astropy.wcs.WCS`` object by fitting the
+  WCS Paper III grism dispersion function (``WAVE-GRI`` or ``AWAV-GRA``)
+  to the solution. The reference pixel keywords (CRPIX, CRVAL, CDELT) are
+  set exactly from the solution model and only the grating PV terms are
+  fitted, and a warning is emitted if the approximation deviates from the
+  exact solution by more than a given number of pixels. [#316]
+
 - Added a ``WavelengthSolution1D.attach_wcs()`` method that returns a copy of a
   pixel-space spectrum carrying the fitted FITS WCS as its spectral axis, ready to
   be written with the specutils 'wcs1d-fits' format. The fitted WCS is now cached
@@ -16,14 +24,6 @@ New Features
   for serializing a wavelength solution losslessly into an ASDF file. Only the
   coordinate transformation is stored, as a GWCS object whose bounding box carries
   the pixel bounds, so the restored solution reproduces the original exactly. [#317]
-
-- Added a ``WavelengthSolution1D.wcs()`` method that exports the wavelength
-  solution as a standard FITS ``astropy.wcs.WCS`` object by fitting the
-  WCS Paper III grism dispersion function (``WAVE-GRI`` or ``AWAV-GRA``)
-  to the solution. The reference pixel keywords (CRPIX, CRVAL, CDELT) are
-  set exactly from the solution model and only the grating PV terms are
-  fitted, and a warning is emitted if the approximation deviates from the
-  exact solution by more than a given number of pixels. [#316]
 
 - The ``wave_air`` flag given to ``WavelengthCalibration1D`` is now stored
   in the resulting ``WavelengthSolution1D``, where it selects between air
