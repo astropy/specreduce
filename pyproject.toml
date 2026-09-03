@@ -7,7 +7,7 @@ authors = [
 license = {file = "licenses/LICENSE.rst"}
 description = "Astropy coordinated package for Spectroscopic Reductions"
 readme = "README.rst"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "numpy>=1.24",
     "astropy>=6.0",
@@ -15,6 +15,7 @@ dependencies = [
     "specutils>=2.0",
     "matplotlib>=3.10",
     "gwcs",
+    "asdf>=3.3",
 ]
 
 [project.optional-dependencies]
@@ -64,7 +65,7 @@ build-backend = 'setuptools.build_meta'
 
 [tool.black]
 line-length = 100
-target-version = ['py311', 'py312', 'py313', 'py314']
+target-version = ['py312', 'py313', 'py314']
 
 [tool.pytest.ini_options]
 minversion = 7.0

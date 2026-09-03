@@ -172,6 +172,7 @@ intersphinx_mapping.update(
         "ccdproc": ("https://ccdproc.readthedocs.io/en/stable/", None),
         "specutils": ("https://specutils.readthedocs.io/en/stable/", None),
         "gwcs": ("https://gwcs.readthedocs.io/en/stable/", None),
+        "asdf": ("https://www.asdf-format.org/projects/asdf/en/stable/", None),
     }
 )
 #
