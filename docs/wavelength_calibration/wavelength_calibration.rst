@@ -244,7 +244,9 @@ resample spectra. The fitting methods return the solution, but it is also stored
 *   **Export a GWCS Object**: Access the `~gwcs.wcs.WCS` object representing the polynomial
     wavelength solution via the :attr:`~specreduce.wavesol1d.WavelengthSolution1D.gwcs` attribute.
     This is particularly useful for attaching the calibration to a :class:`~specutils.Spectrum`
-    object.
+    object. Unlike `~specreduce.wavesol1d.WavelengthSolution1D.wcs`, which returns a grism
+    dispersion function fitted to the polynomial solution, the GWCS object carries the
+    exact polynomial model.
 
 *   **Rebin Spectrum**: Resample a spectrum onto a new wavelength grid using
     :meth:`~specreduce.wavesol1d.WavelengthSolution1D.resample`. The rebinning is
