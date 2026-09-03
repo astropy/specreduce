@@ -30,6 +30,13 @@ New Features
   (``AWAV-GRA``) and vacuum (``WAVE-GRI``) spectral axis types in FITS WCS
   export. [#316]
 
+Bug Fixes
+^^^^^^^^^
+
+- Fixed the variance propagation in ``WavelengthSolution1D.resample()``, which
+  weighted each pixel's variance by its wavelength width instead of the square of the
+  width, underestimating the uncertainty of the resampled flux. [#XXX]
+
 API Changes
 ^^^^^^^^^^^
 
