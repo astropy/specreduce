@@ -25,6 +25,21 @@ New Features
   coordinate transformation is stored, as a GWCS object whose bounding box carries
   the pixel bounds, so the restored solution reproduces the original exactly. [#317]
 
+- Added ``specreduce.wavesol2d.WavelengthSolution2D``, a two-dimensional wavelength
+  solution that chains a ``TiltSolution`` with a ``WavelengthSolution1D`` into a single
+  astropy model mapping detector pixels ``(disp, cdisp)`` directly to wavelength. It
+  provides ``pix_to_wav()`` and ``wav_to_pix()`` transformations, a ``gwcs`` property
+  mapping the 2D detector frame to a 1D spectral frame, lossless ``to_asdf()`` and
+  ``from_asdf()`` serialization, and a flux-conserving ``resample()`` method that bins a
+  2D detector image onto a common wavelength grid with propagated uncertainties and
+  mask. ``WavelengthSolution1D`` gained a ``from_gwcs()`` classmethod and
+  ``TiltSolution`` an ``image_shape`` property to support this. [#XXX]
+
+- Added ``TiltSolution.to_asdf()`` and ``TiltSolution.from_asdf()`` for serializing a
+  tilt solution losslessly into an ASDF file. The transformation is stored as a GWCS
+  object whose bounding box carries the image shape, and ``TiltSolution.from_gwcs()``
+  now reads the image shape from the bounding box when it is not given. [#XXX]
+
 - The ``wave_air`` flag given to ``WavelengthCalibration1D`` is now stored
   in the resulting ``WavelengthSolution1D``, where it selects between air
   (``AWAV-GRA``) and vacuum (``WAVE-GRI``) spectral axis types in FITS WCS

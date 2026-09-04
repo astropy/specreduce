@@ -36,3 +36,6 @@ API Reference
 
 .. automodapi:: specreduce.tilt_solution
     :no-inheritance-diagram:
+
+.. automodapi:: specreduce.wavesol2d
+    :no-inheritance-diagram:
