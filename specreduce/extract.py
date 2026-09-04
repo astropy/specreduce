@@ -712,11 +712,16 @@ class HorneExtract(SpecreduceOperation):
         ncross = flux.shape[crossdisp_axis]
         ndisp = flux.shape[disp_axis]
 
-        # If the trace is not flat, shift the rows in each column
-        # so the image is aligned along the trace:
+        # If the trace is not flat, shift the rows in each column so the
+        # image is aligned along the trace. The variance and mask must be
+        # shifted identically so that the extraction weights stay attached
+        # to the pixels they describe.
         if not isinstance(trace_object, FlatTrace):
-            flux = _align_along_trace(
-                flux, trace_object.trace, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis
+            flux, variance, mask = (
+                _align_along_trace(
+                    arr, trace_object.trace, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis
+                )
+                for arr in (flux, variance, mask)
             )
 
         if profile_type == "gaussian":

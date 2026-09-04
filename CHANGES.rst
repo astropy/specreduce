@@ -30,6 +30,15 @@ New Features
   (``AWAV-GRA``) and vacuum (``WAVE-GRI``) spectral axis types in FITS WCS
   export. [#316]
 
+Bug Fixes
+^^^^^^^^^
+
+- Fixed ``HorneExtract`` for non-flat traces: the flux was rolled to align the
+  trace with the central row, but the variance and mask arrays were not, so the
+  extraction weights were taken from the wrong pixels. This biased both the
+  extracted flux and its uncertainty whenever the variance was not spatially
+  uniform or any pixels were masked. [#XXX]
+
 API Changes
 ^^^^^^^^^^^
 

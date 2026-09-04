@@ -391,6 +391,44 @@ def test_horne_non_flat_trace():
     assert_quantity_allclose(extract_non_flat.flux, extract_flat.flux)
 
 
+def test_horne_non_flat_trace_aligns_variance_and_mask():
+    """
+    Regression test: the mask and variance arrays must be rolled along the
+    trace together with the flux, otherwise the extraction weights come
+    from the wrong pixels for non-flat traces.
+    """
+    n_rows, n_cols = 20, 40
+    x = np.arange(n_cols)
+    trace = 5 + 9 * x / (n_cols - 1)  # tilted trace from row 5 to row 14
+    rows = np.arange(n_rows)[:, None]
+    flux = 100 * np.exp(-0.5 * ((rows - trace[None, :]) / 1.5) ** 2) + 10.0
+
+    # spatially varying variance: large far from the trace, small on it
+    variance = 1.0 + 20.0 * (np.abs(rows - trace[None, :]) > 2)
+    # mask the peak pixel in one column
+    mask = np.zeros_like(flux, dtype=bool)
+    mask[int(trace[20]), 20] = True
+
+    extract_non_flat = HorneExtract(
+        flux, ArrayTrace(flux, trace), variance=variance, mask=mask, unit=u.DN
+    )()
+
+    # reference: align flux, variance, and mask consistently, then use a flat trace
+    aligned_flux = _align_along_trace(flux, trace)
+    aligned_variance = _align_along_trace(variance, trace)
+    aligned_mask = _align_along_trace(mask, trace)
+    extract_flat = HorneExtract(
+        aligned_flux,
+        FlatTrace(aligned_flux, n_rows // 2),
+        variance=aligned_variance,
+        mask=aligned_mask,
+        unit=u.DN,
+    )()
+
+    assert_quantity_allclose(extract_non_flat.flux, extract_flat.flux)
+    np.testing.assert_allclose(extract_non_flat.uncertainty.array, extract_flat.uncertainty.array)
+
+
 def test_horne_bad_profile(mk_test_img):
     image = mk_test_img
     trace = FlatTrace(image, 3.0)
