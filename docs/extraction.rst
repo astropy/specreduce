@@ -68,6 +68,17 @@ For `~specreduce.extract.BoxcarExtract`, the uncertainty is propagated through t
 weighted sum over the extraction aperture. For `~specreduce.extract.HorneExtract`,
 the optimal extraction algorithm naturally produces properly weighted uncertainties.
 
+Note that the Horne algorithm weights each pixel by its inverse variance. If the
+variance is derived from the noisy data itself, for example as the Poisson variance
+of the observed counts, pixels that fluctuate upwards receive less weight than
+pixels that fluctuate downwards, and the extracted flux is biased low by roughly
+the inverse of the counts per pixel (Horne 1986, Sect. II.C, eq. 13). By default
+`~specreduce.extract.HorneExtract` therefore re-estimates the variances from the
+extraction model before the final extraction, fitting for each dispersion element
+a linear relation between the input variances and the model flux. This recovers
+the read-noise and gain terms without requiring them as inputs. Pass
+``model_variance=False`` to weight with the input variances as given.
+
 Calling the extraction methods
 ------------------------------
 

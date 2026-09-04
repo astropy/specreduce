@@ -306,9 +306,22 @@ class HorneExtract(SpecreduceOperation):
     spatial profile across the spectrum.
 
     If using the Gaussian option for the spatial profile, a background profile
-    may be fit (but not subtracted) simultaneously to the data. By default,
-    this is done with a 2nd degree polynomial. If using the
-    ``interpolated_profile`` option, the background model must be set to None.
+    is fit simultaneously with the Gaussian so that a residual background does
+    not distort the profile fit. By default, this is done with a 2nd degree
+    polynomial. The background model only serves the profile fit: it is neither
+    subtracted from the data nor included in the extraction kernel, so the
+    input image is expected to be background-subtracted. The
+    ``interpolated_profile`` option does not use a background model.
+
+    Following Horne (1986), the pixel variances used to weight the extraction
+    are by default re-estimated from the extraction model rather than taken
+    directly from the input. Weighting by a variance derived from the noisy
+    data itself (e.g. the Poisson variance of the observed counts) biases the
+    extracted flux low, by roughly the inverse of the counts per pixel. The
+    re-estimation fits, column by column, a linear relation between the input
+    variance and the model flux, which recovers the read-noise and gain terms
+    without requiring them as inputs. Set ``model_variance=False`` to weight
+    with the input variances as given.
 
 
     Parameters
@@ -329,10 +342,10 @@ class HorneExtract(SpecreduceOperation):
         The index of the image's cross-dispersion axis. [default: 0]
 
     bkgrd_prof : `~astropy.modeling.Model` or None, optional
-        A model for the image's background flux when using the ``gaussian``
-        spatial profile. If ``spatial_profile`` is set to ``gaussian``, it defaults
-        to ``models.Polynomial1D(2)``. Note that the ``interpolated_profile`` option
-        does not support a background model, so ``bkgrd_prof`` must be left as ``None``.
+        A model for the residual background fit together with the ``gaussian``
+        spatial profile. ``None`` fits the Gaussian alone. The
+        ``interpolated_profile`` option ignores this argument.
+        [default: ``models.Polynomial1D(2)``]
 
     spatial_profile : str or dict, optional
         The shape of the object profile. The first option is 'gaussian' to fit
@@ -368,17 +381,23 @@ class HorneExtract(SpecreduceOperation):
         The associated unit for the data in ``image``. If blank,
         fluxes are interpreted in DN. [default: None]
 
+    model_variance : bool, optional
+        If True, re-estimate the pixel variances from the extraction model
+        before the final extraction, as described above. If False, weight the
+        extraction with the input variances as given. [default: True]
+
     """
 
     image: NDData
     trace_object: Trace
-    bkgrd_prof: None | Model = None
+    bkgrd_prof: None | Model = field(default_factory=lambda: models.Polynomial1D(2))
     spatial_profile: str | dict = "gaussian"
     variance: np.ndarray = field(default=None)
     mask: np.ndarray = field(default=None)
     unit: np.ndarray = field(default=None)
     disp_axis: int = 1
     crossdisp_axis: int = 0
+    model_variance: bool = True
     # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
 
     @property
@@ -602,6 +621,7 @@ class HorneExtract(SpecreduceOperation):
         variance=None,
         mask=None,
         unit=None,
+        model_variance=None,
     ):
         """
         Run the Horne calculation on a region of an image and extract a 1D spectrum.
@@ -624,10 +644,9 @@ class HorneExtract(SpecreduceOperation):
             The index of the image's cross-dispersion axis.
 
         bkgrd_prof : `~astropy.modeling.Model`, optional
-            A model for the image's background flux when using the ``gaussian``
-            spatial profile. If ``spatial_profile`` is set to ``gaussian``, it defaults
-            to ``models.Polynomial1D(2)``. Note that the ``interpolated_profile`` option
-            does not support a background model, so ``bkgrd_prof`` must be left as ``None``.
+            A model for the residual background fit together with the ``gaussian``
+            spatial profile. Overrides the model given at initialization; the
+            ``interpolated_profile`` option ignores it.
 
         spatial_profile : str or dict, optional
             The shape of the object profile. The first option is 'gaussian' to fit
@@ -663,6 +682,10 @@ class HorneExtract(SpecreduceOperation):
             The associated unit for the data in ``image``. If blank,
             fluxes are interpreted in DN.
 
+        model_variance : bool, optional
+            Whether to re-estimate the pixel variances from the extraction model
+            before the final extraction. Overrides the value given at initialization.
+
 
         Returns
         -------
@@ -678,6 +701,7 @@ class HorneExtract(SpecreduceOperation):
         variance = variance if variance is not None else self.variance
         mask = mask if mask is not None else self.mask
         unit = unit if unit is not None else self.unit
+        model_variance = model_variance if model_variance is not None else self.model_variance
 
         profile_choices = ("gaussian", "interpolated_profile")
 
@@ -692,9 +716,6 @@ class HorneExtract(SpecreduceOperation):
 
         n_bins_interpolated_profile = profile.get("n_bins_interpolated_profile", 10)
         interp_degree_interpolated_profile = profile.get("interp_degree_interpolated_profile", 1)
-
-        if bkgrd_prof is None and profile_type == "gaussian":
-            bkgrd_prof = models.Polynomial1D(2)
 
         # Store original uncertainty type BEFORE parsing (parsing converts to VarianceUncertainty)
         if hasattr(image, "uncertainty") and image.uncertainty is not None:
@@ -727,6 +748,13 @@ class HorneExtract(SpecreduceOperation):
         if profile_type == "gaussian":
             fit_ext_kernel = self._fit_gaussian_spatial_profile(
                 flux, disp_axis, crossdisp_axis, mask, bkgrd_prof
+            )
+            # The background component only stabilises the profile fit; the
+            # extraction kernel is the Gaussian alone.
+            gauss_kernel = models.Gaussian1D(
+                amplitude=fit_ext_kernel.amplitude_0.value,
+                mean=fit_ext_kernel.mean_0.value,
+                stddev=fit_ext_kernel.stddev_0.value,
             )
             if isinstance(trace_object, FlatTrace):
                 mean_cross_pix = trace_object.trace
@@ -764,25 +792,30 @@ class HorneExtract(SpecreduceOperation):
         valid = ~mask
 
         if profile_type == "gaussian":
-            norms[:] = fit_ext_kernel.amplitude_0 * fit_ext_kernel.stddev_0 * np.sqrt(2 * np.pi)
+            norms[:] = gauss_kernel.amplitude * gauss_kernel.stddev * np.sqrt(2 * np.pi)
 
         for idisp in range(ndisp):
             if not np.any(valid[:, idisp]):
                 continue
             if profile_type == "gaussian":
-                fit_ext_kernel.mean_0 = mean_cross_pix[idisp]
-                fitted_col = fit_ext_kernel(xd_pixels)
+                gauss_kernel.mean = mean_cross_pix[idisp]
+                fitted_col = gauss_kernel(xd_pixels)
                 kernel_vals[:, idisp] = fitted_col
             else:
                 fitted_col = interp_spatial_prof(idisp, xd_pixels)
                 kernel_vals[:, idisp] = fitted_col
                 norms[idisp] = trapezoid(fitted_col, dx=1)[0]
 
-        with np.errstate(divide="ignore", invalid="ignore"):
-            num = np.sum(np.where(valid, flux * kernel_vals / variance, 0.0), axis=crossdisp_axis)
-            den = np.sum(np.where(valid, kernel_vals**2 / variance, 0.0), axis=crossdisp_axis)
-            extracted_flux = (num / den) * norms
-            extracted_variance = norms**2 / den
+        extracted_flux, extracted_variance = _horne_sum(
+            flux, kernel_vals, variance, valid, norms, crossdisp_axis
+        )
+        if model_variance:
+            variance = _model_variance(
+                kernel_vals, norms, extracted_flux, variance, valid, crossdisp_axis
+            )
+            extracted_flux, extracted_variance = _horne_sum(
+                flux, kernel_vals, variance, valid, norms, crossdisp_axis
+            )
 
         spectrum_uncty = VarianceUncertainty(
             extracted_variance * self.image.unit**2
@@ -793,6 +826,58 @@ class HorneExtract(SpecreduceOperation):
             spectral_axis=self.image.spectral_axis,
             uncertainty=spectrum_uncty,
         )
+
+
+def _horne_sum(flux, kernel_vals, variance, valid, norms, crossdisp_axis):
+    """
+    Evaluate the Horne (1986) weighted sums for every dispersion element.
+
+    Returns the extracted flux ``norms * sum(f P / V) / sum(P**2 / V)`` and its
+    variance ``norms**2 / sum(P**2 / V)``, with the sums restricted to ``valid``
+    pixels.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        num = np.sum(np.where(valid, flux * kernel_vals / variance, 0.0), axis=crossdisp_axis)
+        den = np.sum(np.where(valid, kernel_vals**2 / variance, 0.0), axis=crossdisp_axis)
+        return (num / den) * norms, norms**2 / den
+
+
+def _model_variance(kernel_vals, norms, extracted_flux, variance, valid, crossdisp_axis):
+    """
+    Re-estimate the pixel variances from the extraction model (Horne 1986).
+
+    Weighting the extraction by a variance derived from the noisy data itself
+    biases the extracted flux low, because pixels that fluctuate upwards get
+    less weight than pixels that fluctuate downwards. Horne's remedy is to
+    compute the variance from the noise-free model instead. Without knowing
+    the gain and read noise, the same is achieved by fitting, for each
+    dispersion element, the linear relation ``V = intercept + slope * model``
+    between the input variances and the model flux ``extracted_flux * P``
+    over the valid pixels. The slope recovers the inverse gain and the
+    intercept the read-noise and background terms. Model variances are floored
+    at the smallest valid input variance of the element, and elements without
+    a finite extracted flux keep their input variances.
+    """
+    expand = lambda a: np.expand_dims(a, crossdisp_axis)  # noqa: E731
+
+    with np.errstate(invalid="ignore"):
+        model = kernel_vals * expand(extracted_flux / norms)
+    m = np.where(valid, model, 0.0)
+    v = np.where(valid, variance, 0.0)
+    n = np.sum(valid, axis=crossdisp_axis)
+    sx, sy = m.sum(axis=crossdisp_axis), v.sum(axis=crossdisp_axis)
+    sxx, sxy = (m * m).sum(axis=crossdisp_axis), (m * v).sum(axis=crossdisp_axis)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        det = n * sxx - sx * sx
+        slope = np.where(det > 0, (n * sxy - sx * sy) / det, 0.0)
+        slope = np.clip(slope, 0.0, None)
+        intercept = np.where(n > 0, (sy - slope * sx) / n, np.nan)
+        floor = np.min(np.where(valid, variance, np.inf), axis=crossdisp_axis)
+        modelled = np.maximum(expand(intercept) + expand(slope) * model, expand(floor))
+
+    usable = np.isfinite(extracted_flux) & (n > 0)
+    return np.where(expand(usable), modelled, variance)
 
 
 def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):

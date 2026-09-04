@@ -429,6 +429,62 @@ def test_horne_non_flat_trace_aligns_variance_and_mask():
     np.testing.assert_allclose(extract_non_flat.uncertainty.array, extract_flat.uncertainty.array)
 
 
+def _gaussian_column_image(nrows, ncols, amp, mean, stddev, bg=0.0):
+    rows = np.arange(nrows)[:, None]
+    return amp * np.exp(-0.5 * ((rows - mean) / stddev) ** 2) * np.ones((1, ncols)) + bg
+
+
+def test_horne_model_variance_removes_data_variance_bias():
+    """
+    Regression test: weighting by a variance derived from the noisy data itself
+    biases the Horne estimate low (Horne 1986, Sect. 3). Re-estimating the
+    variance from the model must remove the bias.
+    """
+    nrows, ncols, amp, stddev = 60, 2000, 40.0, 3.0
+    model = _gaussian_column_image(nrows, ncols, amp, 30, stddev, bg=20.0)
+    rng = np.random.default_rng(3)
+    noisy = rng.poisson(model).astype(float)
+    variance = np.clip(noisy, 1.0, None)  # Poisson variance estimated from the data
+    true_flux = amp * stddev * np.sqrt(2 * np.pi)
+    trace = FlatTrace(noisy, 30)
+
+    biased = HorneExtract(noisy - 20.0, trace, variance=variance, unit=u.DN, model_variance=False)()
+    fixed = HorneExtract(noisy - 20.0, trace, variance=variance, unit=u.DN)()
+
+    assert np.mean(biased.flux.value) / true_flux < 0.98
+    assert np.isclose(np.mean(fixed.flux.value) / true_flux, 1.0, atol=5e-3)
+
+
+def test_horne_kernel_excludes_background_model():
+    """
+    The fitted background polynomial must not be part of the extraction kernel.
+    With a variance that vanishes far from the source, a spurious constant in the
+    kernel makes P**2 / V blow up and drives the extracted flux to zero.
+    """
+    nrows, ncols, amp, stddev = 60, 5, 100.0, 3.0
+    source = _gaussian_column_image(nrows, ncols, amp, 30, stddev)
+    img = source + 0.01  # small residual background picked up by the polynomial
+    true_flux = amp * stddev * np.sqrt(2 * np.pi)
+    extracted = HorneExtract(
+        img, FlatTrace(img, 30), variance=source, unit=u.DN, model_variance=False
+    )()
+    np.testing.assert_allclose(extracted.flux.value, true_flux, rtol=1e-2)
+
+
+def test_horne_bkgrd_prof_none_disables_background_model():
+    """``bkgrd_prof=None`` must fit the profile without a background component."""
+    nrows, ncols = 40, 5
+    img = _gaussian_column_image(nrows, ncols, 100.0, 20, 2.0, bg=30.0)
+    trace = FlatTrace(img, 20)
+    variance = np.ones_like(img)
+    with_bkg = HorneExtract(img, trace, variance=variance, unit=u.DN, model_variance=False)()
+    without_bkg = HorneExtract(
+        img, trace, variance=variance, unit=u.DN, model_variance=False, bkgrd_prof=None
+    )()
+    # a pure Gaussian fit to Gaussian + constant lands on a different profile
+    assert not np.allclose(with_bkg.flux.value, without_bkg.flux.value, rtol=1e-3)
+
+
 def test_horne_bad_profile(mk_test_img):
     image = mk_test_img
     trace = FlatTrace(image, 3.0)

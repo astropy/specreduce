@@ -39,6 +39,21 @@ Bug Fixes
   extracted flux and its uncertainty whenever the variance was not spatially
   uniform or any pixels were masked. [#XXX]
 
+- Fixed a low bias in ``HorneExtract`` when the pixel variances are derived from
+  the noisy data itself (e.g. the Poisson variance of the observed counts), which
+  underestimated the flux by roughly the inverse of the counts per pixel. Following
+  Horne (1986), the variances are now re-estimated from the extraction model before
+  the final extraction; the new ``model_variance`` argument (default ``True``)
+  controls this. [#XXX]
+
+- The extraction kernel in ``HorneExtract`` is now the fitted Gaussian alone. The
+  background model fitted alongside the profile no longer leaks into the kernel and
+  its normalization, which could drive the extracted flux towards zero where the
+  variance is very small far from the source. [#XXX]
+
+- ``HorneExtract(bkgrd_prof=None)`` now fits the Gaussian profile without a
+  background model instead of silently substituting the default polynomial. [#XXX]
+
 API Changes
 ^^^^^^^^^^^
 
