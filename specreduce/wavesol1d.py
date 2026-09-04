@@ -606,15 +606,53 @@ class WavelengthSolution1D:
                     "WavelengthSolution1D.to_asdf."
                 )
 
-            bbox = w.bounding_box
+            return cls.from_gwcs(w, wave_air=bool(wave_air))
+
+    @classmethod
+    def from_gwcs(
+        cls,
+        wcs: gwcs.wcs.WCS,
+        bounds_pix: tuple[int, int] | None = None,
+        wave_air: bool = False,
+    ) -> "WavelengthSolution1D":
+        """Create a wavelength solution from a GWCS object.
+
+        The GWCS is expected to map a one-dimensional pixel frame to a spectral frame with
+        a shift followed by a polynomial, as produced by the :attr:`gwcs` property. The
+        wavelength unit is taken from the output frame, and the pixel bounds from the
+        bounding box of the GWCS unless given explicitly.
+
+        Parameters
+        ----------
+        wcs
+            A GWCS object mapping pixels to wavelengths.
+        bounds_pix
+            The lower and upper pixel bounds of the solution. If `None`, the bounds are read
+            from the bounding box of the GWCS.
+        wave_air
+            Whether the solution maps pixels to air rather than vacuum wavelengths. A GWCS
+            cannot express this, so the flag has to be given here.
+
+        Returns
+        -------
+        The wavelength solution represented by the GWCS.
+
+        Raises
+        ------
+        ValueError
+            If neither ``bounds_pix`` nor a bounding box gives the pixel bounds, or if the
+            forward transform is not a shift followed by a polynomial.
+        """
+        if bounds_pix is None:
+            bbox = wcs.bounding_box
             if bbox is None:
                 raise ValueError(
-                    "The stored GWCS carries no bounding box giving the pixel bounds of "
-                    "the wavelength solution."
+                    "The GWCS carries no bounding box giving the pixel bounds of the "
+                    "wavelength solution, and no bounds were given."
                 )
             bounds_pix = bbox.bounding_box()
-            unit = u.Unit(w.output_frame.unit[0])
-            p2w = w.forward_transform.copy()
+        unit = u.Unit(wcs.output_frame.unit[0])
+        p2w = wcs.forward_transform.copy()
 
         # The bounding box lives on the forward transform, so drop it to keep the
         # restored transformation extrapolating exactly like the one that was written.
