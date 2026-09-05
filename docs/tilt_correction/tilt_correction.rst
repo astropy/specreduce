@@ -262,4 +262,7 @@ flux-conserving resampling independently of the calibration workflow.
         corrected = ts.resample(science_frame, bin_edges=np.linspace(50, 950, 501))
 
     The ``resample`` method accepts a ``mask_treatment`` parameter with the same options as
-    the :class:`~specreduce.tilt_correction.TiltCorrection` constructor.
+    the :class:`~specreduce.tilt_correction.TiltCorrection` constructor. The returned
+    :class:`~astropy.nddata.NDData` carries the resampled uncertainty (in the same
+    uncertainty class as the input), a mask flagging every bin that received a contribution
+    from a masked input pixel, and a copy of the input metadata.

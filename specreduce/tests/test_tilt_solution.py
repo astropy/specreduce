@@ -1,8 +1,24 @@
+import astropy.units as u
 import numpy as np
 import pytest
+from astropy.io import fits
 from astropy.modeling import models
+from astropy.modeling.models import Shift, Polynomial2D
+from astropy.nddata import (
+    NDData,
+    CCDData,
+    StdDevUncertainty,
+    VarianceUncertainty,
+    InverseVariance,
+)
 
 from specreduce.tilt_solution import TiltSolution, diff_poly2d_x
+
+
+def _linear_ts(ny, nx, shift=0.0, disp_axis=1):
+    """A fit-free tilt solution: detector x = rectified x + shift, for every row."""
+    solution = Shift(0) & Shift(0) | Polynomial2D(1, c0_0=shift, c1_0=1.0)
+    return TiltSolution(solution, disp_axis=disp_axis, image_shape=(ny, nx))
 
 
 def test_diff_poly2d_x_valid_derivative():
@@ -116,7 +132,124 @@ def test_resample(mk_default_tc, mk_arc_frames):
     tc = mk_default_tc
     tc.find_arc_lines(3.0, 5.0)
     tc.fit(4)
-    tc.solution.resample(arcs[0])
+    result = tc.solution.resample(arcs[0])
+    assert isinstance(result.uncertainty, StdDevUncertainty)
+    assert result.uncertainty.array.shape == result.data.shape
+
+
+@pytest.mark.parametrize(
+    "uncertainty_cls", [StdDevUncertainty, VarianceUncertainty, InverseVariance]
+)
+def test_resample_preserves_uncertainty_type(uncertainty_cls):
+    ny, nx = 4, 12
+    data = np.full((ny, nx), 10.0)
+    image = NDData(data * u.ct, uncertainty=uncertainty_cls(np.full((ny, nx), 4.0)))
+    result = _linear_ts(ny, nx).resample(image)
+    assert isinstance(result.uncertainty, uncertainty_cls)
+    assert result.uncertainty.array.shape == result.data.shape
+
+
+def test_resample_uncertainty_identity():
+    ny, nx = 4, 12
+    data = np.full((ny, nx), 10.0)
+    variance = np.arange(1.0, ny * nx + 1).reshape(ny, nx)
+    image = NDData(data * u.ct, uncertainty=VarianceUncertainty(variance))
+    result = _linear_ts(ny, nx).resample(image)
+    np.testing.assert_allclose(result.data, data)
+    np.testing.assert_allclose(result.uncertainty.array, variance)
+    assert result.uncertainty.unit == u.ct**2
+
+
+def test_resample_uncertainty_half_pixel_shift():
+    """
+    Each rectified bin takes half of two neighboring detector pixels, so the
+    variance is 0.25 + 0.25 of the input variance, not 0.5 + 0.5. The last bin
+    covers half of the last pixel only.
+    """
+    ny, nx = 3, 10
+    data = np.full((ny, nx), 10.0)
+    image = NDData(data * u.ct, uncertainty=StdDevUncertainty(np.full((ny, nx), 3.0)))
+    result = _linear_ts(ny, nx, shift=0.5).resample(image)
+    np.testing.assert_allclose(result.data[:, :-1], 10.0)
+    np.testing.assert_allclose(result.data[:, -1], 5.0)
+    np.testing.assert_allclose(result.uncertainty.array[:, :-1], np.sqrt(4.5), rtol=1e-9)
+    np.testing.assert_allclose(result.uncertainty.array[:, -1], 1.5, rtol=1e-9)
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        NDData(np.full((4, 12), 10.0) * u.ct),
+        np.full((4, 12), 10.0),
+        np.full((4, 12), 10.0) * u.ct,
+    ],
+)
+def test_resample_without_uncertainty_returns_none(image):
+    result = _linear_ts(4, 12).resample(image)
+    assert result.uncertainty is None
+
+
+def test_resample_copies_meta():
+    ny, nx = 4, 12
+    data = np.full((ny, nx), 10.0)
+    ts = _linear_ts(ny, nx)
+
+    meta = {"OBJECT": "target", "HISTORY": ["step 1"]}
+    result = ts.resample(NDData(data * u.ct, meta=meta))
+    assert result.meta == meta
+    assert result.meta is not meta
+    result.meta["OBJECT"] = "changed"
+    result.meta["HISTORY"].append("step 2")
+    assert meta == {"OBJECT": "target", "HISTORY": ["step 1"]}
+
+    header = fits.Header([("OBJECT", "target"), ("EXPTIME", 30.0)])
+    result = ts.resample(CCDData(data, unit="ct", meta=header))
+    assert isinstance(result.meta, fits.Header)
+    assert result.meta["OBJECT"] == "target" and result.meta["EXPTIME"] == 30.0
+    result.meta["OBJECT"] = "changed"
+    assert header["OBJECT"] == "target"
+
+    assert len(ts.resample(NDData(data * u.ct)).meta) == 0
+
+
+def test_resample_propagates_mask():
+    ny, nx = 4, 12
+    data = np.full((ny, nx), 10.0)
+    mask = np.zeros((ny, nx), dtype=bool)
+    mask[2, 3] = True
+
+    result = _linear_ts(ny, nx).resample(NDData(data * u.ct, mask=mask), mask_treatment="apply")
+    assert result.mask.dtype == bool
+    np.testing.assert_array_equal(result.mask, mask)
+
+    # a half-pixel shift spreads the masked pixel over the two bins that overlap it
+    result = _linear_ts(ny, nx, shift=0.5).resample(
+        NDData(data * u.ct, mask=mask), mask_treatment="apply"
+    )
+    expected = np.zeros((ny, nx), dtype=bool)
+    expected[2, 2:4] = True
+    np.testing.assert_array_equal(result.mask, expected)
+
+    # fill treatments drop the mask before resampling
+    result = _linear_ts(ny, nx).resample(NDData(data * u.ct, mask=mask), mask_treatment="zero_fill")
+    assert not result.mask.any()
+
+
+def test_resample_disp_axis_0_propagates_arrays():
+    n = 8
+    data = np.arange(1.0, n * n + 1).reshape(n, n)
+    variance = 2.0 * data
+    mask = np.zeros((n, n), dtype=bool)
+    mask[1, 5] = True
+    image = NDData(data * u.ct, uncertainty=VarianceUncertainty(variance), mask=mask)
+
+    result = _linear_ts(n, n, disp_axis=0).resample(image)
+    np.testing.assert_allclose(result.data, data.T)
+    np.testing.assert_allclose(result.uncertainty.array, variance.T)
+    np.testing.assert_array_equal(result.mask, mask.T)
+
+    result = _linear_ts(n, n, disp_axis=0).resample(image, nbins=2 * n)
+    assert result.data.shape == result.uncertainty.array.shape == result.mask.shape == (2 * n, n)
 
 
 @pytest.mark.remote_data
@@ -195,14 +328,15 @@ def test_resample_disp_axis_0(mk_default_tc, mk_arc_frames):
     tc.fit(4)
 
     # Use a square crop so _parse_image works with disp_axis=0
-    from astropy.nddata import NDData
-    import astropy.units as u
     ny = arcs[0].data.shape[0]
-    square = NDData(arcs[0].data[:, :ny] * u.ct)
+    square = NDData(
+        arcs[0].data[:, :ny] * u.ct, uncertainty=StdDevUncertainty(np.full((ny, ny), 5.0))
+    )
 
     ts = tc.solution
     ts.disp_axis = 0
     result = ts.resample(square, nbins=ny)
+    assert result.uncertainty.array.shape == result.data.shape
     # With disp_axis=0, output should be transposed
     assert result.data.shape[0] == ny  # nbins along axis 0
     assert result.data.shape[1] == ny  # cdisp along axis 1
