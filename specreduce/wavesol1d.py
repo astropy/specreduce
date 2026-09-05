@@ -636,9 +636,12 @@ class WavelengthSolution1D:
     ) -> Spectrum:
         """Bin the given pixel-space 1D spectrum to a wavelength space conserving the flux.
 
-        This method bins a pixel-space spectrum to a wavelength space using the computed
-        pixel-to-wavelength and wavelength-to-pixel transformations and their derivatives with
-        respect to the spectral axis. The binning is exact and conserves the integrated flux.
+        The input flux is taken to be integrated per pixel (e.g. counts per pixel, as
+        produced by the extraction methods). Each wavelength bin receives the flux of the
+        pixels it overlaps, weighted by the overlapping fraction of each pixel, and the total
+        is divided by the bin width, so the output is a flux density per wavelength unit.
+        The binning is exact and conserves the integrated flux. The variance is propagated
+        with the squared weights, assuming independent pixel noise.
 
         Parameters
         ----------
@@ -662,7 +665,9 @@ class WavelengthSolution1D:
 
         Returns
         -------
-            1D spectrum binned to the specified wavelength bins.
+            1D spectrum binned to the specified wavelength bins, with the flux in units of
+            the input flux unit per wavelength unit and the uncertainty in the same
+            uncertainty class as the input.
         """
         if nbins is not None and nbins < 0:
             raise ValueError("Number of bins must be non-zero and positive.")
@@ -700,8 +705,6 @@ class WavelengthSolution1D:
         ucty_wl = np.zeros(nbins)
         weights = np.zeros(npix)
 
-        dldx = np.diff(self.p2w(np.arange(pixels[0], pixels[-1] + 2) - 0.5))
-
         for i in range(nbins):
             i1, i2 = bin_edge_ix[i : i + 2]
             weights[:] = 0.0
@@ -711,12 +714,12 @@ class WavelengthSolution1D:
                 weights[i2] = bin_edge_w[i + 1]
                 sl = slice(i1, i2 + 1)
                 w = weights[sl]
-                flux_wl[i] = (w * flux[sl] * dldx[sl]).sum()
-                ucty_wl[i] = (w**2 * ucty[sl] * dldx[sl] ** 2).sum()
+                flux_wl[i] = (w * flux[sl]).sum()
+                ucty_wl[i] = (w**2 * ucty[sl]).sum()
             else:
                 fracw = bin_edges_pix[i + 1] - bin_edges_pix[i]
-                flux_wl[i] = fracw * flux[i1] * dldx[i1]
-                ucty_wl[i] = fracw**2 * ucty[i1] * dldx[i1] ** 2
+                flux_wl[i] = fracw * flux[i1]
+                ucty_wl[i] = fracw**2 * ucty[i1]
 
         bin_widths_wav = np.diff(bin_edges_wav)
         flux_wl = flux_wl / bin_widths_wav * spectrum.flux.unit / self.unit
