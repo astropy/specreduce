@@ -13,7 +13,7 @@ from gwcs import coordinate_frames
 from numpy.ma import MaskedArray
 from numpy.typing import ArrayLike, NDArray
 from scipy.interpolate import interp1d
-from specutils import Spectrum
+from specutils import Spectrum, SpectralAxis
 
 from specreduce.core import parse_image, MaskingOption
 from specreduce.tilt_solution import TiltSolution
@@ -356,81 +356,80 @@ class WavelengthSolution2D:
         Returns
         -------
         A 2D `~specutils.Spectrum` holding the image binned onto the wavelength grid, in units
-        of flux per wavelength unit, with the bin centres as its spectral axis, the propagated
-        variance as its uncertainty (represented as the input uncertainty type), and a mask
-        flagging every bin that received flux from a masked detector pixel. The axis order
+        of flux per wavelength unit, with a spectral axis that carries the bin edges actually
+        used. The uncertainty, if the input has one, is the propagated variance represented in
+        the input uncertainty class; the mask flags every bin that received flux from a masked
+        detector pixel; and the metadata is a copy of the input metadata. The axis order
         follows the input image, and the spectral axis index is set accordingly.
 
         Notes
         -----
         The flux convention matches `~specreduce.wavesol1d.WavelengthSolution1D.resample`:
-        each detector pixel contributes its value multiplied by its own wavelength width, and
-        the sum in each bin is divided by the bin width, so that the integral of the output
-        over wavelength equals the sum over the input of flux times pixel wavelength width. The
-        pixel wavelength widths are evaluated per row from the chained transformation, which
-        accounts for the change in dispersion introduced by the tilt without any further
-        normalization.
+        the input is taken to be integrated per pixel (e.g. counts per pixel), each bin
+        receives the flux of the detector pixels it overlaps weighted by the overlapping
+        fraction of each pixel, and the sum is divided by the bin width. The output is a
+        bin-averaged flux density, and ``(flux * np.diff(spectral_axis.bin_edges)).sum()``
+        recovers the input counts of each row exactly. The variance is propagated with the
+        squared weights, assuming independent pixel noise; bins that are not aligned with the
+        pixels are correlated with their neighbours. The wavelength may increase or decrease
+        with pixel number; the output is always ascending in wavelength.
         """
-        if nbins is not None and nbins < 0:
+        if nbins is not None and nbins <= 0:
             raise ValueError("Number of bins must be non-zero and positive.")
+
+        # The metadata and the presence of an uncertainty are read from the input itself:
+        # parse_image drops the metadata and fabricates a unit variance for bare arrays.
+        meta = deepcopy(getattr(image, "meta", None))
+        has_uncertainty = getattr(image, "uncertainty", None) is not None
 
         im = parse_image(image, disp_axis=self.disp_axis, mask_treatment=mask_treatment)
         flux = im.flux.value
         ny, nx = flux.shape
         mask = im.mask if im.mask is not None else np.zeros((ny, nx), dtype=bool)
-
-        if im.uncertainty is not None:
+        if has_uncertainty:
             var = im.uncertainty.represent_as(VarianceUncertainty).array
             ucty_type = type(im.uncertainty)
-        else:
-            var = np.zeros_like(flux)
-            ucty_type = VarianceUncertainty
 
-        # Wavelength grid.
+        # Wavelength grid, ascending.
         nbins = nx if nbins is None else nbins
         if bin_edges is not None:
-            bin_edges_wav = np.asarray(bin_edges, dtype=float)
+            bin_edges_wav = np.sort(np.asarray(bin_edges, dtype=float))
             nbins = bin_edges_wav.size - 1
         else:
             if wlbounds is None:
-                l1, l2 = self._wavelength.p2w(np.array([-0.5, nx - 0.5]))
+                l1, l2 = sorted(self._wavelength.p2w(np.array([-0.5, nx - 0.5])))
             else:
-                l1, l2 = wlbounds
+                l1, l2 = sorted(wlbounds)
             bin_edges_wav = np.linspace(l1, l2, num=nbins + 1)
-        bin_centers_wav = 0.5 * (bin_edges_wav[:-1] + bin_edges_wav[1:])
         bin_widths_wav = np.diff(bin_edges_wav)
 
-        # Bin edges in detector space, one set per row. Wavelengths outside the tabulated
-        # inverse saturate at its ends, which land outside the detector and are clipped
-        # into zero-width bins.
+        # Bin edges in detector array-index space, one set per row, where pixel j spans
+        # [j, j + 1). Wavelengths outside the tabulated inverse saturate at its ends, which
+        # land outside the detector and are clipped into zero-width bins. If the wavelength
+        # decreases with pixel number the two edges of a bin swap places in pixel space.
         ypix = np.arange(ny, dtype=float)
         lam, p = self._w2p_table
         edges_rec = np.interp(bin_edges_wav, lam, p)
-        bin_edges_det = np.clip(self._tilt.c2d(*np.meshgrid(edges_rec, ypix)) + 0.5, 0, nx - 1e-12)
-        bin_edge_ix = np.floor(bin_edges_det).astype(int)
-        bin_edge_w = bin_edges_det - bin_edge_ix
-
-        # Wavelength width of every detector pixel, from the chained transformation.
-        xe, ye = np.meshgrid(np.arange(nx + 1) - 0.5, ypix)
-        dldx = np.diff(self.p2w(xe, ye), axis=1)
-        fd = flux * dldx
-        vd = var * dldx**2
+        x = np.clip(self._tilt.c2d(*np.meshgrid(edges_rec, ypix)) + 0.5, 0, nx - 1e-12)
+        x_left, x_right = np.minimum(x[:, :-1], x[:, 1:]), np.maximum(x[:, :-1], x[:, 1:])
+        i_left, i_right = np.floor(x_left).astype(int), np.floor(x_right).astype(int)
 
         flux_wl = np.zeros((ny, nbins))
-        var_wl = np.zeros((ny, nbins))
+        var_wl = np.zeros((ny, nbins)) if has_uncertainty else None
         mask_wl = np.zeros((ny, nbins), dtype=bool)
         ixs = np.tile(np.arange(nx), (ny, 1))
         ys = np.arange(ny)
 
         for i in range(nbins):
-            i1, i2 = bin_edge_ix[:, i : i + 2].T
+            i1, i2 = i_left[:, i], i_right[:, i]
             # Rows where the whole bin falls inside a single detector pixel.
             m = i1 == i2
             if m.any():
-                fracw = bin_edges_det[:, i + 1] - bin_edges_det[:, i]
-                flux_wl[m, i] = (fracw * fd[ys, i1])[m]
-                var_wl[m, i] = (fracw**2 * vd[ys, i1])[m]
+                fracw = x_right[:, i] - x_left[:, i]
+                flux_wl[m, i] = (fracw * flux[ys, i1])[m]
                 mask_wl[m, i] = ((fracw > 0) & mask[ys, i1])[m]
+                if has_uncertainty:
+                    var_wl[m, i] = (fracw**2 * var[ys, i1])[m]
             # Rows where the bin spans several detector pixels: fractional weights at the
             # edge pixels, unit weights in between.
             if not m.all():
@@ -438,26 +437,31 @@ class WavelengthSolution2D:
                 ixc = ixs[:, imin:imax]
                 w = np.zeros((ny, imax - imin))
                 w[(ixc > i1[:, None]) & (ixc < i2[:, None])] = 1.0
-                w[ys, i1 - imin] = 1.0 - bin_edge_w[:, i]
-                w[ys, i2 - imin] = bin_edge_w[:, i + 1]
-                flux_wl[~m, i] = (fd[~m, imin:imax] * w[~m]).sum(1)
-                var_wl[~m, i] = (vd[~m, imin:imax] * w[~m] ** 2).sum(1)
+                w[ys, i1 - imin] = 1.0 - (x_left[:, i] - i1)
+                w[ys, i2 - imin] = x_right[:, i] - i2
+                flux_wl[~m, i] = (flux[~m, imin:imax] * w[~m]).sum(1)
                 mask_wl[~m, i] = ((w[~m] > 0) & mask[~m, imin:imax]).any(1)
+                if has_uncertainty:
+                    var_wl[~m, i] = (var[~m, imin:imax] * w[~m] ** 2).sum(1)
 
         flux_wl = flux_wl / bin_widths_wav * im.unit / self.unit
-        ucty_wl = VarianceUncertainty(var_wl / bin_widths_wav**2).represent_as(ucty_type)
+        ucty_wl = None
+        if has_uncertainty:
+            ucty_wl = VarianceUncertainty(var_wl / bin_widths_wav**2).represent_as(ucty_type)
 
         spectral_axis_index = 1
         if self.disp_axis == 0:
             flux_wl = flux_wl.T
-            ucty_wl = ucty_wl.__class__(ucty_wl.array.T)
             mask_wl = mask_wl.T
             spectral_axis_index = 0
+            if has_uncertainty:
+                ucty_wl = ucty_wl.__class__(ucty_wl.array.T)
 
         return Spectrum(
             flux_wl,
-            spectral_axis=bin_centers_wav * self.unit,
+            spectral_axis=SpectralAxis(bin_edges_wav * self.unit, bin_specification="edges"),
             uncertainty=ucty_wl,
             mask=mask_wl,
+            meta=meta,
             spectral_axis_index=spectral_axis_index,
         )

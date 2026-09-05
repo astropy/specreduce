@@ -31,8 +31,9 @@ New Features
   provides ``pix_to_wav()`` and ``wav_to_pix()`` transformations, a ``gwcs`` property
   mapping the 2D detector frame to a 1D spectral frame, lossless ``to_asdf()`` and
   ``from_asdf()`` serialization, and a flux-conserving ``resample()`` method that bins a
-  2D detector image onto a common wavelength grid with propagated uncertainties and
-  mask. ``WavelengthSolution1D`` gained a ``from_gwcs()`` classmethod and
+  2D detector image onto a common wavelength grid of bin-averaged flux densities, with
+  the bin edges on the spectral axis, propagated uncertainties, mask, and copied
+  metadata. ``WavelengthSolution1D`` gained a ``from_gwcs()`` classmethod and
   ``TiltSolution`` an ``image_shape`` property to support this. [#XXX]
 
 - Added ``TiltSolution.to_asdf()`` and ``TiltSolution.from_asdf()`` for serializing a

@@ -272,14 +272,13 @@ def test_resample_default_bounds_are_reference_row_coverage(ws2d, wave):
 
 def test_resample_conserves_flux(ws2d):
     image = make_image()
-    dldx = pixel_wavelength_widths(ws2d)
     ye = np.arange(NY)
     # A grid that covers every row with a margin, so no flux falls off its ends.
     lo = ws2d.p2w(np.full(NY, -0.5), ye).min() - 1.0
     hi = ws2d.p2w(np.full(NY, NX - 0.5), ye).max() + 1.0
     result = ws2d.resample(image, nbins=120, wlbounds=(lo, hi))
     dl = np.diff(result.spectral_axis.value)[0]
-    f_in = (image.data * dldx).sum(1)
+    f_in = image.data.sum(1)
     f_out = (result.flux.value * dl).sum(1)
     np.testing.assert_allclose(f_out, f_in, rtol=1e-8)
 
@@ -296,23 +295,34 @@ def test_resample_straightens_tilted_line(ws2d, tilt, wave):
     assert peaks[0] == expected
 
 
-def test_resample_matches_1d_solution_without_tilt(wave):
+def rebin_row(flux, x_edges):
+    """Reference histogram rebinning of one row onto bins with pixel-space edges x_edges."""
+    out = np.zeros(x_edges.size - 1)
+    for i in range(out.size):
+        lo, hi = sorted(x_edges[i : i + 2])
+        lo, hi = np.clip([lo, hi], 0, flux.size)
+        px = np.arange(int(np.floor(lo)), int(np.ceil(hi)))
+        overlap = np.minimum(hi, px + 1) - np.maximum(lo, px)
+        out[i] = (overlap * flux[px]).sum()
+    return out
+
+
+def test_resample_matches_direct_rebinning_without_tilt(wave):
     tilt = make_tilt(c0_0=REF_X, c1_0=1.0)
     ws = WavelengthSolution2D(tilt, wave)
     image = make_image()
     result = ws.resample(image, nbins=90)
+    edges = result.spectral_axis.bin_edges.value
+    x_edges = wave.wav_to_pix(edges) + 0.5  # pixel j spans [j, j + 1) in this coordinate
     for row in (0, NY // 2, NY - 1):
-        spectrum = Spectrum(image.data[row] * u.ct, spectral_axis=np.arange(NX) * u.pix)
-        expected = wave.resample(spectrum, nbins=90)
-        np.testing.assert_allclose(result.spectral_axis.value, expected.spectral_axis.value)
-        np.testing.assert_allclose(result.flux.value[row], expected.flux.value, rtol=1e-6)
+        expected = rebin_row(image.data[row], x_edges) / np.diff(edges)
+        np.testing.assert_allclose(result.flux.value[row], expected, rtol=1e-6)
 
 
 def test_resample_propagates_variance(ws2d):
     image = make_image()
-    dldx = pixel_wavelength_widths(ws2d)
     # Bins wide enough to contain many pixels: the variance of a weighted sum of
-    # independent pixels is the weighted sum of squares of (sigma * dlambda) / dlambda_bin^2.
+    # independent pixels is the weighted sum of squares of sigma / dlambda_bin^2.
     result = ws2d.resample(image, nbins=10)
     var = result.uncertainty.represent_as(VarianceUncertainty).array
     dl = np.diff(result.spectral_axis.value)[0]
@@ -325,14 +335,16 @@ def test_resample_propagates_variance(ws2d):
     w[i1 + 1 : i2] = 1.0
     w[i1] = 1.0 - (x_edges[0] - i1)
     w[i2] = x_edges[1] - i2
-    expected = (w**2 * 9.0 * dldx[row] ** 2).sum() / dl**2
+    expected = (w**2 * 9.0).sum() / dl**2
     np.testing.assert_allclose(var[row, ibin], expected, rtol=1e-6)
 
 
 def test_resample_without_uncertainty(ws2d):
     result = ws2d.resample(make_image(uncertainty=False), nbins=50)
-    assert result.uncertainty is not None
+    assert result.uncertainty is None
     assert result.flux.shape == (NY, 50)
+    result = ws2d.resample(np.ones((NY, NX)), nbins=50)
+    assert result.uncertainty is None
 
 
 def test_resample_propagates_mask(ws2d):
@@ -358,10 +370,11 @@ def test_resample_nan_pixels_are_masked_not_spread(ws2d):
 
 
 def test_resample_explicit_bin_edges(ws2d):
-    edges = np.linspace(5050.0, 5150.0, 21)
+    edges = 5050.0 + 100.0 * np.linspace(0, 1, 21) ** 2  # non-uniform widths
     result = ws2d.resample(make_image(), bin_edges=edges)
     assert result.flux.shape == (NY, 20)
     np.testing.assert_allclose(result.spectral_axis.value, 0.5 * (edges[:-1] + edges[1:]))
+    np.testing.assert_allclose(result.spectral_axis.bin_edges.value, edges, rtol=1e-12)
 
 
 def test_resample_disp_axis_0(wave):
@@ -375,7 +388,7 @@ def test_resample_disp_axis_0(wave):
         models.Shift(-32) | models.Polynomial1D(1, c0=5000.0, c1=2.0), (0, n), u.angstrom
     )
     ws = WavelengthSolution2D(tilt, w1d)
-    image = NDData(np.ones((n, n)) * u.ct)
+    image = NDData(np.ones((n, n)) * u.ct, uncertainty=StdDevUncertainty(np.ones((n, n))))
     result = ws.resample(image, nbins=30)
     assert result.flux.shape == (30, n)
     assert result.spectral_axis_index == 0
@@ -386,3 +399,59 @@ def test_resample_disp_axis_0(wave):
 def test_resample_rejects_negative_nbins(ws2d):
     with pytest.raises(ValueError, match="Number of bins"):
         ws2d.resample(make_image(), nbins=-3)
+    with pytest.raises(ValueError, match="Number of bins"):
+        ws2d.resample(make_image(), nbins=0)
+
+
+def test_resample_returns_flux_density_per_wavelength(wave):
+    """
+    With no tilt and bins at the pixel edges, a flat image in counts per pixel becomes
+    counts per wavelength unit divided by the local dispersion, row by row.
+    """
+    ws = WavelengthSolution2D(make_tilt(c0_0=REF_X, c1_0=1.0), wave)
+    image = NDData(
+        np.full((NY, NX), 100.0) * u.ct, uncertainty=StdDevUncertainty(np.full((NY, NX), 4.0))
+    )
+    edges = wave.p2w(np.arange(NX + 1) - 0.5)
+    dldx = np.diff(edges)
+
+    result = ws.resample(image, bin_edges=edges)
+    assert result.flux.unit == u.ct / u.angstrom
+    expected_flux = np.broadcast_to(100.0 / dldx, (NY, NX))
+    expected_sigma = np.broadcast_to(4.0 / dldx, (NY, NX))
+    # the outermost bins see the interpolated inverse at the detector edge
+    np.testing.assert_allclose(result.flux.value[:, 1:-1], expected_flux[:, 1:-1], rtol=1e-8)
+    np.testing.assert_allclose(result.flux.value, expected_flux, rtol=1e-4)
+    np.testing.assert_allclose(result.uncertainty.array, expected_sigma, rtol=1e-4)
+
+
+def test_resample_handles_decreasing_dispersion():
+    """Wavelength decreasing with pixel number gives an ascending, flux-conserving result."""
+    dispersion = 2.0
+    wave = WavelengthSolution1D(
+        models.Shift(-REF_X) | models.Polynomial1D(1, c0=5000.0, c1=-dispersion),
+        BOUNDS_PIX,
+        u.angstrom,
+    )
+    ws = WavelengthSolution2D(make_tilt(c0_0=REF_X, c1_0=1.0), wave)
+    flux = 100.0 + np.arange(NX)[None, :] * np.ones((NY, 1))
+    image = NDData(flux * u.ct, uncertainty=StdDevUncertainty(np.full((NY, NX), 4.0)))
+
+    result = ws.resample(image)
+    assert np.all(np.diff(result.spectral_axis.value) > 0)
+    np.testing.assert_allclose(result.flux.value, flux[:, ::-1] / dispersion, rtol=1e-8)
+    np.testing.assert_allclose(result.uncertainty.array, 4.0 / dispersion, rtol=1e-8)
+
+    result = ws.resample(image, nbins=NX // 4)
+    dl = np.diff(result.spectral_axis.value)[0]
+    np.testing.assert_allclose((result.flux.value * dl).sum(1), flux.sum(1), rtol=1e-8)
+
+
+def test_resample_copies_meta(ws2d):
+    meta = {"OBJECT": "target", "HISTORY": ["reduced"]}
+    image = NDData(make_image().data * u.ct, meta=meta)
+    result = ws2d.resample(image, nbins=50)
+    assert result.meta == meta
+    assert result.meta is not meta
+    result.meta["HISTORY"].append("resampled")
+    assert meta["HISTORY"] == ["reduced"]
