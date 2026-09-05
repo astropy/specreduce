@@ -30,6 +30,26 @@ New Features
   (``AWAV-GRA``) and vacuum (``WAVE-GRI``) spectral axis types in FITS WCS
   export. [#316]
 
+Bug Fixes
+^^^^^^^^^
+
+- Fixed ``WavelengthSolution1D.resample()``, which multiplied the per-pixel flux by
+  the wavelength width of each pixel before dividing by the bin width. The output was
+  labelled as a flux density per wavelength unit but was numerically off by the local
+  dispersion, so a flat spectrum in counts per pixel stayed flat instead of falling where
+  the dispersion grows, and the integrated flux was not conserved.  [#XXX]
+
+- ``WavelengthSolution1D.resample()`` now bins spectra whose spectral axis does not start
+  at pixel zero correctly, supports solutions where the wavelength decreases with pixel
+  number (the output is always ascending in wavelength), propagates the input mask by
+  flagging every bin that received a contribution from a masked pixel, copies the input
+  metadata, returns no uncertainty instead of a fabricated zero-valued one when the
+  input has none, and rejects ``nbins=0`` as its error message already promised. [#XXX]
+
+- The spectrum returned by ``WavelengthSolution1D.resample()`` now carries the bin edges
+  actually used on its spectral axis, so ``spectral_axis.bin_edges`` is exact for
+  non-uniform ``bin_edges`` grids instead of being inferred from the bin centres. [#XXX]
+
 API Changes
 ^^^^^^^^^^^
 
