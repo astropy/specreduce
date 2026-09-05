@@ -54,6 +54,19 @@ Bug Fixes
 - ``HorneExtract(bkgrd_prof=None)`` now fits the Gaussian profile without a
   background model instead of silently substituting the default polynomial. [#XXX]
 
+- ``HorneExtract`` now follows the trace at sub-pixel precision. The extraction
+  kernel is evaluated directly on the image grid at each pixel's offset from the
+  trace instead of rolling the image by whole pixels, which left the kernel up to a
+  pixel off the source and lost a fraction ``exp(-d**2 / (4 sigma**2))`` of the flux,
+  up to 18% for a one-pixel-sigma source. The spatial profile is fit in
+  trace-relative coordinates without resampling the image (Horne 1986, Sect. II.A),
+  and the vectorised kernel evaluation makes the extraction about three times
+  faster. [#XXX]
+
+- Added a ``window`` argument to ``HorneExtract`` that restricts the profile fit and
+  the extraction to pixels within a given distance of the trace, keeping other
+  sources on the slit out of the profile fit. [#XXX]
+
 API Changes
 ^^^^^^^^^^^
 

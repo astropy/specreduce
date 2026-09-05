@@ -353,9 +353,12 @@ def test_horne_variance_errors(mk_test_img):
 def test_horne_non_flat_trace():
     # create a synthetic "2D spectrum" and its non-flat trace
 
-    n_rows, n_cols = (10, 50)
-    original = np.zeros((n_rows, n_cols))
-    original[n_rows // 2] = 1
+    # the image is tall enough that the Gaussian tails wrapped around by the roll
+    # below are negligible, so the rolled and unrolled images are equivalent
+    n_rows, n_cols = (30, 50)
+    original = np.exp(-0.5 * ((np.arange(n_rows)[:, None] - n_rows // 2) / 1.0) ** 2) * np.ones(
+        (1, n_cols)
+    )
 
     # create small offsets along each column to specify a non-flat trace
     trace_offset = np.polyval([2e-3, -0.01, 0], np.arange(n_cols)).astype(int)
@@ -388,7 +391,7 @@ def test_horne_non_flat_trace():
     )()
 
     # ensure both extractions are equivalent:
-    assert_quantity_allclose(extract_non_flat.flux, extract_flat.flux)
+    assert_quantity_allclose(extract_non_flat.flux, extract_flat.flux, rtol=1e-6)
 
 
 def test_horne_non_flat_trace_aligns_variance_and_mask():
@@ -397,9 +400,11 @@ def test_horne_non_flat_trace_aligns_variance_and_mask():
     trace together with the flux, otherwise the extraction weights come
     from the wrong pixels for non-flat traces.
     """
-    n_rows, n_cols = 20, 40
+    n_rows, n_cols = 40, 60
     x = np.arange(n_cols)
-    trace = 5 + 9 * x / (n_cols - 1)  # tilted trace from row 5 to row 14
+    # tilted trace from row 15 to row 24 in whole-pixel steps, so that the
+    # integer-aligned reference image is exactly equivalent
+    trace = np.round(15 + 9 * x / (n_cols - 1))
     rows = np.arange(n_rows)[:, None]
     flux = 100 * np.exp(-0.5 * ((rows - trace[None, :]) / 1.5) ** 2) + 10.0
 
@@ -425,8 +430,10 @@ def test_horne_non_flat_trace_aligns_variance_and_mask():
         unit=u.DN,
     )()
 
-    assert_quantity_allclose(extract_non_flat.flux, extract_flat.flux)
-    np.testing.assert_allclose(extract_non_flat.uncertainty.array, extract_flat.uncertainty.array)
+    assert_quantity_allclose(extract_non_flat.flux, extract_flat.flux, rtol=1e-6)
+    np.testing.assert_allclose(
+        extract_non_flat.uncertainty.array, extract_flat.uncertainty.array, rtol=1e-6
+    )
 
 
 def _gaussian_column_image(nrows, ncols, amp, mean, stddev, bg=0.0):
@@ -483,6 +490,41 @@ def test_horne_bkgrd_prof_none_disables_background_model():
     )()
     # a pure Gaussian fit to Gaussian + constant lands on a different profile
     assert not np.allclose(with_bkg.flux.value, without_bkg.flux.value, rtol=1e-3)
+
+
+def test_horne_non_flat_trace_subpixel_centering():
+    """
+    Regression test: the extraction kernel must follow the trace at sub-pixel
+    level. Integer alignment left the kernel up to a pixel off the source,
+    losing exp(-d**2 / (4 sigma**2)) of the flux.
+    """
+    nrows, ncols, amp, stddev = 40, 30, 100.0, 1.0
+    x = np.arange(ncols)
+    trace = 20.3 + 0.6 * x / (ncols - 1)  # fractional positions from 20.3 to 20.9
+    rows = np.arange(nrows)[:, None]
+    img = amp * np.exp(-0.5 * ((rows - trace[None, :]) / stddev) ** 2)
+    true_flux = amp * stddev * np.sqrt(2 * np.pi)
+
+    extracted = HorneExtract(img, ArrayTrace(img, trace), variance=np.ones_like(img), unit=u.DN)()
+    np.testing.assert_allclose(extracted.flux.value, true_flux, rtol=1e-3)
+
+
+def test_horne_window_excludes_neighbouring_source():
+    """A ``window`` around the trace keeps a second source on the slit out of the profile fit."""
+    nrows, ncols = 60, 20
+    rows = np.arange(nrows)[:, None]
+    target = 100.0 * np.exp(-0.5 * ((rows - 20) / 2.0) ** 2) * np.ones((1, ncols))
+    neighbour = 300.0 * np.exp(-0.5 * ((rows - 32) / 2.0) ** 2) * np.ones((1, ncols))
+    img = target + neighbour
+    true_flux = 100.0 * 2.0 * np.sqrt(2 * np.pi)
+    trace = FlatTrace(img, 20)
+    variance = np.ones_like(img)
+
+    windowed = HorneExtract(img, trace, variance=variance, unit=u.DN, window=6)()
+    np.testing.assert_allclose(windowed.flux.value, true_flux, rtol=1e-2)
+
+    unwindowed = HorneExtract(img, trace, variance=variance, unit=u.DN)()
+    assert not np.allclose(unwindowed.flux.value, true_flux, rtol=1e-2)
 
 
 def test_horne_bad_profile(mk_test_img):
@@ -572,9 +614,9 @@ def test_horne_interpolated_profile_norm(mk_test_img):
     image = mk_test_img
     nrows, ncols = image.shape
 
-    # create sawtooth pattern trace. right now, the _align_along_trace function
-    # will rectify the trace to the integer-pixel level, so in this test
-    # case the specturm will be totally straightened out.
+    # create sawtooth pattern trace. the interpolated profile is sampled in
+    # trace-relative offsets rounded to the integer-pixel level, so in this test
+    # case the spectrum will be totally straightened out.
     trace_shape = np.ones(ncols) * nrows // 2
     trace_shape[::2] += 4
     trace = ArrayTrace(image, trace_shape)
@@ -600,8 +642,10 @@ def test_horne_interpolated_profile_norm(mk_test_img):
     # need to run produce extract.spectrum to access _interp_spatial_prof
     ex.spectrum
 
-    # evaulate interpolated profile on entire grid
-    interp_prof = ex._interp_spatial_prof(np.arange(ncols), np.arange(nrows)).T
+    # evaluate interpolated profile on a grid of trace-relative offsets covering
+    # every offset present in the image
+    offsets = np.arange(-nrows, nrows + 1)
+    interp_prof = ex._interp_spatial_prof(np.arange(ncols), offsets).T
 
     # the shifting position and amplitude should be accounted for, so the fit
     # spatial profile should just represent the shape as a function of
@@ -611,8 +655,9 @@ def test_horne_interpolated_profile_norm(mk_test_img):
     # make sure that the fit spatial prof is normalized correctly
     assert_quantity_allclose(np.sum(interp_prof, axis=0), 1.0)
 
-    # and that shifts in trace position are accounted for (to integer level)
-    assert np.all(np.argmax(interp_prof, axis=0) == nrows // 2)
+    # and that shifts in trace position are accounted for (to integer level):
+    # the profile peaks at zero offset from the trace
+    assert np.all(offsets[np.argmax(interp_prof, axis=0)] == 0)
 
 
 def test_horne_interpolated_nbins_fails(mk_test_img):
