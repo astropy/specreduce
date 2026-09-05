@@ -38,6 +38,14 @@ API Changes
   on instantiation, and its removal has been rescheduled from v2.0 to v1.11.
   Use ``specreduce.wavecal1d.WavelengthCalibration1D`` instead. [#316]
 
+Bug Fixes
+^^^^^^^^^
+
+- ``TiltSolution.resample`` now propagates the input uncertainty, returned in the same
+  uncertainty class as the input, marks output bins that received a contribution from a
+  masked input pixel, and copies the input metadata to the resampled ``NDData``.
+  Previously all three were dropped. [#XXX]
+
 Other changes
 ^^^^^^^^^^^^^
 
