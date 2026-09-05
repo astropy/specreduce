@@ -18,7 +18,7 @@ from numpy.typing import ArrayLike, NDArray
 from scipy import optimize
 from scipy.interpolate import interp1d
 
-from specutils import Spectrum
+from specutils import Spectrum, SpectralAxis
 
 
 __all__ = ["WavelengthSolution1D"]
@@ -640,7 +640,9 @@ class WavelengthSolution1D:
         produced by the extraction methods). Each wavelength bin receives the flux of the
         pixels it overlaps, weighted by the overlapping fraction of each pixel, and the total
         is divided by the bin width, so the output is a flux density per wavelength unit.
-        The binning is exact and conserves the integrated flux. The variance is propagated
+        The bin edges are stored on the output spectral axis, so the integrated flux is
+        recovered exactly as ``(flux * np.diff(spectral_axis.bin_edges)).sum()`` for any
+        bin grid. The binning is exact and conserves the integrated flux. The variance is propagated
         with the squared weights, assuming independent pixel noise. The spectral axis of the
         input must be in pixels with unit spacing but need not start at zero, and the
         wavelength may increase or decrease with pixel number; the output is always
@@ -674,7 +676,8 @@ class WavelengthSolution1D:
         Returns
         -------
             1D spectrum binned to the specified wavelength bins, with the flux in units of
-            the input flux unit per wavelength unit. The uncertainty, if the input has one,
+            the input flux unit per wavelength unit and a spectral axis that carries the bin
+            edges actually used. The uncertainty, if the input has one,
             is returned in the same uncertainty class as the input; the mask, if the input
             has one, flags every bin that received a contribution from a masked pixel; and
             the metadata is a copy of the input metadata.
@@ -706,7 +709,6 @@ class WavelengthSolution1D:
             else:
                 l1, l2 = sorted(wlbounds)
             bin_edges_wav = np.linspace(l1, l2, num=nbins + 1)
-        bin_centers_wav = 0.5 * (bin_edges_wav[:-1] + bin_edges_wav[1:])
 
         # Bin edges in array-index space, where pixel j spans [j, j + 1). The spectral axis
         # need not start at zero, and the wavelength may decrease with pixel number, in
@@ -748,7 +750,7 @@ class WavelengthSolution1D:
             ucty_wl = VarianceUncertainty(ucty_wl / bin_widths_wav**2).represent_as(ucty_type)
         return Spectrum(
             flux_wl,
-            bin_centers_wav * self.unit,
+            SpectralAxis(bin_edges_wav * self.unit, bin_specification="edges"),
             uncertainty=ucty_wl,
             mask=mask_wl,
             meta=deepcopy(spectrum.meta),
