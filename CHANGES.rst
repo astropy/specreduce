@@ -33,9 +33,13 @@ New Features
 Bug Fixes
 ^^^^^^^^^
 
-- Fixed the variance propagation in ``WavelengthSolution1D.resample()``, which
-  weighted each pixel's variance by its wavelength width instead of the square of the
-  width, underestimating the uncertainty of the resampled flux. [#XXX]
+- Fixed ``WavelengthSolution1D.resample()``, which multiplied the per-pixel flux by
+  the wavelength width of each pixel before dividing by the bin width. The output was
+  labelled as a flux density per wavelength unit but was numerically off by the local
+  dispersion, so a flat spectrum in counts per pixel stayed flat instead of falling where
+  the dispersion grows, and the integrated flux was not conserved. The flux density and
+  its uncertainty are now computed from the fractional pixel overlaps alone, with the
+  variance carrying the squared weights. [#XXX]
 
 API Changes
 ^^^^^^^^^^^

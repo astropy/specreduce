@@ -114,10 +114,12 @@ def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
     assert len(resampled.flux) == 50
     assert resampled.flux.unit == u.count / u.angstrom
 
-    pix_edges = np.arange(spectrum.spectral_axis.size + 1) - 0.5
-    f0 = (spectrum.flux.value * np.diff(ws._p2w(pix_edges))).sum()
+    # the input is in counts per pixel, so integrating the output density over the
+    # wavelength bins must return the total input counts, up to the accuracy of the
+    # interpolated wavelength-to-pixel inverse at the outermost bin edges
+    f0 = spectrum.flux.value.sum()
     f1 = (resampled.flux.value * np.diff(resampled.spectral_axis.value)[0]).sum()
-    np.testing.assert_approx_equal(f0, f1, 5)
+    np.testing.assert_allclose(f0, f1, rtol=1e-4)
 
     resampled = ws.resample(spectrum, wlbounds=wav_bounds)
     resampled = ws.resample(spectrum, bin_edges=np.linspace(*wav_bounds, num=50))
@@ -433,10 +435,9 @@ def test_resample_propagates_variance(mk_ws_with_transform):
     result = ws.resample(spectrum, nbins=10)
     var = result.uncertainty.represent_as(VarianceUncertainty).array
     dl = np.diff(result.spectral_axis.value)[0]
-    dldx = np.diff(ws.p2w(np.arange(npix + 1) - 0.5))
 
-    # The output is sum(w * f * dldx) / dl, so the variance of an interior bin is
-    # sum(w**2 * sigma**2 * dldx**2) / dl**2 over the contributing pixels.
+    # The output is sum(w * f) / dl, so the variance of an interior bin is
+    # sum(w**2 * sigma**2) / dl**2 over the contributing pixels.
     ibin = 5
     edges = result.spectral_axis.value[ibin] + np.array([-0.5, 0.5]) * dl
     x_edges = ws.wav_to_pix(edges) + 0.5
@@ -445,5 +446,37 @@ def test_resample_propagates_variance(mk_ws_with_transform):
     w[i1 + 1 : i2] = 1.0
     w[i1] = 1.0 - (x_edges[0] - i1)
     w[i2] = x_edges[1] - i2
-    expected = (w**2 * sigma**2 * dldx**2).sum() / dl**2
+    expected = (w**2 * sigma**2).sum() / dl**2
     np.testing.assert_allclose(var[ibin], expected, rtol=1e-6)
+
+
+def test_resample_returns_flux_density_per_wavelength():
+    """
+    A flat spectrum in counts per pixel becomes counts per wavelength unit divided by
+    the local dispersion, and the integral over the bins conserves the total counts.
+    """
+    npix, flux, sigma = 100, 100.0, 4.0
+    spectrum = Spectrum(
+        flux=np.full(npix, flux) * u.count,
+        spectral_axis=np.arange(npix) * u.pix,
+        uncertainty=StdDevUncertainty(np.full(npix, sigma)),
+    )
+
+    # linear dispersion: with nbins == npix every bin is exactly one pixel wide
+    dispersion = 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=dispersion), (0, npix), u.angstrom
+    )
+    result = ws.resample(spectrum)
+    assert result.flux.unit == u.count / u.angstrom
+    np.testing.assert_allclose(result.flux.value, flux / dispersion, rtol=1e-9)
+    np.testing.assert_allclose(result.uncertainty.array, sigma / dispersion, rtol=1e-9)
+
+    # non-linear dispersion: the density follows 1 / dldx and the counts are conserved
+    p2w = models.Shift(0) | models.Polynomial1D(2, c0=5000, c1=1.0, c2=0.02)
+    ws = WavelengthSolution1D(p2w, (0, npix), u.angstrom)
+    result = ws.resample(spectrum, nbins=npix)
+    bin_widths = np.diff(np.linspace(*p2w(np.array([-0.5, npix - 0.5])), npix + 1))
+    np.testing.assert_allclose((result.flux.value * bin_widths).sum(), flux * npix, rtol=1e-4)
+    dldx_at_centers = _diff_poly1d(p2w[1])(ws.wav_to_pix(result.spectral_axis.value))
+    np.testing.assert_allclose(result.flux.value, flux / dldx_at_centers, rtol=2e-2)
