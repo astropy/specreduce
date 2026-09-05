@@ -37,9 +37,14 @@ Bug Fixes
   the wavelength width of each pixel before dividing by the bin width. The output was
   labelled as a flux density per wavelength unit but was numerically off by the local
   dispersion, so a flat spectrum in counts per pixel stayed flat instead of falling where
-  the dispersion grows, and the integrated flux was not conserved. The flux density and
-  its uncertainty are now computed from the fractional pixel overlaps alone, with the
-  variance carrying the squared weights. [#XXX]
+  the dispersion grows, and the integrated flux was not conserved.  [#XXX]
+
+- ``WavelengthSolution1D.resample()`` now bins spectra whose spectral axis does not start
+  at pixel zero correctly, supports solutions where the wavelength decreases with pixel
+  number (the output is always ascending in wavelength), propagates the input mask by
+  flagging every bin that received a contribution from a masked pixel, copies the input
+  metadata, returns no uncertainty instead of a fabricated zero-valued one when the
+  input has none, and rejects ``nbins=0`` as its error message already promised. [#XXX]
 
 API Changes
 ^^^^^^^^^^^
