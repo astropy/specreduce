@@ -127,7 +127,7 @@ def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
     # Resample a spectrum without uncertainty
     spectrum.uncertainty = None
     resampled = ws.resample(spectrum, nbins=50)
-    assert resampled.uncertainty is not None
+    assert resampled.uncertainty is None
 
     ws = mk_ws_without_transform
     with pytest.raises(ValueError, match="Wavelength solution not set."):
@@ -136,6 +136,8 @@ def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
     ws = mk_ws_with_transform
     with pytest.raises(ValueError, match="Number of bins must be non-zero and positive"):
         ws.resample(mk_spectrum, nbins=-5)
+    with pytest.raises(ValueError, match="Number of bins must be non-zero and positive"):
+        ws.resample(mk_spectrum, nbins=0)
 
 
 def test_pix_to_wav(mk_ws_with_transform):
@@ -448,6 +450,86 @@ def test_resample_propagates_variance(mk_ws_with_transform):
     w[i2] = x_edges[1] - i2
     expected = (w**2 * sigma**2).sum() / dl**2
     np.testing.assert_allclose(var[ibin], expected, rtol=1e-6)
+
+
+def _flat_spectrum(npix, flux=100.0, sigma=4.0, first_pixel=0):
+    return Spectrum(
+        flux=np.full(npix, flux) * u.count,
+        spectral_axis=(first_pixel + np.arange(npix)) * u.pix,
+        uncertainty=StdDevUncertainty(np.full(npix, sigma)),
+    )
+
+
+def test_resample_handles_offset_spectral_axis():
+    """A spectrum whose spectral axis does not start at pixel zero must be binned correctly."""
+    npix, first, dispersion = 100, 300, 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=dispersion),
+        (0, first + npix),
+        u.angstrom,
+    )
+    flux = 100.0 + np.arange(npix)  # a slope, so misindexing is visible
+    spectrum = _flat_spectrum(npix, first_pixel=first)
+    spectrum.flux[:] = flux * u.count
+
+    result = ws.resample(spectrum)
+    np.testing.assert_allclose(result.flux.value, flux / dispersion, rtol=1e-9)
+    np.testing.assert_allclose(result.spectral_axis.value[0], ws.p2w(first), rtol=1e-12)
+    np.testing.assert_allclose(result.uncertainty.array, 4.0 / dispersion, rtol=1e-9)
+
+
+def test_resample_handles_decreasing_dispersion():
+    """Wavelength decreasing with pixel number gives an ascending, flux-conserving result."""
+    npix, dispersion = 100, 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=9000, c1=-dispersion), (0, npix), u.angstrom
+    )
+    spectrum = _flat_spectrum(npix)
+    spectrum.flux[:] = (100.0 + np.arange(npix)) * u.count
+
+    result = ws.resample(spectrum)
+    assert np.all(np.diff(result.spectral_axis.value) > 0)
+    # pixel 0 is the reddest, so it lands in the last bin
+    np.testing.assert_allclose(result.flux.value, spectrum.flux.value[::-1] / dispersion, rtol=1e-9)
+    np.testing.assert_allclose(result.uncertainty.array, 4.0 / dispersion, rtol=1e-9)
+
+    result = ws.resample(spectrum, nbins=npix // 4)
+    dlam = np.diff(result.spectral_axis.value)[0]
+    np.testing.assert_allclose(
+        (result.flux.value * dlam).sum(), spectrum.flux.value.sum(), rtol=1e-9
+    )
+
+
+def test_resample_propagates_mask_and_meta():
+    npix, dispersion = 100, 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=dispersion), (0, npix), u.angstrom
+    )
+    spectrum = _flat_spectrum(npix)
+    assert ws.resample(spectrum).mask is None
+
+    mask = np.zeros(npix, dtype=bool)
+    mask[40] = True
+    meta = {"OBJECT": "target", "HISTORY": ["extracted"]}
+    spectrum = Spectrum(
+        flux=spectrum.flux, spectral_axis=spectrum.spectral_axis, mask=mask, meta=meta
+    )
+
+    # one bin per pixel: exactly the masked pixel's bin is flagged
+    result = ws.resample(spectrum)
+    np.testing.assert_array_equal(result.mask, mask)
+
+    # bins half a pixel out of phase with the pixels: the two overlapping bins are flagged
+    edges = ws.p2w(np.arange(npix + 1))  # pixel centres act as bin edges
+    result = ws.resample(spectrum, bin_edges=edges)
+    expected = np.zeros(npix, dtype=bool)
+    expected[39:41] = True
+    np.testing.assert_array_equal(result.mask, expected)
+
+    assert result.meta == meta
+    assert result.meta is not meta
+    result.meta["HISTORY"].append("resampled")
+    assert meta["HISTORY"] == ["extracted"]
 
 
 def test_resample_returns_flux_density_per_wavelength():

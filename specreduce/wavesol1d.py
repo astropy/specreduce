@@ -1,8 +1,8 @@
 import warnings
+from copy import deepcopy
 from functools import cached_property
 from pathlib import Path
 from typing import Callable
-from copy import deepcopy
 
 import asdf
 import astropy.units as u
@@ -641,7 +641,15 @@ class WavelengthSolution1D:
         pixels it overlaps, weighted by the overlapping fraction of each pixel, and the total
         is divided by the bin width, so the output is a flux density per wavelength unit.
         The binning is exact and conserves the integrated flux. The variance is propagated
-        with the squared weights, assuming independent pixel noise.
+        with the squared weights, assuming independent pixel noise. The spectral axis of the
+        input must be in pixels with unit spacing but need not start at zero, and the
+        wavelength may increase or decrease with pixel number; the output is always
+        ascending in wavelength.
+
+        Bins that are not aligned with the pixels share pixels with their neighbours, so
+        the resampled uncertainties, while correct for each bin, are correlated between
+        neighbouring bins. Sums or fits that treat the bins as independent underestimate
+        the uncertainty; resampling to a grid finer than the pixels makes this worse.
 
         Parameters
         ----------
@@ -666,10 +674,12 @@ class WavelengthSolution1D:
         Returns
         -------
             1D spectrum binned to the specified wavelength bins, with the flux in units of
-            the input flux unit per wavelength unit and the uncertainty in the same
-            uncertainty class as the input.
+            the input flux unit per wavelength unit. The uncertainty, if the input has one,
+            is returned in the same uncertainty class as the input; the mask, if the input
+            has one, flags every bin that received a contribution from a masked pixel; and
+            the metadata is a copy of the input metadata.
         """
-        if nbins is not None and nbins < 0:
+        if nbins is not None and nbins <= 0:
             raise ValueError("Number of bins must be non-zero and positive.")
 
         if self._p2w is None:
@@ -677,51 +687,69 @@ class WavelengthSolution1D:
 
         flux = spectrum.flux.value
         pixels = spectrum.spectral_axis.value
+        npix = flux.size
 
-        if spectrum.uncertainty is not None:
+        has_uncertainty = spectrum.uncertainty is not None
+        if has_uncertainty:
             ucty = spectrum.uncertainty.represent_as(VarianceUncertainty).array
             ucty_type = type(spectrum.uncertainty)
-        else:
-            ucty = np.zeros_like(flux)
-            ucty_type = VarianceUncertainty
-        npix = flux.size
-        nbins = npix if nbins is None else nbins
-        if wlbounds is None:
-            l1, l2 = self.p2w(pixels[[0, -1]] + np.array([-0.5, 0.5]))
-        else:
-            l1, l2 = wlbounds
+        has_mask = spectrum.mask is not None
+        mask = np.asarray(spectrum.mask, dtype=bool) if has_mask else None
 
+        nbins = npix if nbins is None else nbins
         if bin_edges is not None:
-            bin_edges_wav = np.asarray(bin_edges)
+            bin_edges_wav = np.sort(np.asarray(bin_edges, dtype=float))
             nbins = bin_edges_wav.size - 1
         else:
+            if wlbounds is None:
+                l1, l2 = sorted(self.p2w(pixels[[0, -1]] + np.array([-0.5, 0.5])))
+            else:
+                l1, l2 = sorted(wlbounds)
             bin_edges_wav = np.linspace(l1, l2, num=nbins + 1)
-
-        bin_edges_pix = np.clip(self.w2p(bin_edges_wav) + 0.5, 0, npix - 1e-12)
-        bin_edge_ix = np.floor(bin_edges_pix).astype(int)
-        bin_edge_w = bin_edges_pix - bin_edge_ix
         bin_centers_wav = 0.5 * (bin_edges_wav[:-1] + bin_edges_wav[1:])
+
+        # Bin edges in array-index space, where pixel j spans [j, j + 1). The spectral axis
+        # need not start at zero, and the wavelength may decrease with pixel number, in
+        # which case the left and right edges of a bin swap places in pixel space.
+        x = np.clip(self.w2p(bin_edges_wav) + 0.5 - pixels[0], 0, npix - 1e-12)
+        x_left, x_right = np.minimum(x[:-1], x[1:]), np.maximum(x[:-1], x[1:])
+        i_left, i_right = np.floor(x_left).astype(int), np.floor(x_right).astype(int)
+
         flux_wl = np.zeros(nbins)
-        ucty_wl = np.zeros(nbins)
+        ucty_wl = np.zeros(nbins) if has_uncertainty else None
+        mask_wl = np.zeros(nbins, dtype=bool) if has_mask else None
         weights = np.zeros(npix)
 
         for i in range(nbins):
-            i1, i2 = bin_edge_ix[i : i + 2]
-            weights[:] = 0.0
+            i1, i2 = i_left[i], i_right[i]
             if i1 != i2:
+                weights[:] = 0.0
                 weights[i1 + 1 : i2] = 1.0
-                weights[i1] = 1 - bin_edge_w[i]
-                weights[i2] = bin_edge_w[i + 1]
+                weights[i1] = 1.0 - (x_left[i] - i1)
+                weights[i2] = x_right[i] - i2
                 sl = slice(i1, i2 + 1)
                 w = weights[sl]
                 flux_wl[i] = (w * flux[sl]).sum()
-                ucty_wl[i] = (w**2 * ucty[sl]).sum()
+                if has_uncertainty:
+                    ucty_wl[i] = (w**2 * ucty[sl]).sum()
+                if has_mask:
+                    mask_wl[i] = (mask[sl] & (w > 0)).any()
             else:
-                fracw = bin_edges_pix[i + 1] - bin_edges_pix[i]
+                fracw = x_right[i] - x_left[i]
                 flux_wl[i] = fracw * flux[i1]
-                ucty_wl[i] = fracw**2 * ucty[i1]
+                if has_uncertainty:
+                    ucty_wl[i] = fracw**2 * ucty[i1]
+                if has_mask:
+                    mask_wl[i] = mask[i1] & (fracw > 0)
 
         bin_widths_wav = np.diff(bin_edges_wav)
         flux_wl = flux_wl / bin_widths_wav * spectrum.flux.unit / self.unit
-        ucty_wl = VarianceUncertainty(ucty_wl / bin_widths_wav**2).represent_as(ucty_type)
-        return Spectrum(flux_wl, bin_centers_wav * self.unit, uncertainty=ucty_wl)
+        if has_uncertainty:
+            ucty_wl = VarianceUncertainty(ucty_wl / bin_widths_wav**2).represent_as(ucty_type)
+        return Spectrum(
+            flux_wl,
+            bin_centers_wav * self.unit,
+            uncertainty=ucty_wl,
+            mask=mask_wl,
+            meta=deepcopy(spectrum.meta),
+        )
