@@ -46,6 +46,10 @@ Bug Fixes
   metadata, returns no uncertainty instead of a fabricated zero-valued one when the
   input has none, and rejects ``nbins=0`` as its error message already promised. [#XXX]
 
+- The spectrum returned by ``WavelengthSolution1D.resample()`` now carries the bin edges
+  actually used on its spectral axis, so ``spectral_axis.bin_edges`` is exact for
+  non-uniform ``bin_edges`` grids instead of being inferred from the bin centres. [#XXX]
+
 API Changes
 ^^^^^^^^^^^
 

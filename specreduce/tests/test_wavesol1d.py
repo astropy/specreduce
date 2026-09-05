@@ -532,6 +532,28 @@ def test_resample_propagates_mask_and_meta():
     assert meta["HISTORY"] == ["extracted"]
 
 
+def test_resample_keeps_explicit_bin_edges():
+    """Non-uniform bin edges must be carried on the output spectral axis as given."""
+    npix, dispersion = 100, 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=dispersion), (0, npix), u.angstrom
+    )
+    spectrum = _flat_spectrum(npix)
+    lo, hi = ws.p2w(np.array([-0.5, npix - 0.5]))
+    edges = lo + (hi - lo) * np.linspace(0, 1, 9) ** 2  # widths growing along the axis
+
+    result = ws.resample(spectrum, bin_edges=edges)
+    np.testing.assert_allclose(result.spectral_axis.bin_edges.value, edges, rtol=1e-12)
+    np.testing.assert_allclose(
+        result.spectral_axis.value, 0.5 * (edges[:-1] + edges[1:]), rtol=1e-12
+    )
+    # integrating over the true bin widths conserves the counts
+    widths = np.diff(result.spectral_axis.bin_edges.value)
+    np.testing.assert_allclose(
+        (result.flux.value * widths).sum(), spectrum.flux.value.sum(), rtol=1e-9
+    )
+
+
 def test_resample_returns_flux_density_per_wavelength():
     """
     A flat spectrum in counts per pixel becomes counts per wavelength unit divided by
