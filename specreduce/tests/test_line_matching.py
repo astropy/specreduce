@@ -4,7 +4,7 @@ import astropy.units as u
 
 from astropy.wcs import WCS
 from astropy.modeling import models
-from astropy.nddata import StdDevUncertainty
+from astropy.nddata import StdDevUncertainty, VarianceUncertainty, InverseVariance
 from specutils.fitting import fit_generic_continuum
 
 from specreduce.calibration_data import load_pypeit_calibration_lines
@@ -98,6 +98,58 @@ def test_find_arc_lines(mk_test_data):
     arc_sub.uncertainty = None
     lines = find_arc_lines(arc_sub, fwhm=5, window=5, noise_factor=5)
     assert len(lines) > 1
+
+
+@pytest.fixture
+def synthetic_arc():
+    """
+    A small synthetic arc spectrum with Gaussian emission lines at known pixel positions
+    and a constant standard deviation of 3 DN per pixel.
+    """
+    rng = np.random.default_rng(42)
+    x = np.arange(500.0)
+    centers = [50.0, 120.0, 210.0, 330.0, 410.0]
+    flux = np.zeros_like(x)
+    for c, a in zip(centers, [200.0, 80.0, 500.0, 60.0, 150.0]):
+        flux += a * np.exp(-0.5 * ((x - c) / 2.1) ** 2)
+    sigma = 3.0
+    flux += rng.normal(0.0, sigma, x.size)
+    return x * u.pix, flux * u.DN, np.full(x.size, sigma)
+
+
+@pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
+@pytest.mark.filterwarnings("ignore:Spectrum is not below the threshold")
+@pytest.mark.parametrize(
+    "uncertainty_cls, transform",
+    [
+        (StdDevUncertainty, lambda s: s),
+        (VarianceUncertainty, lambda s: s**2),
+        (InverseVariance, lambda s: 1.0 / s**2),
+    ],
+)
+def test_find_arc_lines_uncertainty_types(synthetic_arc, uncertainty_cls, transform):
+    """
+    find_arc_lines must accept any of the three astropy uncertainty types and produce
+    the same lines as it does for an equivalent StdDevUncertainty.
+    """
+    spectral_axis, flux, sigma = synthetic_arc
+    reference = Spectrum(
+        flux=flux, spectral_axis=spectral_axis, uncertainty=StdDevUncertainty(sigma)
+    )
+    spectrum = Spectrum(
+        flux=flux, spectral_axis=spectral_axis, uncertainty=uncertainty_cls(transform(sigma))
+    )
+
+    expected = find_arc_lines(reference, fwhm=5, window=3, noise_factor=5)
+    lines = find_arc_lines(spectrum, fwhm=5, window=3, noise_factor=5)
+
+    assert len(expected) >= 5
+    assert len(lines) == len(expected)
+    np.testing.assert_allclose(lines["centroid"].value, expected["centroid"].value)
+    np.testing.assert_allclose(lines["fwhm"].value, expected["fwhm"].value)
+    np.testing.assert_allclose(lines["amplitude"].value, expected["amplitude"].value)
+    # The input spectrum must not be modified in place.
+    assert isinstance(spectrum.uncertainty, uncertainty_cls)
 
 
 @pytest.mark.remote_data

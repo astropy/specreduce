@@ -38,6 +38,16 @@ API Changes
   on instantiation, and its removal has been rescheduled from v2.0 to v1.11.
   Use ``specreduce.wavecal1d.WavelengthCalibration1D`` instead. [#316]
 
+Bug Fixes
+^^^^^^^^^
+
+- ``line_matching.find_arc_lines`` now accepts spectra with any of the Astropy
+  uncertainty types (``StdDevUncertainty``, ``VarianceUncertainty``, or
+  ``InverseVariance``). Non-standard-deviation uncertainties are converted to
+  ``StdDevUncertainty`` on a copy of the spectrum before the line finding, which
+  previously failed with a unit conversion error for variance-type uncertainties.
+  [#XXX]
+
 Other changes
 ^^^^^^^^^^^^^
 

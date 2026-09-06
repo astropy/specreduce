@@ -29,8 +29,13 @@ def find_arc_lines(
 
     Parameters
     ----------
-    spectrum : The extracted arc spectrum to search for lines. It should be background-subtracted
-        and must have an "uncertainty" attribute.
+    spectrum
+        The extracted arc spectrum to search for lines. It should be background-subtracted.
+        The uncertainty can be any of the Astropy uncertainty types
+        (`~astropy.nddata.StdDevUncertainty`, `~astropy.nddata.VarianceUncertainty`, or
+        `~astropy.nddata.InverseVariance`); it is converted to a standard deviation
+        before the line finding. If the spectrum has no uncertainty, the square root of
+        the absolute flux is used as an estimate.
 
     fwhm
         Estimated full-width half-maximum of the lines in pixels.
@@ -55,9 +60,16 @@ def find_arc_lines(
     if fwhm.unit != spectrum.spectral_axis.unit:
         raise ValueError("fwhm must have the same units as spectrum.spectral_axis.")
 
+    # The line finding and fitting are always done using standard deviation uncertainties.
+    # If the spectrum has no uncertainty, estimate it as the square root of the flux.
+    # If it has a variance or inverse variance uncertainty, convert it to a standard
+    # deviation. Either way, work on a copy so that the input spectrum is left untouched.
     if spectrum.uncertainty is None:
         spectrum = deepcopy(spectrum)
         spectrum.uncertainty = StdDevUncertainty(np.sqrt(np.abs(spectrum.flux.value)))
+    elif not isinstance(spectrum.uncertainty, StdDevUncertainty):
+        spectrum = deepcopy(spectrum)
+        spectrum.uncertainty = spectrum.uncertainty.represent_as(StdDevUncertainty)
 
     detected_lines = find_lines_threshold(spectrum, noise_factor=noise_factor)
     detected_lines = detected_lines[detected_lines["line_type"] == "emission"]
