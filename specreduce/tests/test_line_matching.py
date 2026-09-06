@@ -114,7 +114,7 @@ def synthetic_arc():
         flux += a * np.exp(-0.5 * ((x - c) / 2.1) ** 2)
     sigma = 3.0
     flux += rng.normal(0.0, sigma, x.size)
-    return x * u.pix, flux * u.DN, np.full(x.size, sigma)
+    return x * u.pix, flux * u.DN, np.full(x.size, sigma), np.array(centers)
 
 
 @pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
@@ -132,7 +132,7 @@ def test_find_arc_lines_uncertainty_types(synthetic_arc, uncertainty_cls, transf
     find_arc_lines must accept any of the three astropy uncertainty types and produce
     the same lines as it does for an equivalent StdDevUncertainty.
     """
-    spectral_axis, flux, sigma = synthetic_arc
+    spectral_axis, flux, sigma, _ = synthetic_arc
     reference = Spectrum(
         flux=flux, spectral_axis=spectral_axis, uncertainty=StdDevUncertainty(sigma)
     )
@@ -150,6 +150,23 @@ def test_find_arc_lines_uncertainty_types(synthetic_arc, uncertainty_cls, transf
     np.testing.assert_allclose(lines["amplitude"].value, expected["amplitude"].value)
     # The input spectrum must not be modified in place.
     assert isinstance(spectrum.uncertainty, uncertainty_cls)
+
+
+@pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
+@pytest.mark.filterwarnings("ignore:Spectrum is not below the threshold")
+@pytest.mark.parametrize("scale", [1.0 / 30.0, 10.0 / 3.0], ids=["faint", "noisy"])
+def test_find_arc_lines_estimates_noise_without_uncertainty(synthetic_arc, scale):
+    """
+    Without an uncertainty, find_arc_lines must estimate the noise from the data so that
+    the detection threshold follows the actual noise level, independent of the flux scale.
+    """
+    spectral_axis, flux, _, centers = synthetic_arc
+    spectrum = Spectrum(flux=flux * scale, spectral_axis=spectral_axis)
+
+    lines = find_arc_lines(spectrum, fwhm=5, window=3, noise_factor=5)
+
+    assert len(lines) == len(centers)
+    np.testing.assert_allclose(np.sort(lines["centroid"].value), centers, atol=0.5)
 
 
 @pytest.mark.remote_data
