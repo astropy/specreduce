@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.modeling import models, fitting
 from astropy.nddata import StdDevUncertainty, NDData
+from astropy.table import QTable
 from numpy import ndarray, repeat, tile
 from scipy.optimize import minimize
 from scipy.spatial import KDTree
@@ -141,6 +142,11 @@ class TiltCorrection:
 
         self.solution: TiltSolution | None = None
 
+    def _lines_inside_frame(self, lines: QTable) -> QTable:
+        """Drop detected lines whose centroid is not finite or falls off the frame."""
+        x = lines["centroid"].value
+        return lines[np.isfinite(x) & (x >= 0) & (x < self._nx)]
+
     def find_arc_lines(
         self,
         fwhm: float,
@@ -175,7 +181,24 @@ class TiltCorrection:
             Width in pixels of the chunks used for a running baseline estimate that
             can follow a slowly varying background. If ``None``, a single global
             median is subtracted from each row.
+
+        Detected lines whose fitted centroid falls outside the image frame along the
+        dispersion axis (or is not finite) are discarded, as they come from failed fits.
+
+        Raises
+        ------
+        ValueError
+            If the reference row or any cross-dispersion sample lies outside the
+            image frame.
         """
+        rows = np.append(self.cd_samples, self.ref_pixel[0])
+        outside = rows[(rows < 0) | (rows >= self._ny)]
+        if outside.size > 0:
+            raise ValueError(
+                f"Cross-dispersion samples {outside.tolist()} lie outside the image frame; "
+                f"samples must satisfy 0 <= sample < {self._ny}."
+            )
+
         self._arc_spectra = []
         self._samples_rec_x = []
         self._lines_ref = []
@@ -201,6 +224,7 @@ class TiltCorrection:
                     subtract_baseline=subtract_baseline,
                     baseline_window=baseline_window,
                 )
+                lines = self._lines_inside_frame(lines)
                 self._lines_ref.append(lines["centroid"].value)
 
                 # Find the line centroids for the sample rows
@@ -216,6 +240,7 @@ class TiltCorrection:
                         subtract_baseline=subtract_baseline,
                         baseline_window=baseline_window,
                     )
+                    lines = self._lines_inside_frame(lines)
                     samples_x[i].append(lines["centroid"].value)
                     samples_y[i].append(np.full(len(lines), s))
                     self._arc_spectra[i].append(spectrum)
