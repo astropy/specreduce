@@ -141,12 +141,24 @@ class TiltCorrection:
 
         self.solution: TiltSolution | None = None
 
-    def find_arc_lines(self, fwhm: float, noise_factor: float = 5.0) -> None:
+    def find_arc_lines(
+        self,
+        fwhm: float,
+        noise_factor: float = 5.0,
+        subtract_baseline: bool = True,
+        baseline_window: int | None = None,
+    ) -> None:
         """Find arc lines from the provided arc frames for all cross-dispersion samples.
 
         This method locates spectral arc lines from the provided arc frames, calculates
         their centroids, and organizes them into reference lists and sample arrays
         for further analysis.
+
+        The arc frames are used as they are, so by default the baseline (background)
+        flux of each row is estimated with a sigma-clipped median and removed before
+        the line detection. The detection thresholds the flux against
+        ``noise_factor × uncertainty``, so a pedestal above that level would otherwise
+        swallow all the lines.
 
         Parameters
         ----------
@@ -155,6 +167,14 @@ class TiltCorrection:
             by the line-finding algorithm.
         noise_factor
             A multiplier for noise thresholding in the line-finding process.
+        subtract_baseline
+            Estimate and subtract the baseline flux of each row before the line
+            detection. Set to ``False`` for arc frames that are already
+            background-subtracted.
+        baseline_window
+            Width in pixels of the chunks used for a running baseline estimate that
+            can follow a slowly varying background. If ``None``, a single global
+            median is subtracted from each row.
         """
         self._arc_spectra = []
         self._samples_rec_x = []
@@ -174,7 +194,13 @@ class TiltCorrection:
                     d.data[self.ref_pixel[0]] * d.unit,
                     uncertainty=d.uncertainty[self.ref_pixel[0]].represent_as(StdDevUncertainty),
                 )
-                lines = find_arc_lines(spectrum, fwhm, noise_factor=noise_factor)
+                lines = find_arc_lines(
+                    spectrum,
+                    fwhm,
+                    noise_factor=noise_factor,
+                    subtract_baseline=subtract_baseline,
+                    baseline_window=baseline_window,
+                )
                 self._lines_ref.append(lines["centroid"].value)
 
                 # Find the line centroids for the sample rows
@@ -183,7 +209,13 @@ class TiltCorrection:
                         d.data[s] * d.unit,
                         uncertainty=d.uncertainty[s].represent_as(StdDevUncertainty),
                     )
-                    lines = find_arc_lines(spectrum, fwhm, noise_factor=noise_factor)
+                    lines = find_arc_lines(
+                        spectrum,
+                        fwhm,
+                        noise_factor=noise_factor,
+                        subtract_baseline=subtract_baseline,
+                        baseline_window=baseline_window,
+                    )
                     samples_x[i].append(lines["centroid"].value)
                     samples_y[i].append(np.full(len(lines), s))
                     self._arc_spectra[i].append(spectrum)
