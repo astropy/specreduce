@@ -48,6 +48,13 @@ API Changes
 Bug Fixes
 ^^^^^^^^^
 
+- ``TiltCorrection.find_arc_lines`` now raises a ``ValueError`` when the reference row or
+  any cross-dispersion sample lies outside the image frame, and discards detected lines
+  whose fitted centroid is not finite or falls outside the frame along the dispersion
+  axis. Previously a sample past the frame raised an ``IndexError``, a negative sample
+  silently wrapped around to the opposite edge of the frame, and a failed line fit could
+  crash the nearest-neighbour matching. [#XXX]
+
 - ``TiltSolution.resample`` now propagates the input uncertainty, returned in the same
   uncertainty class as the input, marks output bins that received a contribution from a
   masked input pixel, and copies the input metadata to the resampled ``NDData``.
