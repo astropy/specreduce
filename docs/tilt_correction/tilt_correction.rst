@@ -118,8 +118,17 @@ Parameters:
 
 *   **fwhm**: Expected full width at half maximum of the spectral lines (in pixels), used by
     the line-finding algorithm.
-*   **noise_factor**: Multiplier for noise thresholding — lines below
-    ``noise_factor × noise_level`` are rejected. Default is 5.
+*   **noise_factor**: Multiplier for noise thresholding — pixels less than
+    ``noise_factor × uncertainty`` above the baseline are not considered line candidates.
+    Default is 5.
+*   **subtract_baseline**: Estimate the baseline (background) flux of each row with a
+    sigma-clipped median and remove it before the line detection. The detection compares
+    the flux against zero, so arc frames with a pedestal above ``noise_factor × uncertainty``
+    would otherwise yield no usable lines. Default is ``True``; set it to ``False`` for
+    frames that are already background-subtracted.
+*   **baseline_window**: Width in pixels of the chunks used for a running baseline
+    estimate, which lets the baseline follow a slowly varying background such as
+    scattered light. Default is ``None``, meaning a single global median per row.
 
 3. Fitting the Tilt Model
 *************************
