@@ -95,7 +95,7 @@ def find_arc_lines(
     fwhm: float | u.Quantity = 5.0 * u.pix,
     window: float = 3.0,
     noise_factor: float = 5.0,
-    subtract_baseline: bool = False,
+    subtract_baseline: bool = True,
     baseline_window: int | None = None,
 ) -> QTable:
     """
