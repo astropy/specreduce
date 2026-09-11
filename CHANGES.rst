@@ -30,6 +30,10 @@ New Features
   (``AWAV-GRA``) and vacuum (``WAVE-GRI``) spectral axis types in FITS WCS
   export. [#316]
 
+- Added a ``seed`` argument to ``WavelengthCalibration1D.fit_dispersion()`` that is
+  passed to ``scipy.optimize.differential_evolution``, so the stochastic global
+  optimization can be made reproducible. [#XXX]
+
 Bug Fixes
 ^^^^^^^^^
 
