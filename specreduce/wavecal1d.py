@@ -475,6 +475,7 @@ class WavelengthCalibration1D:
         refine_fit: bool = True,
         refine_max_distance: float = 5.0,
         refined_fit_degree: int | None = None,
+        seed: int | np.random.Generator | np.random.RandomState | None = None,
     ) -> WavelengthSolution1D:
         """Calculate a wavelength solution using all the catalog and observed lines.
 
@@ -523,6 +524,12 @@ class WavelengthCalibration1D:
         refined_fit_degree
             The polynomial degree for the refined fit. Can be higher than ``degree``. If ``None``,
             equals to ``degree``.
+
+        seed
+            Seed or random number generator passed to ``scipy.optimize.differential_evolution``.
+            Differential evolution is stochastic, so two calls with the same inputs can return
+            slightly different solutions; give the same seed to make the optimization repeatable.
+            If ``None`` (default), a fresh random state is used on every call.
         """
 
         # Define bounds for differential_evolution.
@@ -549,6 +556,7 @@ class WavelengthCalibration1D:
             bounds=bounds,
             popsize=popsize,
             init="sobol",
+            seed=seed,
         )
         self.solution.p2w = self._create_model(degree, coeffs=self._fit.x)
 
