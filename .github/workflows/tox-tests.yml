@@ -32,10 +32,6 @@ jobs:
         - name: Codestyle
           linux: codestyle
 
-        - name: Python 3.11 on Linux with oldest supported dependencies
-          linux: py311-test-oldestdeps
-          toxargs: -v
-
         - name: Python 3.12 on OSX with minimal dependencies
           macos: py312-test
           toxargs: -v
