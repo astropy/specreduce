@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
@@ -105,3 +107,84 @@ def test_plot_fit_quality_with_rlim(mk_default_tc):
     tc.fit(4)
     tc.plot_fit_quality(rlim=(-1, 1))
     plt.close("all")
+
+
+@pytest.mark.remote_data
+def test_find_lines_bright_background(mk_arc_frames):
+    """A pedestal above the detection threshold hides the lines unless it is subtracted."""
+    arcs = mk_arc_frames
+    reference = TiltCorrection(arc_frames=arcs, cdisp_ref_pixel=64, n_cdisp_samples=8)
+    reference.find_arc_lines(3.0, 5.0)
+
+    # Add a pedestal of 40 sigma (uncertainty is 5) on top of the arc lines.
+    bright = [deepcopy(arc) for arc in arcs]
+    for arc in bright:
+        arc.data = arc.data + 200.0
+    tc = TiltCorrection(arc_frames=bright, cdisp_ref_pixel=64, n_cdisp_samples=8)
+
+    # Without baseline subtraction the whole row is above threshold: one "line" at most.
+    tc.find_arc_lines(3.0, 5.0, subtract_baseline=False)
+    assert all(lines.size <= 1 for lines in tc._lines_ref)
+
+    # With the default baseline subtraction the result is the same as for the faint frames.
+    tc.find_arc_lines(3.0, 5.0)
+    for ref_lines, lines, det_x in zip(reference._lines_ref, tc._lines_ref, tc._samples_det_x):
+        assert lines.size > 1
+        np.testing.assert_allclose(lines, ref_lines, atol=0.05)
+        assert det_x.size >= 0.8 * lines.size * tc.cd_samples.size
+
+    # A running baseline estimate works too.
+    tc.find_arc_lines(3.0, 5.0, baseline_window=64)
+    for ref_lines, lines in zip(reference._lines_ref, tc._lines_ref):
+        np.testing.assert_allclose(lines, ref_lines, atol=0.2)
+
+
+@pytest.mark.remote_data
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        dict(cdisp_ref_pixel=64, cdisp_samples=[10, 60, 200]),
+        dict(cdisp_ref_pixel=64, cdisp_samples=[-5, 60, 100]),
+        dict(cdisp_ref_pixel=64, cdisp_sample_lims=(0, 300)),
+        dict(cdisp_ref_pixel=300, n_cdisp_samples=4),
+    ],
+)
+def test_find_lines_rejects_samples_outside_frame(mk_arc_frames, kwargs):
+    """The reference row and all cross-dispersion samples must lie inside the image frame."""
+    tc = TiltCorrection(mk_arc_frames, **kwargs)
+    with pytest.raises(ValueError, match="outside the image frame"):
+        tc.find_arc_lines(3.0, 5.0)
+
+
+@pytest.mark.remote_data
+def test_find_lines_drops_centroids_outside_frame(mk_default_tc, monkeypatch):
+    """Fitted line centroids that fall off the frame along the dispersion axis are dropped."""
+    import specreduce.tilt_correction as tcmod
+    from astropy.table import vstack
+
+    tc = mk_default_tc
+    nx = tc.arc_frames[0].data.shape[1]
+
+    tc.find_arc_lines(3.0, 5.0)
+    expected_ref = [lines.copy() for lines in tc._lines_ref]
+    expected_det = [x.copy() for x in tc._samples_det_x]
+
+    # Make every line search also return three bogus lines: one off each end of the
+    # frame and one with a failed (NaN) fit.
+    real_find_arc_lines = tcmod.find_arc_lines
+
+    def bogus_find_arc_lines(*args, **kwargs):
+        lines = real_find_arc_lines(*args, **kwargs)
+        extra = lines[:3].copy()
+        extra["centroid"] = [-3.0, nx + 2.0, np.nan] * extra["centroid"].unit
+        return vstack([lines, extra])
+
+    monkeypatch.setattr(tcmod, "find_arc_lines", bogus_find_arc_lines)
+    tc.find_arc_lines(3.0, 5.0)
+
+    for got, want in zip(tc._lines_ref, expected_ref):
+        np.testing.assert_array_equal(got, want)
+    for got, want in zip(tc._samples_det_x, expected_det):
+        np.testing.assert_array_equal(got, want)
+    for x in tc._samples_rec_x + tc._samples_det_x:
+        assert np.all((x >= 0) & (x < nx))
