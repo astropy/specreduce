@@ -13,7 +13,7 @@ from scipy.interpolate import RectBivariateSpline
 
 from specutils import Spectrum
 from specreduce.core import SpecreduceOperation, ImageLike, MaskingOption, parse_image
-from specreduce.tracing import Trace, FlatTrace
+from specreduce.tracing import Trace
 
 __all__ = ["BoxcarExtract", "HorneExtract", "OptimalExtract"]
 
@@ -306,9 +306,29 @@ class HorneExtract(SpecreduceOperation):
     spatial profile across the spectrum.
 
     If using the Gaussian option for the spatial profile, a background profile
-    may be fit (but not subtracted) simultaneously to the data. By default,
-    this is done with a 2nd degree polynomial. If using the
-    ``interpolated_profile`` option, the background model must be set to None.
+    is fit simultaneously with the Gaussian so that a residual background does
+    not distort the profile fit. By default, this is done with a 2nd degree
+    polynomial. The background model only serves the profile fit: it is neither
+    subtracted from the data nor included in the extraction kernel, so the
+    input image is expected to be background-subtracted. The
+    ``interpolated_profile`` option does not use a background model.
+
+    The extraction kernel is evaluated directly on the image grid at every
+    pixel's cross-dispersion offset from the trace, so curved traces are
+    followed at sub-pixel precision without resampling the image (Horne 1986,
+    Sect. II.A). The optional ``window`` restricts both the profile fit and the
+    extraction to pixels within a given distance of the trace, which keeps
+    other sources on the slit out of the profile fit.
+
+    Following Horne (1986), the pixel variances used to weight the extraction
+    are by default re-estimated from the extraction model rather than taken
+    directly from the input. Weighting by a variance derived from the noisy
+    data itself (e.g. the Poisson variance of the observed counts) biases the
+    extracted flux low, by roughly the inverse of the counts per pixel. The
+    re-estimation fits, column by column, a linear relation between the input
+    variance and the model flux, which recovers the read-noise and gain terms
+    without requiring them as inputs. Set ``model_variance=False`` to weight
+    with the input variances as given.
 
 
     Parameters
@@ -329,10 +349,10 @@ class HorneExtract(SpecreduceOperation):
         The index of the image's cross-dispersion axis. [default: 0]
 
     bkgrd_prof : `~astropy.modeling.Model` or None, optional
-        A model for the image's background flux when using the ``gaussian``
-        spatial profile. If ``spatial_profile`` is set to ``gaussian``, it defaults
-        to ``models.Polynomial1D(2)``. Note that the ``interpolated_profile`` option
-        does not support a background model, so ``bkgrd_prof`` must be left as ``None``.
+        A model for the residual background fit together with the ``gaussian``
+        spatial profile. ``None`` fits the Gaussian alone. The
+        ``interpolated_profile`` option ignores this argument.
+        [default: ``models.Polynomial1D(2)``]
 
     spatial_profile : str or dict, optional
         The shape of the object profile. The first option is 'gaussian' to fit
@@ -368,17 +388,30 @@ class HorneExtract(SpecreduceOperation):
         The associated unit for the data in ``image``. If blank,
         fluxes are interpreted in DN. [default: None]
 
+    model_variance : bool, optional
+        If True, re-estimate the pixel variances from the extraction model
+        before the final extraction, as described above. If False, weight the
+        extraction with the input variances as given. [default: True]
+
+    window : float or None, optional
+        Half-width, in pixels, of the region around the trace used for the
+        profile fit and the extraction. Pixels further from the trace are
+        treated as masked. ``None`` uses the full cross-dispersion extent.
+        [default: None]
+
     """
 
     image: NDData
     trace_object: Trace
-    bkgrd_prof: None | Model = None
+    bkgrd_prof: "None | Model" = field(default_factory=lambda: models.Polynomial1D(2))
     spatial_profile: str | dict = "gaussian"
     variance: np.ndarray = field(default=None)
     mask: np.ndarray = field(default=None)
     unit: np.ndarray = field(default=None)
     disp_axis: int = 1
     crossdisp_axis: int = 0
+    model_variance: bool = True
+    window: float | None = None
     # TODO: should disp_axis and crossdisp_axis be defined in the Trace object?
 
     @property
@@ -495,29 +528,31 @@ class HorneExtract(SpecreduceOperation):
         return Spectrum(img * unit, spectral_axis=spectral_axis, uncertainty=variance, mask=mask)
 
     def _fit_gaussian_spatial_profile(
-        self, img: ndarray, disp_axis: int, crossdisp_axis: int, or_mask: ndarray, bkgrd_prof: Model
+        self, img: ndarray, mask: ndarray, offsets: ndarray, bkgrd_prof: "None | Model"
     ):
-        """Fit a 1D Gaussian spatial profile to spectrum in `img`.
+        """Fit a 1D Gaussian spatial profile in trace-relative coordinates.
 
-        Fits an 1D Gaussian profile to spectrum in `img`. Takes the weighted mean
-        of  ``img`` along the cross-dispersion axis all ignoring masked pixels
-        (i.e, takes the mean of each row for a horizontal trace). A Background model
-        (optional) is fit simultaneously. Returns an `astropy.model.Gaussian1D` (or
-        compound model, if `bkgrd_prof` is supplied) fit to data.
+        The valid pixels of ``img`` are binned by their cross-dispersion offset
+        from the trace in tenth-of-a-pixel bins and averaged, which co-adds the
+        spectrum along the dispersion axis without resampling the image. Each
+        bin is placed at the mean offset of the pixels it holds. A Gaussian
+        centred on the trace (mean fixed at zero offset) and an optional
+        background model are then fit to the binned profile. Returns the fitted
+        compound model.
         """
-        nrows = img.shape[crossdisp_axis]
-        xd_pixels = np.arange(nrows)
+        bin_width = 0.1
+        valid = ~mask
+        u = offsets[valid]
+        u0 = np.floor(u.min())
+        idx = ((u - u0) / bin_width).astype(int)
+        counts = np.bincount(idx)
+        populated = counts > 0
+        centres = np.bincount(idx, weights=u)[populated] / counts[populated]
+        coadd = np.bincount(idx, weights=img[valid])[populated] / counts[populated]
 
-        # co-add signal in each image row, ignore masked pixels
-        coadd = np.ma.masked_array(img, mask=or_mask).mean(disp_axis)
-
-        # use the sum of brightest row as an inital guess for Gaussian amplitude,
-        # the the location of the brightest row as an initial guess for the mean
-        gauss_prof = models.Gaussian1D(amplitude=coadd.max(), mean=coadd.argmax(), stddev=2)
-
-        # Fit extraction kernel (Gaussian + background model) to coadded rows
-        # with combined model (must exclude masked indices manually;
-        # LevMarLSQFitter does not)
+        gauss_prof = models.Gaussian1D(
+            amplitude=coadd.max(), mean=0.0, stddev=2, fixed={"mean": True}
+        )
         if bkgrd_prof is not None:
             ext_prof = gauss_prof + bkgrd_prof
         else:
@@ -527,67 +562,69 @@ class HorneExtract(SpecreduceOperation):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             fitter = fitting.LMLSQFitter()
-            fit_ext_kernel = fitter(ext_prof, xd_pixels[~coadd.mask], coadd.compressed())
-        return fit_ext_kernel
+            return fitter(ext_prof, centres, coadd)
 
     def _fit_spatial_profile(
-        self,
-        img: ndarray,
-        disp_axis: int,
-        crossdisp_axis: int,
-        mask: ndarray,
-        n_bins: int,
-        kx: int,
-        ky: int,
-    ) -> RectBivariateSpline:
+        self, img: ndarray, mask: ndarray, offsets: ndarray, n_bins: int, kx: int, ky: int
+    ) -> "_InterpolatedProfile":
         """
-        Fit a spatial profile by sampling the median profile along the dispersion direction.
+        Fit an empirical spatial profile by sampling the median profile along the
+        dispersion direction.
 
-        This method extracts the spatial profile from an input spectrum by binning
-        the data along the dispersion axis. It calculates the median profile for each bin,
-        normalizes it, and then interpolates between these profiles to create a smooth
-        2D representation of the spatial profile. The resulting interpolator object can be
-        used to evaluate the spatial profile at any coordinate within the bounds of the data.
+        The image is split into ``n_bins`` bins along the dispersion axis. In each
+        bin the valid pixels are grouped by their cross-dispersion offset from the
+        trace, rounded to the nearest pixel, and the median of each group gives one
+        sample of the spatial profile. The samples are normalized to unit sum and
+        interpolated with a bivariate spline in dispersion pixel and offset, so the
+        profile can be evaluated at any fractional offset from the trace.
 
         Parameters
         ----------
         img
-            The 2D array of spectral data to process.
-        disp_axis
-            The image axis corresponding to the dispersion direction.
-        crossdisp_axis
-            The image axis corresponding to the cross-dispersion direction.
+            The 2D array of spectral data, with the cross-dispersion axis first.
         mask
-            A boolean mask array with the same shape as the image. Values of ``True``
-            in the mask indicate invalid data points to be ignored during computation.
+            Boolean mask of the same shape; ``True`` marks pixels to ignore.
+        offsets
+            Cross-dispersion offset of every pixel from the trace.
         n_bins
-            The number of bins to use along the dispersion axis for sampling
-            the median spatial profile.
-        kx
-            The degree of the spline along the dispersion axis.
-        ky
-            The degree of the spline along the cross-dispersion axis.
+            The number of bins along the dispersion axis.
+        kx, ky
+            Spline degrees along the dispersion axis and the offset axis.
 
         Returns
         -------
-        RectBivariateSpline
-            Interpolator object that provides a smoothed 2D spatial profile.
+        _InterpolatedProfile
+            Callable profile of dispersion pixel and trace-relative offset.
         """
+        ncross, ndisp = img.shape
+        if n_bins > ndisp:
+            raise ValueError(
+                f"n_bins_interpolated_profile ({n_bins}) exceeds the number of "
+                f"dispersion pixels ({ndisp})."
+            )
         img = np.where(~mask, img, np.nan)
-        nrows = img.shape[crossdisp_axis]
-        ncols = img.shape[disp_axis]
-        samples = np.zeros((n_bins, nrows))
+        k = np.round(np.where(np.isfinite(offsets), offsets, 0.0)).astype(int)
+        kmin, kmax = k[~mask].min(), k[~mask].max()
+        grid = np.arange(kmin, kmax + 1)
 
-        sample_locs = np.linspace(0, ncols - 1, n_bins + 1, dtype=int)
-        bin_centers = [
-            (sample_locs[i] + sample_locs[i + 1]) // 2 for i in range(len(sample_locs) - 1)
-        ]
-
+        edges = np.linspace(0, ndisp, n_bins + 1).astype(int)
+        bin_centres = (edges[:-1] + edges[1:]) // 2
+        samples = np.zeros((n_bins, grid.size))
         for i in range(n_bins):
-            bin_median = np.nanmedian(img[:, sample_locs[i] : sample_locs[i + 1]], axis=disp_axis)
-            samples[i, :] = bin_median / bin_median.sum()
+            cols = np.arange(edges[i], edges[i + 1])
+            block, kb = img[:, cols], k[:, cols] - kmin
+            ok = np.isfinite(block) & (kb >= 0) & (kb < grid.size)
+            rows, cc = np.nonzero(ok)
+            scatter = np.full((grid.size, cols.size), np.nan)
+            scatter[kb[rows, cc], cc] = block[rows, cc]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                median = np.nanmedian(scatter, axis=1)
+            median = np.where(np.isfinite(median), median, 0.0)
+            samples[i] = median / median.sum()
 
-        return RectBivariateSpline(x=bin_centers, y=np.arange(nrows), z=samples, kx=kx, ky=ky)
+        spline = RectBivariateSpline(x=bin_centres, y=grid, z=samples, kx=kx, ky=ky)
+        return _InterpolatedProfile(spline, grid)
 
     def __call__(
         self,
@@ -602,6 +639,8 @@ class HorneExtract(SpecreduceOperation):
         variance=None,
         mask=None,
         unit=None,
+        model_variance=None,
+        window=None,
     ):
         """
         Run the Horne calculation on a region of an image and extract a 1D spectrum.
@@ -624,10 +663,9 @@ class HorneExtract(SpecreduceOperation):
             The index of the image's cross-dispersion axis.
 
         bkgrd_prof : `~astropy.modeling.Model`, optional
-            A model for the image's background flux when using the ``gaussian``
-            spatial profile. If ``spatial_profile`` is set to ``gaussian``, it defaults
-            to ``models.Polynomial1D(2)``. Note that the ``interpolated_profile`` option
-            does not support a background model, so ``bkgrd_prof`` must be left as ``None``.
+            A model for the residual background fit together with the ``gaussian``
+            spatial profile. Overrides the model given at initialization; the
+            ``interpolated_profile`` option ignores it.
 
         spatial_profile : str or dict, optional
             The shape of the object profile. The first option is 'gaussian' to fit
@@ -663,6 +701,15 @@ class HorneExtract(SpecreduceOperation):
             The associated unit for the data in ``image``. If blank,
             fluxes are interpreted in DN.
 
+        model_variance : bool, optional
+            Whether to re-estimate the pixel variances from the extraction model
+            before the final extraction. Overrides the value given at initialization.
+
+        window : float or None, optional
+            Half-width, in pixels, of the region around the trace used for the
+            profile fit and the extraction. Overrides the value given at
+            initialization.
+
 
         Returns
         -------
@@ -678,6 +725,8 @@ class HorneExtract(SpecreduceOperation):
         variance = variance if variance is not None else self.variance
         mask = mask if mask is not None else self.mask
         unit = unit if unit is not None else self.unit
+        model_variance = model_variance if model_variance is not None else self.model_variance
+        window = window if window is not None else self.window
 
         profile_choices = ("gaussian", "interpolated_profile")
 
@@ -693,9 +742,6 @@ class HorneExtract(SpecreduceOperation):
         n_bins_interpolated_profile = profile.get("n_bins_interpolated_profile", 10)
         interp_degree_interpolated_profile = profile.get("interp_degree_interpolated_profile", 1)
 
-        if bkgrd_prof is None and profile_type == "gaussian":
-            bkgrd_prof = models.Polynomial1D(2)
-
         # Store original uncertainty type BEFORE parsing (parsing converts to VarianceUncertainty)
         if hasattr(image, "uncertainty") and image.uncertainty is not None:
             orig_uncty_type = type(image.uncertainty)
@@ -709,24 +755,31 @@ class HorneExtract(SpecreduceOperation):
         unit = self.image.unit
         flux = self.image.data
 
-        ncross = flux.shape[crossdisp_axis]
-        ndisp = flux.shape[disp_axis]
+        # work with the cross-dispersion axis first
+        if disp_axis == 0:
+            flux, variance, mask = flux.T, variance.T, mask.T
+        ncross, ndisp = flux.shape
 
-        # If the trace is not flat, shift the rows in each column
-        # so the image is aligned along the trace:
-        if not isinstance(trace_object, FlatTrace):
-            flux = _align_along_trace(
-                flux, trace_object.trace, disp_axis=disp_axis, crossdisp_axis=crossdisp_axis
-            )
+        # cross-dispersion offset of every pixel from the trace; columns without a
+        # finite trace position, and pixels outside the window, are masked
+        trace = np.ma.filled(np.ma.asarray(trace_object.trace, dtype=float), np.nan)
+        offsets = np.arange(ncross)[:, None] - trace[None, :]
+        mask = mask | ~np.isfinite(offsets)
+        if window is not None:
+            mask = mask | ~(np.abs(offsets) <= window)
+        if not np.any(~mask):
+            raise ValueError("no valid pixels to extract from.")
 
         if profile_type == "gaussian":
-            fit_ext_kernel = self._fit_gaussian_spatial_profile(
-                flux, disp_axis, crossdisp_axis, mask, bkgrd_prof
-            )
-            if isinstance(trace_object, FlatTrace):
-                mean_cross_pix = trace_object.trace
-            else:
-                mean_cross_pix = np.broadcast_to(ncross // 2, ndisp)
+            fit_ext_kernel = self._fit_gaussian_spatial_profile(flux, mask, offsets, bkgrd_prof)
+            # The background component only stabilises the profile fit; the
+            # extraction kernel is the Gaussian alone, evaluated at each pixel's
+            # offset from the trace.
+            amplitude = fit_ext_kernel.amplitude_0.value
+            stddev = abs(fit_ext_kernel.stddev_0.value)
+            with np.errstate(invalid="ignore"):
+                kernel_vals = amplitude * np.exp(-0.5 * (offsets / stddev) ** 2)
+            norms = np.full(ndisp, amplitude * stddev * np.sqrt(2 * np.pi))
         else:  # interpolated_profile
             # determine interpolation degree from input and make tuple if int
             # this can also be moved to another method to parse the input
@@ -747,37 +800,32 @@ class HorneExtract(SpecreduceOperation):
                 kx, ky = interp_degree_interpolated_profile
 
             interp_spatial_prof = self._fit_spatial_profile(
-                flux, disp_axis, crossdisp_axis, mask, n_bins_interpolated_profile, kx, ky
+                flux, mask, offsets, n_bins_interpolated_profile, kx, ky
             )
-
             # add private attribute to save fit profile. should this be public?
             self._interp_spatial_prof = interp_spatial_prof
 
-        xd_pixels = np.arange(ncross)
-        kernel_vals = np.zeros(flux.shape)
-        norms = np.full(ndisp, np.nan)
+            disp_pix = np.broadcast_to(np.arange(ndisp), offsets.shape)
+            kernel_vals = interp_spatial_prof.ev(disp_pix, offsets)
+            # normalization of the profile over its sampled offset range
+            norms = trapezoid(
+                interp_spatial_prof(np.arange(ndisp), interp_spatial_prof.grid), dx=1, axis=1
+            )
+
+        kernel_vals = np.where(np.isfinite(kernel_vals), kernel_vals, 0.0)
         valid = ~mask
+        crossdisp_axis = 0
 
-        if profile_type == "gaussian":
-            norms[:] = fit_ext_kernel.amplitude_0 * fit_ext_kernel.stddev_0 * np.sqrt(2 * np.pi)
-
-        for idisp in range(ndisp):
-            if not np.any(valid[:, idisp]):
-                continue
-            if profile_type == "gaussian":
-                fit_ext_kernel.mean_0 = mean_cross_pix[idisp]
-                fitted_col = fit_ext_kernel(xd_pixels)
-                kernel_vals[:, idisp] = fitted_col
-            else:
-                fitted_col = interp_spatial_prof(idisp, xd_pixels)
-                kernel_vals[:, idisp] = fitted_col
-                norms[idisp] = trapezoid(fitted_col, dx=1)[0]
-
-        with np.errstate(divide="ignore", invalid="ignore"):
-            num = np.sum(np.where(valid, flux * kernel_vals / variance, 0.0), axis=crossdisp_axis)
-            den = np.sum(np.where(valid, kernel_vals**2 / variance, 0.0), axis=crossdisp_axis)
-            extracted_flux = (num / den) * norms
-            extracted_variance = norms**2 / den
+        extracted_flux, extracted_variance = _horne_sum(
+            flux, kernel_vals, variance, valid, norms, crossdisp_axis
+        )
+        if model_variance:
+            variance = _model_variance(
+                kernel_vals, norms, extracted_flux, variance, valid, crossdisp_axis
+            )
+            extracted_flux, extracted_variance = _horne_sum(
+                flux, kernel_vals, variance, valid, norms, crossdisp_axis
+            )
 
         spectrum_uncty = VarianceUncertainty(
             extracted_variance * self.image.unit**2
@@ -788,6 +836,87 @@ class HorneExtract(SpecreduceOperation):
             spectral_axis=self.image.spectral_axis,
             uncertainty=spectrum_uncty,
         )
+
+
+class _InterpolatedProfile:
+    """
+    Empirical spatial profile as a function of dispersion pixel and offset from the trace.
+
+    Wraps a `~scipy.interpolate.RectBivariateSpline` sampled on ``grid``, the integer
+    offsets covered by the image, and evaluates to zero outside that range instead
+    of extrapolating.
+    """
+
+    def __init__(self, spline: RectBivariateSpline, grid: ndarray):
+        self.spline = spline
+        self.grid = grid
+
+    def _inside(self, offsets):
+        return (offsets >= self.grid[0]) & (offsets <= self.grid[-1])
+
+    def __call__(self, disp, offsets):
+        """Evaluate on the grid spanned by ``disp`` and ``offsets``."""
+        offsets = np.asarray(offsets)
+        return self.spline(disp, offsets) * self._inside(offsets)[None, :]
+
+    def ev(self, disp, offsets):
+        """Evaluate at the pointwise coordinates ``disp`` and ``offsets``."""
+        offsets = np.asarray(offsets)
+        inside = self._inside(offsets)
+        values = self.spline.ev(disp, np.where(inside, offsets, self.grid[0]))
+        return np.where(inside, values, 0.0)
+
+
+def _horne_sum(flux, kernel_vals, variance, valid, norms, crossdisp_axis):
+    """
+    Evaluate the Horne (1986) weighted sums for every dispersion element.
+
+    Returns the extracted flux ``norms * sum(f P / V) / sum(P**2 / V)`` and its
+    variance ``norms**2 / sum(P**2 / V)``, with the sums restricted to ``valid``
+    pixels.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        num = np.sum(np.where(valid, flux * kernel_vals / variance, 0.0), axis=crossdisp_axis)
+        den = np.sum(np.where(valid, kernel_vals**2 / variance, 0.0), axis=crossdisp_axis)
+        return (num / den) * norms, norms**2 / den
+
+
+def _model_variance(kernel_vals, norms, extracted_flux, variance, valid, crossdisp_axis):
+    """
+    Re-estimate the pixel variances from the extraction model (Horne 1986).
+
+    Weighting the extraction by a variance derived from the noisy data itself
+    biases the extracted flux low, because pixels that fluctuate upwards get
+    less weight than pixels that fluctuate downwards. Horne's remedy is to
+    compute the variance from the noise-free model instead. Without knowing
+    the gain and read noise, the same is achieved by fitting, for each
+    dispersion element, the linear relation ``V = intercept + slope * model``
+    between the input variances and the model flux ``extracted_flux * P``
+    over the valid pixels. The slope recovers the inverse gain and the
+    intercept the read-noise and background terms. Model variances are floored
+    at the smallest valid input variance of the element, and elements without
+    a finite extracted flux keep their input variances.
+    """
+    expand = lambda a: np.expand_dims(a, crossdisp_axis)  # noqa: E731
+
+    with np.errstate(invalid="ignore"):
+        model = kernel_vals * expand(extracted_flux / norms)
+    m = np.where(valid, model, 0.0)
+    v = np.where(valid, variance, 0.0)
+    n = np.sum(valid, axis=crossdisp_axis)
+    sx, sy = m.sum(axis=crossdisp_axis), v.sum(axis=crossdisp_axis)
+    sxx, sxy = (m * m).sum(axis=crossdisp_axis), (m * v).sum(axis=crossdisp_axis)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        det = n * sxx - sx * sx
+        slope = np.where(det > 0, (n * sxy - sx * sy) / det, 0.0)
+        slope = np.clip(slope, 0.0, None)
+        intercept = np.where(n > 0, (sy - slope * sx) / n, np.nan)
+        floor = np.min(np.where(valid, variance, np.inf), axis=crossdisp_axis)
+        modelled = np.maximum(expand(intercept) + expand(slope) * model, expand(floor))
+
+    usable = np.isfinite(extracted_flux) & (n > 0)
+    return np.where(expand(usable), modelled, variance)
 
 
 def _align_along_trace(img, trace_array, disp_axis=1, crossdisp_axis=0):

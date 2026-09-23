@@ -30,6 +30,43 @@ New Features
   (``AWAV-GRA``) and vacuum (``WAVE-GRI``) spectral axis types in FITS WCS
   export. [#316]
 
+Bug Fixes
+^^^^^^^^^
+
+- Fixed ``HorneExtract`` for non-flat traces: the flux was rolled to align the
+  trace with the central row, but the variance and mask arrays were not, so the
+  extraction weights were taken from the wrong pixels. This biased both the
+  extracted flux and its uncertainty whenever the variance was not spatially
+  uniform or any pixels were masked. [#XXX]
+
+- Fixed a low bias in ``HorneExtract`` when the pixel variances are derived from
+  the noisy data itself (e.g. the Poisson variance of the observed counts), which
+  underestimated the flux by roughly the inverse of the counts per pixel. Following
+  Horne (1986), the variances are now re-estimated from the extraction model before
+  the final extraction; the new ``model_variance`` argument (default ``True``)
+  controls this. [#XXX]
+
+- The extraction kernel in ``HorneExtract`` is now the fitted Gaussian alone. The
+  background model fitted alongside the profile no longer leaks into the kernel and
+  its normalization, which could drive the extracted flux towards zero where the
+  variance is very small far from the source. [#XXX]
+
+- ``HorneExtract(bkgrd_prof=None)`` now fits the Gaussian profile without a
+  background model instead of silently substituting the default polynomial. [#XXX]
+
+- ``HorneExtract`` now follows the trace at sub-pixel precision. The extraction
+  kernel is evaluated directly on the image grid at each pixel's offset from the
+  trace instead of rolling the image by whole pixels, which left the kernel up to a
+  pixel off the source and lost a fraction ``exp(-d**2 / (4 sigma**2))`` of the flux,
+  up to 18% for a one-pixel-sigma source. The spatial profile is fit in
+  trace-relative coordinates without resampling the image (Horne 1986, Sect. II.A),
+  and the vectorised kernel evaluation makes the extraction about three times
+  faster. [#XXX]
+
+- Added a ``window`` argument to ``HorneExtract`` that restricts the profile fit and
+  the extraction to pixels within a given distance of the trace, keeping other
+  sources on the slit out of the profile fit. [#XXX]
+
 API Changes
 ^^^^^^^^^^^
 
