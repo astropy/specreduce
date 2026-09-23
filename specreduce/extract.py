@@ -403,7 +403,7 @@ class HorneExtract(SpecreduceOperation):
 
     image: NDData
     trace_object: Trace
-    bkgrd_prof: None | Model = field(default_factory=lambda: models.Polynomial1D(2))
+    bkgrd_prof: "Model | None" = field(default_factory=lambda: models.Polynomial1D(2))
     spatial_profile: str | dict = "gaussian"
     variance: np.ndarray = field(default=None)
     mask: np.ndarray = field(default=None)
@@ -528,7 +528,7 @@ class HorneExtract(SpecreduceOperation):
         return Spectrum(img * unit, spectral_axis=spectral_axis, uncertainty=variance, mask=mask)
 
     def _fit_gaussian_spatial_profile(
-        self, img: ndarray, mask: ndarray, offsets: ndarray, bkgrd_prof: Model | None
+        self, img: ndarray, mask: ndarray, offsets: ndarray, bkgrd_prof: "Model | None"
     ):
         """Fit a 1D Gaussian spatial profile in trace-relative coordinates.
 
