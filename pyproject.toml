@@ -39,6 +39,11 @@ all = [
     "photutils>=1.11",
     "synphot>=1.3.post0",
 ]
+dev = [
+    "specreduce[test,docs,all]",
+    "tox>=4",
+    "tox-uv>=1.35",
+]
 
 [project.urls]
 Homepage = "http://astropy.org/"

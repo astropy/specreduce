@@ -47,7 +47,8 @@ Other changes
 - Raised the minimum versions of numpy to 1.26.0 (the first with Python 3.12
   wheels) and gwcs to 0.24.0, and added minimum versions for synphot (1.3.post0),
   pytest (7.4.0) and pytest-astropy (0.11.0). ``tox`` is no longer part of the
-  ``test`` extra.
+  ``test`` extra; a new ``dev`` extra installs the ``test``, ``docs`` and ``all``
+  extras together with ``tox`` and ``tox-uv``.
 
 - The ``oldestdeps`` tox environments now use ``tox-uv`` with uv's ``lowest``
   resolution, so every dependency is installed at the lowest version allowed by

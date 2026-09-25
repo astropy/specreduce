@@ -53,7 +53,7 @@ sphinx-build -b html docs docs/_build/html
 
 ### Development Setup
 ```bash
-pip install -e ".[test,docs,all]"
+pip install -e ".[dev]"  # test, docs and all extras, plus tox and tox-uv
 ```
 
 ## Architecture
