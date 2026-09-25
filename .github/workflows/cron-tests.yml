@@ -26,6 +26,7 @@ jobs:
     with:
       submodules: false
       coverage: ''
+      default_python: '3.14'
       envs: |
         - name: Check URLs in docs
           linux: linkcheck
@@ -34,6 +35,6 @@ jobs:
               - pandoc
               - graphviz
 
-        - name: Python 3.14 on Linux with pre-releases
+        - name: Linux - current Python, all dependencies, pre-releases
           linux: py314-test-alldeps-predeps
           toxargs: -v
