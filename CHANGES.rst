@@ -44,6 +44,17 @@ Other changes
 - Dropped support for Python 3.11. The minimum supported Python version is
   now 3.12.
 
+- Raised the minimum versions of numpy to 1.26.0 (the first with Python 3.12
+  wheels) and gwcs to 0.24.0, and added minimum versions for synphot (1.3.post0),
+  pytest (7.4.0) and pytest-astropy (0.11.0). ``tox`` is no longer part of the
+  ``test`` extra.
+
+- The ``oldestdeps`` tox environments now use ``tox-uv`` with uv's ``lowest``
+  resolution, so every dependency is installed at the lowest version allowed by
+  ``pyproject.toml`` (plus ``oldestdeps-constraints.txt`` for transitive
+  dependencies) instead of hand-maintained pins. The oldest-dependencies job
+  now runs in CI, and the dev-dependencies job runs on Python 3.15.
+
 1.9.0 (2026-05-06)
 ------------------
 

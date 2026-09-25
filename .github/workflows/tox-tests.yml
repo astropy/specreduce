@@ -21,6 +21,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Job names describe roles ("oldest"/"intermediate"/"current"/"latest" Python)
+  # rather than versions, so they stay stable if they are made required status
+  # checks. When bumping Python versions, change the tox envs below and
+  # default_python, not the names. "current" is default_python; "latest"
+  # (devdeps) moves to a new Python first.
   tests:
     uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
     secrets:
@@ -28,33 +33,48 @@ jobs:
     with:
       submodules: false
       coverage: ''
+      default_python: '3.14'
       envs: |
         - name: Codestyle
           linux: codestyle
 
-        - name: Python 3.12 on OSX with minimal dependencies
-          macos: py312-test
-          toxargs: -v
-
-        - name: Python 3.12 on Windows with minimal dependencies
-          windows: py312-test
-          toxargs: -v
-
-        - name: Python 3.12 on Linux with minimal dependencies
+        - name: Linux - oldest Python, base dependencies
           linux: py312-test
           toxargs: -v
 
-        - name: Python 3.13 on Linux with minimal dependencies
+        - name: Linux - intermediate Python, base dependencies
           linux: py313-test
           toxargs: -v
 
-        - name: Python 3.14 on Linux with all dependencies, remote data, and coverage
+        - name: Linux - oldest Python, oldest dependencies
+          linux: py312-test-oldestdeps
+          toxargs: -v
+
+        - name: macOS - current Python, base dependencies
+          macos: py314-test
+          toxargs: -v
+
+        - name: Windows - current Python, base dependencies
+          windows: py314-test
+          toxargs: -v
+
+        - name: Linux - current Python, all dependencies, remote data, coverage
           linux: py314-test-alldeps-cov
           coverage: codecov
           toxargs: -v
           posargs: --remote-data=any
 
-        - name: (Allowed Failure) Python 3.14 on Linux with dev dependencies
-          linux: py314-test-devdeps-cov
+  allowed_failures:
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV }}
+    with:
+      submodules: false
+      coverage: ''
+      default_python: '3.14'
+      envs: |
+        - name: (Allowed Failure) Linux - latest Python, dev dependencies, remote data
+          linux: py315-test-devdeps-cov
           coverage: codecov
           toxargs: -v
+          posargs: --remote-data=any --verbose

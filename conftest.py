@@ -1,5 +1,13 @@
 # Root level conftest.py is only for nice pytest header when using tox.
 
+# Use a non-interactive backend so tests and doctests that call plt.show()
+# don't open windows (or block) when run outside of tox.
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+except ImportError:
+    pass
+
 try:
     from pytest_astropy_header.display import PYTEST_HEADER_MODULES, TESTED_VERSIONS
     ASTROPY_HEADER = True

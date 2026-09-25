@@ -21,7 +21,17 @@ pytest specreduce/tests/test_background.py -v
 
 # Run tests with all optional dependencies
 tox -e py314-test-alldeps-cov
+
+# Run tests with the oldest supported dependencies
+tox -e py312-test-oldestdeps
 ```
+
+tox uses `tox-uv` (installed automatically through `requires` in `tox.ini`). The
+`oldestdeps` environments use uv's `lowest` resolution: direct dependencies are
+installed at the minimums in `pyproject.toml`, and transitive dependencies at the
+lower bounds in `oldestdeps-constraints.txt`. Recreate the environment (`tox -r`)
+after changing either file. `devdeps` installs nightly wheels and runs on Python 3.15
+in CI.
 
 ### Code Style
 ```bash
@@ -95,12 +105,12 @@ The reduction workflow follows a modular pipeline: **Trace → Background → Ex
 
 ## Dependencies
 
-- Python ≥3.11
-- Core: numpy≥1.24, astropy≥6.0, scipy≥1.14, specutils≥2.0, matplotlib≥3.10, gwcs
-- Optional: photutils≥1.0 (stellar profile fitting), synphot (synthetic photometry)
+- Python ≥3.12
+- Core: numpy≥1.26, astropy≥6.0, scipy≥1.14, specutils≥2.0, matplotlib≥3.10, gwcs≥0.24, asdf≥3.3
+- Optional: photutils≥1.11 (Poisson noise in synthetic data; required by the tests), synphot≥1.3 (synthetic photometry)
 
 ## Code Style
 
 - Line length: 100 characters (flake8 and black)
-- Black formatter targeting Python 3.11+
+- Black formatter targeting Python 3.12+
 - Ignore E203 (whitespace before ':')
