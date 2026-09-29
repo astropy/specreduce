@@ -21,7 +21,10 @@ The ``specreduce`` library provides two complementary classes for 1D calibration
   container that holds the pixel→wavelength transform with its inverse, a WCS solution, and
   a method for flux-conserving resampling.
 
-Tools for calibrating 2D spectra will be added in later versions.
+For 2D spectra, where the spectral lines are tilted or curved across the detector,
+`~specreduce.wavesol2d.WavelengthSolution2D` combines a 1D wavelength solution with a
+:ref:`tilt solution <tilt_correction>` into a solution that maps every detector pixel to a
+wavelength (see :ref:`wavelength_calibration_2d`).
 
 1D Wavelength Calibration
 -------------------------
@@ -266,3 +269,188 @@ resample spectra. The fitting methods return the solution, but it is also stored
 
         resampled_arc = ws.resample(arc_spectrum, bin_edges=np.geomspace(4500, 7500, 1000))
         print(resampled_arc.spectral_axis)
+
+.. _wavelength_calibration_2d:
+
+2D Wavelength Calibration
+-------------------------
+
+In a 2D spectral image, the optical distortions that tilt and curve the spectral lines make the
+wavelength depend on both detector coordinates, so a single 1D solution is exact only along one
+row. The :class:`~specreduce.wavesol2d.WavelengthSolution2D` class removes this limitation by
+chaining two solutions:
+
+- a :class:`~specreduce.tilt_solution.TiltSolution` that maps the detector to a rectified
+  space where the wavelength is constant along the cross-dispersion axis (see
+  :ref:`tilt_correction`), and
+- a :class:`~specreduce.wavesol1d.WavelengthSolution1D` that maps the rectified
+  dispersion-axis coordinate to a wavelength.
+
+The combined solution maps any detector pixel ``(disp, cdisp)`` directly to a wavelength. A
+typical workflow involves:
+
+1. **Tilt Correction**: Fit the tilt of the arc lines with
+   :class:`~specreduce.tilt_correction.TiltCorrection`.
+2. **1D Calibration**: Calibrate an arc spectrum in the rectified space with
+   :class:`~specreduce.wavecal1d.WavelengthCalibration1D`.
+3. **Combining the Solutions**: Create a :class:`~specreduce.wavesol2d.WavelengthSolution2D`
+   from the tilt and 1D solutions.
+4. **Applying the Solution**: Convert coordinates, resample 2D images onto a wavelength grid,
+   and save the solution for later use.
+
+1. Fitting the Tilt Solution
+****************************
+
+Fit the tilt solution from the arc frames as described in :ref:`tilt_correction`. The
+reference row set by ``cdisp_ref_pixel`` (or derived from a trace) is where the rectified and
+detector coordinates coincide.
+
+.. code-block:: python
+
+    from specreduce.tilt_correction import TiltCorrection
+
+    tc = TiltCorrection(arc_frames=arc, cdisp_ref_pixel=150)
+    tc.find_arc_lines(fwhm=3.5)
+    tc.fit(degree=3)
+    ts = tc.solution
+
+2. Calibrating the Rectified Arc
+********************************
+
+The 1D wavelength solution must be defined in the rectified space. Along the reference row the
+rectified and detector coordinates coincide, so the simplest option is to calibrate the arc
+spectrum of the reference row. A higher signal-to-noise arc spectrum is obtained by
+tilt-correcting the arc frame and summing several rows around the reference row: the lines
+are straight in the rectified image, so summing does not broaden them.
+
+.. code-block:: python
+
+    import numpy as np
+    from specutils import Spectrum
+    from specreduce.wavecal1d import WavelengthCalibration1D
+
+    arc_rect = ts.resample(arc)
+    flux = arc_rect.data[140:161].sum(axis=0)
+    arc_1d = Spectrum((flux - np.median(flux)) * arc_rect.unit)
+
+    wc = WavelengthCalibration1D(arc_spectra=arc_1d, line_lists=[["HeI", "NeI"]])
+    wc.find_lines(fwhm=3.5)
+    ws = wc.fit_dispersion(wavelength_bounds=(5600, 5900),
+                           dispersion_bounds=(2.3, 2.7),
+                           degree=3)
+
+The example assumes the dispersion axis runs along the image columns (``disp_axis=1``), and
+subtracts the median as a simple background estimate because the line detection expects a
+background-subtracted arc spectrum.
+
+.. note::
+
+    Resample the arc with the default grid of
+    :meth:`~specreduce.tilt_solution.TiltSolution.resample`, which has one bin per detector
+    pixel starting from zero. The pixel coordinates of the 1D solution are then the rectified
+    coordinates. A custom ``nbins``, ``bounds``, or ``bin_edges`` grid would scale or shift
+    the pixel axis of the 1D solution relative to the rectified space.
+
+3. Combining the Solutions
+**************************
+
+Create the 2D solution from the tilt and 1D solutions:
+
+.. code-block:: python
+
+    from specreduce.wavesol2d import WavelengthSolution2D
+
+    ws2d = WavelengthSolution2D(ts, ws)
+
+The detector image shape is taken from the tilt solution. If the tilt solution does not know
+it, pass it with the ``image_shape`` argument, since the inverse tilt transformation is fitted
+numerically over the image. The components can also be given as the GWCS objects exported by
+the :attr:`~specreduce.tilt_solution.TiltSolution.gwcs` and
+:attr:`~specreduce.wavesol1d.WavelengthSolution1D.gwcs` properties:
+
+.. code-block:: python
+
+    ws2d = WavelengthSolution2D(ts.gwcs, ws.gwcs, image_shape=(ny, nx))
+
+A bare GWCS object cannot carry the air-wavelength flag, so a solution built from one gives
+vacuum wavelengths. The component solutions stay accessible through the
+:attr:`~specreduce.wavesol2d.WavelengthSolution2D.tilt` and
+:attr:`~specreduce.wavesol2d.WavelengthSolution2D.wavelength` properties, and the wavelength
+unit and air-wavelength flag follow the 1D solution.
+
+4. Using the 2D Solution
+************************
+
+*   **Convert Coordinates**: Use :meth:`~specreduce.wavesol2d.WavelengthSolution2D.pix_to_wav`
+    to map detector pixels to wavelengths, and
+    :meth:`~specreduce.wavesol2d.WavelengthSolution2D.wav_to_pix` to find the detector
+    dispersion-axis coordinate of a wavelength at given cross-dispersion coordinates. The
+    inverse mapping returns ``nan`` for wavelengths outside the solution.
+
+    .. code-block:: python
+
+        wav = ws2d.pix_to_wav(disp=np.array([100, 500, 900]), cdisp=np.array([20, 150, 280]))
+        disp = ws2d.wav_to_pix(5800, cdisp=np.array([20, 150, 280]))
+
+*   **Underlying Model**: The detector-pixel-to-wavelength transformation is available as a
+    single Astropy compound model with two inputs and one output via the
+    :attr:`~specreduce.wavesol2d.WavelengthSolution2D.p2w` property.
+
+*   **Export a GWCS Object**: The :attr:`~specreduce.wavesol2d.WavelengthSolution2D.gwcs`
+    property gives a `~gwcs.wcs.WCS` object mapping the 2D detector pixel frame to a 1D spectral
+    frame.
+
+    .. code-block:: python
+
+        wav = ws2d.gwcs(500, 150)
+
+*   **Rebin a 2D Image**: Use :meth:`~specreduce.wavesol2d.WavelengthSolution2D.resample` to
+    bin a 2D detector image onto a common wavelength grid. Each cross-dispersion row is binned
+    independently, directly from the detector pixels to the wavelength bins, so the flux is
+    redistributed only once instead of in separate tilt-correction and wavelength-resampling
+    steps. The result is a 2D `~specutils.Spectrum` in units of flux per wavelength unit, with
+    the propagated uncertainty and a mask that flags every bin receiving flux from a masked
+    pixel. The binning conserves the integrated flux of each row as long as the wavelength
+    grid covers the whole detector.
+
+    .. code-block:: python
+
+        science_wl = ws2d.resample(science_frame)
+
+    By default, the wavelength grid has one bin per detector column and spans the wavelengths
+    covered by the reference row. You can control the grid with the ``nbins``, ``wlbounds``,
+    and ``bin_edges`` arguments:
+
+    .. code-block:: python
+
+        # Custom number of bins and wavelength bounds
+        science_wl = ws2d.resample(science_frame, nbins=800, wlbounds=(4600, 6900))
+
+        # Explicit bin edges
+        science_wl = ws2d.resample(science_frame, bin_edges=np.geomspace(4600, 6900, 801))
+
+    The ``resample`` method accepts the same ``mask_treatment`` options as the other
+    ``specreduce`` operations. Because the cross-dispersion axis is unchanged, the resampled
+    image can be traced and extracted like any other 2D spectrum, and the extracted 1D
+    spectrum inherits the wavelength grid:
+
+    .. code-block:: python
+
+        from specreduce.extract import BoxcarExtract
+        from specreduce.tracing import FlatTrace
+
+        trace = FlatTrace(science_wl, 150)
+        spectrum = BoxcarExtract(science_wl, trace, width=10).spectrum
+
+*   **Save and Load the Solution**: Use
+    :meth:`~specreduce.wavesol2d.WavelengthSolution2D.to_asdf` and
+    :meth:`~specreduce.wavesol2d.WavelengthSolution2D.from_asdf` to store the solution in an
+    ASDF file and read it back. All transformations are stored as analytic models, so the
+    restored solution is identical to the original. The file also holds the chained
+    detector-pixel-to-wavelength GWCS object, so any ASDF-aware tool can evaluate the solution
+    without ``specreduce``.
+
+    .. code-block:: python
+
+        ws2d.to_asdf("wavesol2d.asdf")
+        ws2d = WavelengthSolution2D.from_asdf("wavesol2d.asdf")

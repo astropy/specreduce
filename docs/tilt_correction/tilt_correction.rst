@@ -239,6 +239,20 @@ flux-conserving resampling independently of the calibration workflow.
 
         ts_restored = TiltSolution.from_gwcs(wcs, image_shape=(ny, nx))
 
+*   **Save and load the solution**: Use
+    :meth:`~specreduce.tilt_solution.TiltSolution.to_asdf` and
+    :meth:`~specreduce.tilt_solution.TiltSolution.from_asdf` to store the solution in an
+    ASDF file and read it back. The transformation is stored as an analytic model, so the
+    restored solution is identical to the original, and the file can be read by any
+    ASDF-aware tool without ``specreduce``. The image shape, when known, is stored with the
+    solution, so the restored solution can compute the inverse transform without it being
+    given again:
+
+    .. code-block:: python
+
+        ts.to_asdf("tilt_solution.asdf")
+        ts_restored = TiltSolution.from_asdf("tilt_solution.asdf")
+
 *   **Flux-conserving resampling**: Use
     :meth:`~specreduce.tilt_solution.TiltSolution.resample` to tilt-correct a 2D spectral
     image. The resampling is exact and conserves flux as long as the tilt-corrected space
@@ -263,3 +277,7 @@ flux-conserving resampling independently of the calibration workflow.
 
     The ``resample`` method accepts a ``mask_treatment`` parameter with the same options as
     the :class:`~specreduce.tilt_correction.TiltCorrection` constructor.
+
+*   **2D wavelength calibration**: Combine the tilt solution with a 1D wavelength solution
+    fitted in the rectified space to map detector pixels directly to wavelengths. See
+    :ref:`wavelength_calibration_2d`.

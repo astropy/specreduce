@@ -25,8 +25,8 @@ __all__ = ["WavelengthSolution2D"]
 class WavelengthSolution2D:
     def __init__(
         self,
-        tilt: TiltSolution | gwcs.wcs.WCS,
-        wavelength: WavelengthSolution1D | gwcs.wcs.WCS,
+        tilt: "TiltSolution | gwcs.wcs.WCS",
+        wavelength: "WavelengthSolution1D | gwcs.wcs.WCS",
         image_shape: tuple[int, int] | None = None,
     ) -> None:
         """Class defining a two-dimensional wavelength solution.
@@ -160,7 +160,7 @@ class WavelengthSolution2D:
 
     @cached_property
     def w2p(self) -> Callable:
-        """Wavelength-to-rectified-pixel transformation, `nan` outside the solution."""
+        """Wavelength-to-rectified-pixel transformation, ``nan`` outside the solution."""
         lam, p = self._w2p_table
         return interp1d(lam, p, bounds_error=False, fill_value=np.nan)
 
@@ -202,7 +202,7 @@ class WavelengthSolution2D:
 
         Returns
         -------
-        The dispersion-axis pixel coordinate(s) in detector space, `nan` for wavelengths
+        The dispersion-axis pixel coordinate(s) in detector space, ``nan`` for wavelengths
         outside the solution. If either input is a masked array, the result is a masked array
         with the combined mask.
         """

@@ -611,7 +611,7 @@ class WavelengthSolution1D:
     @classmethod
     def from_gwcs(
         cls,
-        wcs: gwcs.wcs.WCS,
+        wcs: "gwcs.wcs.WCS",
         bounds_pix: tuple[int, int] | None = None,
         wave_air: bool = False,
     ) -> "WavelengthSolution1D":
