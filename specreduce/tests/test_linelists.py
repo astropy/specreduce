@@ -3,6 +3,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 
 import pytest
+from astropy.table import Table
 
 from specreduce.calibration_data import load_pypeit_calibration_lines
 
@@ -29,17 +30,44 @@ def test_pypeit_download_httperror():
 
     mock_error.close = tracking_close
 
-    with patch('specreduce.calibration_data.download_file', side_effect=mock_error):
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            result = load_pypeit_calibration_lines(['HeI'], cache=False)
+    with patch("specreduce.calibration_data.find_spec", return_value=None):
+        with patch('specreduce.calibration_data.download_file', side_effect=mock_error):
+            with warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+                result = load_pypeit_calibration_lines(['HeI'], cache=False)
 
-            # Check that we got the expected warnings
-            warning_messages = [str(warning.message) for warning in w]
-            assert any("Downloading of" in msg and "failed" in msg for msg in warning_messages)
+                # Check that we got the expected warnings
+                warning_messages = [str(warning.message) for warning in w]
+                assert any(
+                    "Downloading of" in msg and "failed" in msg for msg in warning_messages
+                )
 
     assert result is None
     assert len(close_called) == 1, "HTTPError.close() should have been called"
+
+
+def test_pypeit_uses_installed_data(tmp_path):
+    pypeit_linelists = tmp_path / "pypeit" / "data" / "arc_lines" / "lists"
+    pypeit_linelists.mkdir(parents=True)
+    Table(
+        {
+            "ion": ["ArI"],
+            "wave": [5000.0],
+            "NIST": [1],
+            "Instr": [1],
+            "amplitude": [100],
+            "Source": ["test"],
+        }
+    ).write(pypeit_linelists / "ArI_lines.dat", format="ascii.fixed_width")
+
+    with patch("specreduce.calibration_data.find_spec") as mock_find_spec:
+        mock_find_spec.return_value.origin = str(tmp_path / "pypeit" / "__init__.py")
+        with patch("specreduce.calibration_data.download_file") as mock_download:
+            line_tab = load_pypeit_calibration_lines("ArI")
+
+    mock_download.assert_not_called()
+    assert line_tab is not None
+    assert line_tab["ion"][0] == "ArI"
 
 
 @pytest.mark.remote_data
