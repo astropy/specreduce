@@ -44,6 +44,10 @@ Other changes
 - Dropped support for Python 3.11. The minimum supported Python version is
   now 3.12.
 
+- The ``load_pypeit_calibration_lines()`` function now first tries to find a
+  local installation of PypeIt from which to load data, before falling back to
+  the remote retrieval path. [#326]
+
 1.9.0 (2026-05-06)
 ------------------
 

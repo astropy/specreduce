@@ -3,6 +3,7 @@ Utilities for defining, loading, and handling spectroscopic calibration data
 """
 
 import warnings
+from importlib.util import find_spec
 from pathlib import Path
 from typing import Sequence, Literal
 from urllib.error import HTTPError, URLError
@@ -113,8 +114,10 @@ def load_pypeit_calibration_lines(
 ) -> QTable | None:
     """
     Load reference calibration lines from ``pypeit`` linelists. The ``pypeit`` linelists are
-    well-curated and have been tested across a wide range of spectrographs. The available
-    linelists are defined by ``PYPEIT_CALIBRATION_LINELISTS``.
+    well-curated and have been tested across a wide range of spectrographs. Packaged linelists
+    from an installed ``pypeit`` are used directly when available; otherwise they are downloaded
+    from the ``pypeit`` GitHub repository. The available linelists are defined by
+    ``PYPEIT_CALIBRATION_LINELISTS``.
 
     Parameters
     ----------
@@ -126,9 +129,9 @@ def load_pypeit_calibration_lines(
 
     wave_air : If True, convert the vacuum wavelengths used by ``pypeit`` to air wavelengths.
 
-    cache : Toggle caching of downloaded data
+    cache : Toggle caching of downloaded data when local ``pypeit`` data are unavailable.
 
-    show_progress : Show download progress bar
+    show_progress : Show download progress bar when local ``pypeit`` data are unavailable.
 
     Returns
     -------
@@ -154,19 +157,30 @@ def load_pypeit_calibration_lines(
         else:
             lamps = [lamps]
 
+    pypeit_spec = find_spec("pypeit")
+    pypeit_linelists = (
+        Path(pypeit_spec.origin).parent / "data" / "arc_lines" / "lists"
+        if pypeit_spec is not None and pypeit_spec.origin is not None
+        else None
+    )
+
     linelists = []
     for lamp in lamps:
         if lamp in PYPEIT_CALIBRATION_LINELISTS:
-            data_url = f"{PYPEIT_DATA_URL}/arc_lines/lists/{lamp}_lines.dat"
-            try:
-                data_path = download_file(data_url, cache=cache,
-                                          show_progress=show_progress,
-                                          pkgname='specreduce')
-                linelists.append(Table.read(data_path, format='ascii.fixed_width', comment='#'))
-            except URLError as e:
-                if isinstance(e, HTTPError):
-                    e.close()
-                warnings.warn(f"Downloading of {data_url} failed: {e}", AstropyUserWarning)
+            filename = f"{lamp}_lines.dat"
+            data_path = pypeit_linelists / filename if pypeit_linelists is not None else None
+            if data_path is None or not data_path.is_file():
+                data_url = f"{PYPEIT_DATA_URL}/arc_lines/lists/{filename}"
+                try:
+                    data_path = download_file(data_url, cache=cache,
+                                              show_progress=show_progress,
+                                              pkgname='specreduce')
+                except URLError as e:
+                    if isinstance(e, HTTPError):
+                        e.close()
+                    warnings.warn(f"Downloading of {data_url} failed: {e}", AstropyUserWarning)
+                    continue
+            linelists.append(Table.read(data_path, format='ascii.fixed_width', comment='#'))
         else:
             warnings.warn(
                 f"{lamp} not in the list of supported calibration "
