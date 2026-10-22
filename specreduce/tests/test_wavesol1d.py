@@ -412,7 +412,9 @@ def test_from_asdf_raises_on_unsupported_transform(tmp_path):
         1, "SPECTRAL", (0,), axes_names=["x"], unit=[u.pix]
     )
     spectral_frame = coordinate_frames.SpectralFrame(axes_names=("wavelength",), unit=[u.angstrom])
-    w = wcs.WCS([(pixel_frame, Polynomial1D(2, c0=1, c1=2)), (spectral_frame, None)])
+    # A compound model, since asdf < 4 can't serialize a single model with a 1D bounding box
+    transform = models.Scale(2) | Polynomial1D(2, c0=1, c1=2)
+    w = wcs.WCS([(pixel_frame, transform), (spectral_frame, None)])
     w.bounding_box = (pix_bounds,)
 
     path = tmp_path / "unsupported.asdf"

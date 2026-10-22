@@ -61,4 +61,10 @@ pip-wheel-metadata/
 
 # Mac OSX
 .DS_Store
+
+# CodeGraph index
+.codegraph/
+
+# Written by tox-uv and by the tox coverage environments
+.venv
 coverage.xml

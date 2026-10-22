@@ -1,0 +1,45 @@
+# Lower bounds for transitive dependencies, used by the tox "oldestdeps"
+# environments (via UV_CONSTRAINT) together with uv's "lowest" resolution.
+# Direct dependencies get their lower bounds from pyproject.toml; this file
+# only covers packages whose own dependents declare no usable minimum, so that
+# the lowest resolution does not pick releases that predate Python 3.12.
+# It must cover every platform (resolve with ``uv pip compile --universal``),
+# since some dependencies are only installed on some platforms.
+#
+# Each bound is the first release published on or after Python 3.12.0's
+# release (2023-10-02), or the latest release for packages with none since.
+# Raise a bound here (never pin exactly) if a transitive dependency breaks
+# the oldestdeps environment.
+# asdf-astropy < 0.8 writes units such as Angstrom through the VOUnit format,
+# which warns that they are deprecated
+asdf-astropy>=0.8.0
+attrs>=23.2.0
+colorama>=0.4.6
+contourpy>=1.2.0
+coverage>=7.3.2
+cycler>=0.12.1
+fonttools>=4.43.1
+hypothesis>=6.87.2
+importlib-metadata>=6.9.0
+iniconfig>=2.1.0
+jmespath>=1.1.0
+kiwisolver>=1.4.6
+ndcube>=2.2.0
+packaging>=24.0
+pillow>=10.1.0
+pluggy>=1.4.0
+pyerfa>=2.0.1
+pyparsing>=3.1.2
+pytest-arraydiff>=0.6.0
+pytest-cov>=5.0.0
+pytest-doctestplus>=1.1.0
+pytest-filter-subpackage>=0.2.0
+pytest-mock>=3.12.0
+pytest-remotedata>=0.4.2
+python-dateutil>=2.9.0
+pyyaml>=6.0.2
+semantic-version>=2.10.0
+setuptools>=69.0.0
+six>=1.17.0
+sortedcontainers>=2.4.0
+zipp>=3.18.0

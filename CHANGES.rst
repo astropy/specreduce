@@ -44,6 +44,10 @@ Other changes
 - Dropped support for Python 3.11. The minimum supported Python version is
   now 3.12.
 
+- Raised the minimum versions of numpy to 1.26.0 (the first with Python 3.12
+  wheels) and gwcs to 0.24.0, and added minimum versions for synphot (1.3.post0),
+  pytest (7.4.0) and pytest-astropy (0.11.0). Also added support for Python 3.15. [#324]
+
 - The ``load_pypeit_calibration_lines()`` function now first tries to find a
   local installation of PypeIt from which to load data, before falling back to
   the remote retrieval path. [#326]
