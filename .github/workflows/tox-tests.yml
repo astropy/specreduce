@@ -27,7 +27,7 @@ jobs:
   # default_python, not the names. "current" is default_python; "latest"
   # (devdeps) moves to a new Python first.
   tests:
-    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@8d5ad7efc8e84a051639373f6ea0d10441eafee1  # v3.2.1
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV }}
     with:
@@ -65,7 +65,7 @@ jobs:
           posargs: --remote-data=any
 
   allowed_failures:
-    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@22ddf09dfabb443adddfb9f861b7d41a787d6b1a  # v3.0.3
+    uses: OpenAstronomy/github-actions-workflows/.github/workflows/tox.yml@8d5ad7efc8e84a051639373f6ea0d10441eafee1  # v3.2.1
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV }}
     with:
