@@ -244,6 +244,23 @@ def test_fit_global():
     wc.fit_dispersion(wavelength_bounds, dispersion_bounds, popsize=10, refine_fit=False)
 
 
+def test_fit_dispersion_seed_is_repeatable():
+    p2w = models.Shift(-ref_pixel) | models.Polynomial1D(degree=3, c0=650, c1=50.0, c2=-0.001)
+    lines_obs = ref_pixel + array([2, 4, 4.5, 5, 6, 6.3, 8])
+    lines_cat = p2w(ref_pixel + array([1, 2, 2.3, 4, 5, 6, 6.3, 7, 8, 9, 10]))
+
+    def run(seed):
+        wc = WavelengthCalibration1D(
+            obs_lines=lines_obs, line_lists=lines_cat, pix_bounds=pix_bounds, ref_pixel=ref_pixel
+        )
+        wc.fit_dispersion((640, 660), (45, 55), popsize=5, refine_fit=False, seed=seed)
+        return wc._fit.x
+
+    np.testing.assert_array_equal(run(1), run(1))
+    np.testing.assert_array_equal(run(np.random.default_rng(1)), run(np.random.default_rng(1)))
+    assert not np.array_equal(run(1), run(2))
+
+
 def test_rms(mk_good_wc_with_transform):
     wc = mk_good_wc_with_transform
     assert np.isclose(wc.rms(space="wavelength"), 0)  # Perfect match, so RMS should be zero
