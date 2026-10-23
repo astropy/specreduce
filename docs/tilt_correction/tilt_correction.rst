@@ -118,8 +118,17 @@ Parameters:
 
 *   **fwhm**: Expected full width at half maximum of the spectral lines (in pixels), used by
     the line-finding algorithm.
-*   **noise_factor**: Multiplier for noise thresholding — lines below
-    ``noise_factor × noise_level`` are rejected. Default is 5.
+*   **noise_factor**: Multiplier for noise thresholding — pixels less than
+    ``noise_factor × uncertainty`` above the baseline are not considered line candidates.
+    Default is 5.
+*   **subtract_baseline**: Estimate the baseline (background) flux of each row with a
+    sigma-clipped median and remove it before the line detection. The detection compares
+    the flux against zero, so arc frames with a pedestal above ``noise_factor × uncertainty``
+    would otherwise yield no usable lines. Default is ``True``; set it to ``False`` for
+    frames that are already background-subtracted.
+*   **baseline_window**: Width in pixels of the chunks used for a running baseline
+    estimate, which lets the baseline follow a slowly varying background such as
+    scattered light. Default is ``None``, meaning a single global median per row.
 
 3. Fitting the Tilt Model
 *************************
@@ -262,4 +271,7 @@ flux-conserving resampling independently of the calibration workflow.
         corrected = ts.resample(science_frame, bin_edges=np.linspace(50, 950, 501))
 
     The ``resample`` method accepts a ``mask_treatment`` parameter with the same options as
-    the :class:`~specreduce.tilt_correction.TiltCorrection` constructor.
+    the :class:`~specreduce.tilt_correction.TiltCorrection` constructor. The returned
+    :class:`~astropy.nddata.NDData` carries the resampled uncertainty (in the same
+    uncertainty class as the input), a mask flagging every bin that received a contribution
+    from a masked input pixel, and a copy of the input metadata.

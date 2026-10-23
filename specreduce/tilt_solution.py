@@ -1,4 +1,5 @@
 import warnings
+from copy import deepcopy
 from functools import cached_property
 from typing import Sequence, Literal
 
@@ -7,7 +8,7 @@ import gwcs
 import numpy as np
 from astropy.modeling import models, fitting, Model
 from astropy.modeling.models import Identity, Mapping, Shift, Polynomial2D
-from astropy.nddata import NDData
+from astropy.nddata import NDData, VarianceUncertainty
 from astropy.utils.exceptions import AstropyUserWarning
 from gwcs import coordinate_frames
 from numpy import ndarray
@@ -296,14 +297,34 @@ class TiltSolution:
         Returns
         -------
         NDData
-            NDData instance containing the flux values resampled into the uniform grid
-            defined by ``nbins``, ``bounds``, or ``bin_edges``.
+            The flux resampled into the uniform grid defined by ``nbins``, ``bounds``, or
+            ``bin_edges``. If the input carries an uncertainty, the resampled uncertainty is
+            attached in the same uncertainty class as the input. The mask marks every output
+            bin that received a contribution from a masked input pixel, and the metadata is a
+            copy of the input metadata. The WCS is not propagated.
+
+        Notes
+        -----
+        Each output bin is a linear combination of detector pixels,
+        ``F = n * sum_j k_j f_j`` with ``k_j`` the fractional pixel overlap times the
+        Jacobian of the transformation and ``n`` the per-row flux-conservation factor.
+        The variance is propagated as ``Var = n**2 * sum_j k_j**2 var_j``, assuming
+        independent pixel noise and treating ``n`` and the Jacobian as deterministic.
         """
+
+        # The metadata and the presence of an uncertainty are read from the input itself:
+        # parse_image drops the metadata and fabricates a unit variance for bare arrays.
+        meta = deepcopy(getattr(flux, "meta", None))
+        has_uncertainty = getattr(flux, "uncertainty", None) is not None
 
         # TODO: In the future, we want to make sure that we don't copy the data unless absolutely
         # necessary.
         im = parse_image(flux, disp_axis=self.disp_axis, mask_treatment=mask_treatment)
         flux = im.flux.value
+        mask = im.mask.astype(bool)
+        if has_uncertainty:
+            uncertainty_type = type(im.uncertainty)
+            variance = im.uncertainty.represent_as(VarianceUncertainty).array
 
         ny, nx = flux.data.shape
         ypix = np.arange(ny)
@@ -316,6 +337,8 @@ class TiltSolution:
         bin_edge_w = bin_edges_det - bin_edge_ix
 
         resampled_flux = np.zeros((ny, nbins))
+        resampled_variance = np.zeros((ny, nbins)) if has_uncertainty else None
+        resampled_mask = np.zeros((ny, nbins), dtype=bool)
         weights = np.zeros((ny, nx))
 
         # Calculate the derivative of the tilt-corrected space -> detector space transformation with
@@ -343,9 +366,11 @@ class TiltSolution:
             # the tilt-corrected flux is the detector flux in that pixel, scaled by the width of the
             # tilt-corrected bin in detector coordinates and the derivative dtdx.
             if m.any():
-                resampled_flux[:, i] = (
-                    (bin_edges_det[:, i + 1] - bin_edges_det[:, i]) * flux[ys, i1] * dtdx[ys, i1]
-                )
+                k = (bin_edges_det[:, i + 1] - bin_edges_det[:, i]) * dtdx[ys, i1]
+                resampled_flux[:, i] = k * flux[ys, i1]
+                resampled_mask[:, i] = mask[ys, i1]
+                if has_uncertainty:
+                    resampled_variance[:, i] = k**2 * variance[ys, i1]
 
             # For rows where the tilt-corrected bin spans multiple detector pixels, calculate the
             # tilt-corrected flux as a weighted sum of the detector flux, multiplied by dtdx,
@@ -358,11 +383,28 @@ class TiltSolution:
                 w[(ixc > i1[:, None]) & (ixc < i2[:, None])] = 1
                 w[ys, i1 - imin] = 1.0 - bin_edge_w[:, i]
                 w[ys, i2 - imin] = bin_edge_w[:, i + 1]
-                resampled_flux[~m, i] = (flux[~m, imin:imax] * dtdx[~m, imin:imax] * w[~m]).sum(1)
+                k = dtdx[~m, imin:imax] * w[~m]
+                resampled_flux[~m, i] = (flux[~m, imin:imax] * k).sum(1)
+                resampled_mask[~m, i] = (mask[~m, imin:imax] & (w[~m] > 0)).any(1)
+                if has_uncertainty:
+                    resampled_variance[~m, i] = (variance[~m, imin:imax] * k**2).sum(1)
 
         # Apply the normalization factor to conserve flux
         resampled_flux *= n[:, None]
+        if has_uncertainty:
+            resampled_variance *= n[:, None] ** 2
+
         if self.disp_axis == 0:
             resampled_flux = resampled_flux.T
+            resampled_mask = resampled_mask.T
+            if has_uncertainty:
+                resampled_variance = resampled_variance.T
 
-        return NDData(resampled_flux * im.unit)
+        uncertainty = None
+        if has_uncertainty:
+            uncertainty = VarianceUncertainty(resampled_variance * im.unit**2).represent_as(
+                uncertainty_type
+            )
+        return NDData(
+            resampled_flux * im.unit, uncertainty=uncertainty, mask=resampled_mask, meta=meta
+        )
