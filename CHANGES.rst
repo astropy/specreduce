@@ -5,25 +5,24 @@
 New Features
 ^^^^^^^^^^^^
 
+- Added ``specreduce.wavesol2d.WavelengthSolution2D``, a two-dimensional wavelength
+  solution that chains a ``TiltSolution`` with a ``WavelengthSolution1D`` into a single
+  astropy model mapping detector pixels ``(disp, cdisp)`` directly to wavelength. [#XXX]
+
 - Added a ``WavelengthSolution1D.wcs()`` method that exports the wavelength
   solution as a standard FITS ``astropy.wcs.WCS`` object by fitting the
   WCS Paper III grism dispersion function (``WAVE-GRI`` or ``AWAV-GRA``)
-  to the solution. The reference pixel keywords (CRPIX, CRVAL, CDELT) are
-  set exactly from the solution model and only the grating PV terms are
-  fitted, and a warning is emitted if the approximation deviates from the
-  exact solution by more than a given number of pixels. [#316]
+  to the solution. [#316]
 
 - Added a ``WavelengthSolution1D.attach_wcs()`` method that returns a copy of a
   pixel-space spectrum carrying the fitted FITS WCS as its spectral axis, ready to
-  be written with the specutils 'wcs1d-fits' format. The fitted WCS is now cached
-  per air/vacuum axis type and invalidated when the pixel-to-wavelength
-  transformation changes, so one solution can be applied to many spectra without
-  refitting the grism dispersion function. [#316]
+  be written with the specutils 'wcs1d-fits' format. [#316]
 
 - Added ``WavelengthSolution1D.to_asdf()`` and ``WavelengthSolution1D.from_asdf()``
-  for serializing a wavelength solution losslessly into an ASDF file. Only the
-  coordinate transformation is stored, as a GWCS object whose bounding box carries
-  the pixel bounds, so the restored solution reproduces the original exactly. [#317]
+  for serializing a wavelength solution losslessly into an ASDF file. [#317]
+
+- Added ``TiltSolution.to_asdf()`` and ``TiltSolution.from_asdf()`` for serializing a
+  tilt solution losslessly into an ASDF file. [#XXX]
 
 - The ``wave_air`` flag given to ``WavelengthCalibration1D`` is now stored
   in the resulting ``WavelengthSolution1D``, where it selects between air
@@ -35,14 +34,12 @@ API Changes
 
 - The legacy ``specreduce.wavelength_calibration.WavelengthCalibration1D``
   class (deprecated since v1.7.0) now emits an ``AstropyDeprecationWarning``
-  on instantiation, and its removal has been rescheduled from v2.0 to v1.11.
-  Use ``specreduce.wavecal1d.WavelengthCalibration1D`` instead. [#316]
+  on instantiation. Use ``specreduce.wavecal1d.WavelengthCalibration1D`` instead. [#316]
 
 Other changes
 ^^^^^^^^^^^^^
 
-- Dropped support for Python 3.11. The minimum supported Python version is
-  now 3.12.
+- Dropped support for Python 3.11. The minimum supported Python version is now 3.12.
 
 - Raised the minimum versions of numpy to 1.26.0 (the first with Python 3.12
   wheels) and gwcs to 0.24.0, and added minimum versions for synphot (1.3.post0),

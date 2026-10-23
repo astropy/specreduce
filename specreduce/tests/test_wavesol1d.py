@@ -407,6 +407,32 @@ def test_from_asdf_raises_without_bounding_box(tmp_path, mk_ws_with_transform):
         WavelengthSolution1D.from_asdf(path)
 
 
+def test_from_gwcs_round_trip(mk_ws_with_transform):
+    ws = mk_ws_with_transform
+    ws2 = WavelengthSolution1D.from_gwcs(ws.gwcs, bounds_pix=pix_bounds, wave_air=True)
+    assert ws2.bounds_pix == pix_bounds
+    assert ws2.unit == u.angstrom
+    assert ws2.wave_air is True
+    x = np.linspace(*pix_bounds, 11)
+    np.testing.assert_allclose(ws2.p2w(x), ws.p2w(x))
+
+
+def test_from_gwcs_reads_bounds_from_bounding_box(mk_ws_with_transform):
+    from copy import deepcopy
+
+    w = deepcopy(mk_ws_with_transform.gwcs)
+    w.bounding_box = ((10, 400),)
+    ws2 = WavelengthSolution1D.from_gwcs(w)
+    assert ws2.bounds_pix == (10, 400)
+    # The restored solution extrapolates beyond the bounding box.
+    assert np.isfinite(ws2.p2w(-20.0))
+
+
+def test_from_gwcs_raises_without_bounds(mk_ws_with_transform):
+    with pytest.raises(ValueError, match="bounding box"):
+        WavelengthSolution1D.from_gwcs(mk_ws_with_transform.gwcs)
+
+
 def test_from_asdf_raises_on_unsupported_transform(tmp_path):
     pixel_frame = coordinate_frames.CoordinateFrame(
         1, "SPECTRAL", (0,), axes_names=["x"], unit=[u.pix]

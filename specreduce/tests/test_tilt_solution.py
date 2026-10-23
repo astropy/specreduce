@@ -206,3 +206,75 @@ def test_resample_disp_axis_0(mk_default_tc, mk_arc_frames):
     # With disp_axis=0, output should be transposed
     assert result.data.shape[0] == ny  # nbins along axis 0
     assert result.data.shape[1] == ny  # cdisp along axis 1
+
+
+def test_image_shape_property():
+    c2d = (models.Shift(-10) & models.Shift(-5)) | models.Polynomial2D(1, c0_0=10, c1_0=1)
+    assert TiltSolution(c2d, image_shape=(20, 40)).image_shape == (20, 40)
+    assert TiltSolution(c2d).image_shape is None
+
+
+def _make_analytic_tilt(image_shape=(20, 40), disp_axis=1):
+    c2d = (models.Shift(-20) & models.Shift(-10)) | models.Polynomial2D(
+        2, c0_0=20, c1_0=1.0, c0_1=0.05, c1_1=0.001
+    )
+    return TiltSolution(c2d, disp_axis=disp_axis, image_shape=image_shape)
+
+
+def test_from_gwcs_reads_image_shape_from_bounding_box():
+    from copy import deepcopy
+
+    ts = _make_analytic_tilt()
+    w = deepcopy(ts.gwcs)
+    w.bounding_box = ((0, 40), (0, 20))
+    ts2 = TiltSolution.from_gwcs(w)
+    assert ts2.image_shape == (20, 40)
+    # The restored transformation extrapolates beyond the bounding box.
+    assert np.isfinite(ts2.c2d(-5.0, -5.0))
+    assert np.isfinite(ts2.d2c(-5.0, -5.0))
+
+
+def test_asdf_round_trip_is_lossless(tmp_path):
+    ts = _make_analytic_tilt(disp_axis=0)
+    path = tmp_path / "tilt.asdf"
+    ts.to_asdf(path)
+    ts2 = TiltSolution.from_asdf(path)
+
+    assert ts2.image_shape == (20, 40)
+    assert ts2.disp_axis == 0
+    x, y = np.meshgrid(np.linspace(-5, 45, 6), np.linspace(-5, 25, 5))
+    np.testing.assert_allclose(ts2.corr_to_det(x, y)[0], ts.corr_to_det(x, y)[0], rtol=1e-12)
+    np.testing.assert_allclose(ts2.det_to_corr(x, y)[0], ts.det_to_corr(x, y)[0], rtol=1e-12)
+
+
+def test_asdf_export_is_bounded_but_solution_is_not(tmp_path):
+    import asdf
+
+    ts = _make_analytic_tilt()
+    path = tmp_path / "tilt.asdf"
+    ts.to_asdf(path)
+    with asdf.open(path) as af:
+        w = af["tilt_solution"]["gwcs"]
+        assert w.bounding_box.bounding_box() == ((0, 40), (0, 20))
+        assert np.isnan(w(-5.0, 5.0)[0])
+        np.testing.assert_allclose(w(10.0, 5.0)[0], ts.c2d(10.0, 5.0))
+    assert np.isfinite(ts.gwcs(-5.0, 5.0)[0])
+    assert np.isfinite(ts.c2d(-5.0, 5.0))
+
+
+def test_asdf_round_trip_without_image_shape(tmp_path):
+    ts = _make_analytic_tilt(image_shape=None)
+    path = tmp_path / "tilt.asdf"
+    ts.to_asdf(path)
+    ts2 = TiltSolution.from_asdf(path)
+    assert ts2.image_shape is None
+    np.testing.assert_allclose(ts2.c2d(10.0, 5.0), ts.c2d(10.0, 5.0))
+
+
+def test_from_asdf_raises_on_foreign_file(tmp_path):
+    import asdf
+
+    path = tmp_path / "foreign.asdf"
+    asdf.AsdfFile({"something": 1}).write_to(path)
+    with pytest.raises(ValueError, match="TiltSolution.to_asdf"):
+        TiltSolution.from_asdf(path)
