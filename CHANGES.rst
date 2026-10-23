@@ -30,6 +30,12 @@ New Features
   (``AWAV-GRA``) and vacuum (``WAVE-GRI``) spectral axis types in FITS WCS
   export. [#316]
 
+- Added ``specreduce.utils.measure_noise``, a robust estimator of the per-pixel
+  noise standard deviation of a 1D spectrum or of each row of a 2D spectral
+  image. It measures the sigma-clipped ``mad_std`` of the second difference of
+  the flux along the dispersion axis, so it is insensitive to a smooth continuum
+  or residual background and to emission lines. [#XXX]
+
 API Changes
 ^^^^^^^^^^^
 
@@ -37,6 +43,23 @@ API Changes
   class (deprecated since v1.7.0) now emits an ``AstropyDeprecationWarning``
   on instantiation, and its removal has been rescheduled from v2.0 to v1.11.
   Use ``specreduce.wavecal1d.WavelengthCalibration1D`` instead. [#316]
+
+Bug Fixes
+^^^^^^^^^
+
+- ``line_matching.find_arc_lines`` now accepts spectra with any of the Astropy
+  uncertainty types (``StdDevUncertainty``, ``VarianceUncertainty``, or
+  ``InverseVariance``). Non-standard-deviation uncertainties are converted to
+  ``StdDevUncertainty`` on a copy of the spectrum before the line finding, which
+  previously failed with a unit conversion error for variance-type uncertainties.
+  [#XXX]
+
+- ``line_matching.find_arc_lines`` now estimates the noise of a spectrum without
+  an uncertainty using ``measure_noise`` instead of the square root of the absolute
+  flux. The old fallback amounted to a fixed detection threshold of
+  ``noise_factor**2`` flux units regardless of the actual noise, which missed
+  all lines in faint spectra and reported noise spikes as lines in noisy or
+  background-subtracted ones. [#XXX]
 
 Other changes
 ^^^^^^^^^^^^^

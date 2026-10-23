@@ -1,10 +1,91 @@
 import numpy as np
+from astropy import units as u
+from astropy.stats import mad_std, sigma_clipped_stats
 
 from specreduce.core import parse_image
 from specreduce.tracing import Trace, FlatTrace
 from specreduce.extract import _ap_weight_image, _align_along_trace
 
-__all__ = ['measure_cross_dispersion_profile', '_align_along_trace']
+__all__ = ['measure_cross_dispersion_profile', 'measure_noise', '_align_along_trace']
+
+
+def measure_noise(
+    data: np.ndarray | u.Quantity,
+    axis: int = -1,
+    sigma: float = 3.0,
+    maxiters: int | None = 10,
+) -> float | np.ndarray | u.Quantity:
+    """
+    Estimate the per-pixel noise standard deviation of a spectrum from the data itself.
+
+    The estimate is the sigma-clipped median absolute deviation of the second difference
+    of the flux along the dispersion axis, ``2 f[i] - f[i-2] - f[i+2]``, scaled to the
+    standard deviation of a single pixel. Differencing removes any smooth continuum or
+    residual background, so the estimate does not depend on the spectrum being
+    background-subtracted, while the iterative sigma clipping removes the pixels
+    dominated by emission or absorption lines before the scatter is measured.
+
+    The second difference of white noise has a variance of six times the per-pixel
+    variance, so the clipped ``mad_std`` of the differences is divided by the square
+    root of six. This is the same differencing used by the DER_SNR algorithm
+    (Stoehr et al. 2008), with the plain median replaced by a sigma-clipped robust
+    standard deviation to reduce the bias from dense line lists.
+
+    Parameters
+    ----------
+    data
+        The flux array. Can be 1D or N-dimensional; for a 2D spectral image the noise
+        is estimated separately along ``axis`` for each row (or column). Non-finite
+        values and masked elements of a masked array are ignored.
+    axis
+        The dispersion axis along which the differences are taken.
+    sigma
+        The clipping threshold in units of the robust standard deviation.
+    maxiters
+        The maximum number of clipping iterations, or `None` to iterate until
+        convergence.
+
+    Returns
+    -------
+    float, ndarray, or Quantity
+        The estimated noise standard deviation. A scalar for 1D input, otherwise an
+        array with ``axis`` removed. If ``data`` is a `~astropy.units.Quantity`, the
+        result carries the same unit.
+
+    Notes
+    -----
+    The estimator assumes that the noise is uncorrelated between pixels two apart.
+    For spectra that have been smoothed or resampled onto a finer grid, the
+    differencing suppresses part of the correlated noise and the result is biased
+    low by up to a few tens of percent.
+    """
+    unit = None
+    if isinstance(data, u.Quantity):
+        unit = data.unit
+        data = data.value
+    if np.ma.isMaskedArray(data):
+        data = data.astype(float).filled(np.nan)
+    values = np.asarray(data, dtype=float)
+
+    if values.ndim == 0 or values.shape[axis] < 5:
+        raise ValueError("measure_noise requires at least 5 pixels along the dispersion axis.")
+
+    values = np.moveaxis(values, axis, -1)
+    diff2 = 2.0 * values[..., 2:-2] - values[..., :-4] - values[..., 4:]
+
+    # Non-finite differences (from NaN or masked pixels) are excluded through an explicit
+    # mask. The placeholder value is never used, but must be finite to keep astropy from
+    # warning about invalid input.
+    invalid = ~np.isfinite(diff2)
+    diff2 = np.where(invalid, 0.0, diff2)
+    _, _, clipped_std = sigma_clipped_stats(
+        diff2, mask=invalid, sigma=sigma, maxiters=maxiters, stdfunc=mad_std, axis=-1
+    )
+    noise = clipped_std / np.sqrt(6.0)
+
+    if unit is not None:
+        noise = noise * unit
+    return noise
 
 
 def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
