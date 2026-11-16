@@ -640,9 +640,10 @@ class WavelengthSolution1D:
         produced by the extraction methods). Each wavelength bin receives the flux of the
         pixels it overlaps, weighted by the overlapping fraction of each pixel, and the total
         is divided by the bin width, so the output is a flux density per wavelength unit.
-        The bin edges are stored on the output spectral axis, so the integrated flux is
-        recovered exactly as ``(flux * np.diff(spectral_axis.bin_edges)).sum()`` for any
-        bin grid. The binning is exact and conserves the integrated flux. The variance is propagated
+        The bin edges are stored on the output spectral axis, so the integrated flux can be
+        recovered as ``(flux * np.diff(spectral_axis.bin_edges)).sum()`` for any bin grid.
+        Flux is conserved up to the accuracy of the interpolated wavelength-to-pixel
+        inverse, which is exact for linear solutions. The variance is propagated
         with the squared weights, assuming independent pixel noise. The spectral axis of the
         input must be in pixels with unit spacing but need not start at zero, and the
         wavelength may increase or decrease with pixel number; the output is always
