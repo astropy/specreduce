@@ -56,6 +56,10 @@ Bug Fixes
   bins that are not completely covered by the input pixels in addition to the bins
   affected by masked input pixels. [#319]
 
+- ``WavelengthSolution1D.resample()`` now raises a ``ValueError`` for spectra that are
+  not one-dimensional or whose spectral axis is not in pixels with unit spacing, instead
+  of failing obscurely or returning meaningless values. [#319]
+
 - The spectrum returned by ``WavelengthSolution1D.resample()`` now carries the bin edges
   actually used on its spectral axis, so ``spectral_axis.bin_edges`` is exact for
   non-uniform ``bin_edges`` grids instead of being inferred from the bin centres. [#319]

@@ -586,6 +586,22 @@ def test_resample_does_not_mask_covered_edge_bins(mk_ws_with_transform):
     assert not mk_ws_with_transform.resample(spectrum, nbins=37).mask.any()
 
 
+def test_resample_rejects_unsupported_spectra(mk_ws_with_transform):
+    ws = mk_ws_with_transform
+    flux = np.ones(100) * u.count
+
+    with pytest.raises(ValueError, match="only supports 1D"):
+        ws.resample(Spectrum(np.ones((3, 100)) * u.count, spectral_axis=np.arange(100) * u.pix))
+    with pytest.raises(ValueError, match="must be in pixels"):
+        ws.resample(Spectrum(flux, spectral_axis=np.linspace(5000, 5099, 100) * u.angstrom))
+    with pytest.raises(ValueError, match="unit spacing"):
+        ws.resample(Spectrum(flux, spectral_axis=2 * np.arange(100) * u.pix))
+
+    # the default pixel axis and a single-pixel spectrum are valid
+    assert ws.resample(Spectrum(flux)).flux.size == 100
+    assert ws.resample(Spectrum(flux[:1], spectral_axis=[5] * u.pix)).flux.size == 1
+
+
 def test_resample_keeps_explicit_bin_edges():
     """Non-uniform bin edges must be carried on the output spectral axis as given."""
     npix, dispersion = 100, 2.4

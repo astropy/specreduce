@@ -694,9 +694,16 @@ class WavelengthSolution1D:
         if self._p2w is None:
             raise ValueError("Wavelength solution not set.")
 
+        if spectrum.flux.ndim != 1:
+            raise ValueError("resample only supports 1D spectra.")
+        if spectrum.spectral_axis.unit != u.pix:
+            raise ValueError("The spectral axis of the input spectrum must be in pixels.")
+
         flux = spectrum.flux.value
         pixels = spectrum.spectral_axis.value
         npix = flux.size
+        if npix > 1 and not np.allclose(np.diff(pixels), 1.0):
+            raise ValueError("The spectral axis of the input spectrum must have unit spacing.")
 
         has_uncertainty = spectrum.uncertainty is not None
         if has_uncertainty:
