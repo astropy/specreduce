@@ -648,6 +648,11 @@ class WavelengthSolution1D:
         wavelength may increase or decrease with pixel number; the output is always
         ascending in wavelength.
 
+        The requested bins may extend beyond the input spectrum or beyond the range of the
+        wavelength solution. A bin that is not completely covered by the input pixels
+        receives only the flux of the part that is covered (zero if there is none), so its
+        flux density is underestimated, and it is flagged in the output mask.
+
         Bins that are not aligned with the pixels share pixels with their neighbours, so
         the resampled uncertainties, while correct for each bin, are correlated between
         neighbouring bins. Sums or fits that treat the bins as independent underestimate
@@ -678,9 +683,10 @@ class WavelengthSolution1D:
             1D spectrum binned to the specified wavelength bins, with the flux in units of
             the input flux unit per wavelength unit and a spectral axis that carries the bin
             edges actually used. The uncertainty, if the input has one,
-            is returned in the same uncertainty class as the input; the mask, if the input
-            has one, flags every bin that received a contribution from a masked pixel; and
-            the metadata is a copy of the input metadata.
+            is returned in the same uncertainty class as the input; the mask is always
+            set and flags every bin that is not completely covered by the input pixels or
+            that received a contribution from a masked input pixel; and the metadata is a
+            copy of the input metadata.
         """
         if nbins is not None and nbins <= 0:
             raise ValueError("Number of bins must be non-zero and positive.")
@@ -699,13 +705,16 @@ class WavelengthSolution1D:
         has_mask = spectrum.mask is not None
         mask = np.asarray(spectrum.mask, dtype=bool) if has_mask else None
 
+        # Wavelength range covered by the pixels of the input spectrum.
+        wl_data = np.sort(self.p2w(pixels[[0, -1]] + np.array([-0.5, 0.5])))
+
         nbins = npix if nbins is None else nbins
         if bin_edges is not None:
             bin_edges_wav = np.sort(np.asarray(bin_edges, dtype=float))
             nbins = bin_edges_wav.size - 1
         else:
             if wlbounds is None:
-                l1, l2 = sorted(self.p2w(pixels[[0, -1]] + np.array([-0.5, 0.5])))
+                l1, l2 = wl_data
             else:
                 l1, l2 = sorted(wlbounds)
             bin_edges_wav = np.linspace(l1, l2, num=nbins + 1)
@@ -713,13 +722,22 @@ class WavelengthSolution1D:
         # Bin edges in array-index space, where pixel j spans [j, j + 1). The spectral axis
         # need not start at zero, and the wavelength may decrease with pixel number, in
         # which case the left and right edges of a bin swap places in pixel space.
-        x = np.clip(self.w2p(bin_edges_wav) + 0.5 - pixels[0], 0, npix - 1e-12)
+        # ``w2p`` returns NaN outside the wavelength range over which the solution can be
+        # inverted, so the bin edges are clamped to that range first. Bins reaching beyond it,
+        # or beyond the pixels of the input spectrum, receive only part of their flux (or
+        # none) and are flagged in the output mask. The coverage is tested in wavelength
+        # space, where the default bin edges match the data limits exactly.
+        wl_solution = np.sort(self.w2p.x[[0, -1]])
+        wl_lo, wl_hi = max(wl_data[0], wl_solution[0]), min(wl_data[1], wl_solution[1])
+        uncovered = (bin_edges_wav[:-1] < wl_lo) | (bin_edges_wav[1:] > wl_hi)
+        x = self.w2p(np.clip(bin_edges_wav, *wl_solution)) + 0.5 - pixels[0]
+        x = np.clip(x, 0, npix - 1e-12)
         x_left, x_right = np.minimum(x[:-1], x[1:]), np.maximum(x[:-1], x[1:])
         i_left, i_right = np.floor(x_left).astype(int), np.floor(x_right).astype(int)
 
         flux_wl = np.zeros(nbins)
         ucty_wl = np.zeros(nbins) if has_uncertainty else None
-        mask_wl = np.zeros(nbins, dtype=bool) if has_mask else None
+        mask_wl = uncovered.copy()
         weights = np.zeros(npix)
 
         for i in range(nbins):
@@ -735,14 +753,14 @@ class WavelengthSolution1D:
                 if has_uncertainty:
                     ucty_wl[i] = (w**2 * ucty[sl]).sum()
                 if has_mask:
-                    mask_wl[i] = (mask[sl] & (w > 0)).any()
+                    mask_wl[i] |= (mask[sl] & (w > 0)).any()
             else:
                 fracw = x_right[i] - x_left[i]
                 flux_wl[i] = fracw * flux[i1]
                 if has_uncertainty:
                     ucty_wl[i] = fracw**2 * ucty[i1]
                 if has_mask:
-                    mask_wl[i] = mask[i1] & (fracw > 0)
+                    mask_wl[i] |= mask[i1] & (fracw > 0)
 
         bin_widths_wav = np.diff(bin_edges_wav)
         flux_wl = flux_wl / bin_widths_wav * spectrum.flux.unit / self.unit

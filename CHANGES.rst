@@ -32,7 +32,7 @@ New Features
 
 - Added a ``seed`` argument to ``WavelengthCalibration1D.fit_dispersion()`` that is
   passed to ``scipy.optimize.differential_evolution``, so the stochastic global
-  optimization can be made reproducible. [#XXX]
+  optimization can be made reproducible. [#319]
 
 Bug Fixes
 ^^^^^^^^^
@@ -41,18 +41,24 @@ Bug Fixes
   the wavelength width of each pixel before dividing by the bin width. The output was
   labelled as a flux density per wavelength unit but was numerically off by the local
   dispersion, so a flat spectrum in counts per pixel stayed flat instead of falling where
-  the dispersion grows, and the integrated flux was not conserved.  [#XXX]
+  the dispersion grows, and the integrated flux was not conserved.  [#319]
 
 - ``WavelengthSolution1D.resample()`` now bins spectra whose spectral axis does not start
   at pixel zero correctly, supports solutions where the wavelength decreases with pixel
   number (the output is always ascending in wavelength), propagates the input mask by
   flagging every bin that received a contribution from a masked pixel, copies the input
   metadata, returns no uncertainty instead of a fabricated zero-valued one when the
-  input has none, and rejects ``nbins=0`` as its error message already promised. [#XXX]
+  input has none, and rejects ``nbins=0`` as its error message already promised. [#319]
+
+- ``WavelengthSolution1D.resample()`` no longer fails, or returns NaN bins depending on
+  the platform, when the requested bins extend beyond the wavelength range of the
+  solution or beyond the input spectrum. It now always returns a mask, which flags the
+  bins that are not completely covered by the input pixels in addition to the bins
+  affected by masked input pixels. [#319]
 
 - The spectrum returned by ``WavelengthSolution1D.resample()`` now carries the bin edges
   actually used on its spectral axis, so ``spectral_axis.bin_edges`` is exact for
-  non-uniform ``bin_edges`` grids instead of being inferred from the bin centres. [#XXX]
+  non-uniform ``bin_edges`` grids instead of being inferred from the bin centres. [#319]
 
 API Changes
 ^^^^^^^^^^^

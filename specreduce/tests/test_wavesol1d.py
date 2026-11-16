@@ -508,7 +508,10 @@ def test_resample_propagates_mask_and_meta():
         models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=dispersion), (0, npix), u.angstrom
     )
     spectrum = _flat_spectrum(npix)
-    assert ws.resample(spectrum).mask is None
+    # without an input mask, a fully covered grid gives an all-clear mask
+    result = ws.resample(spectrum)
+    assert result.mask.dtype == bool
+    assert not result.mask.any()
 
     mask = np.zeros(npix, dtype=bool)
     mask[40] = True
@@ -521,17 +524,66 @@ def test_resample_propagates_mask_and_meta():
     result = ws.resample(spectrum)
     np.testing.assert_array_equal(result.mask, mask)
 
-    # bins half a pixel out of phase with the pixels: the two overlapping bins are flagged
+    # bins half a pixel out of phase with the pixels: the two overlapping bins are flagged,
+    # and so is the last bin, which reaches half a pixel beyond the data
     edges = ws.p2w(np.arange(npix + 1))  # pixel centres act as bin edges
     result = ws.resample(spectrum, bin_edges=edges)
     expected = np.zeros(npix, dtype=bool)
     expected[39:41] = True
+    expected[-1] = True
     np.testing.assert_array_equal(result.mask, expected)
 
     assert result.meta == meta
     assert result.meta is not meta
     result.meta["HISTORY"].append("resampled")
     assert meta["HISTORY"] == ["extracted"]
+
+
+def test_resample_masks_bins_outside_coverage():
+    """Bins reaching beyond the input pixels or the solution are flagged, not an error."""
+    npix = 100
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=1.0), (0, npix), u.angstrom
+    )
+    spectrum = _flat_spectrum(npix)  # covers 4999.5 to 5099.5 A
+
+    # far beyond the invertible range of the solution at the blue end
+    result = ws.resample(spectrum, wlbounds=(4990, 5100), nbins=11)
+    expected = np.zeros(11, dtype=bool)
+    expected[[0, -1]] = True  # [4990, 5000] and [5090, 5100] overhang the data
+    np.testing.assert_array_equal(result.mask, expected)
+    assert np.all(np.isfinite(result.flux.value))
+    np.testing.assert_allclose(result.flux.value[~result.mask], 100.0)
+    assert np.all(result.flux.value[result.mask] < 100.0)
+
+    # and at the red end, with a bin that has no coverage at all
+    result = ws.resample(spectrum, bin_edges=[5080, 5090, 5099.5, 5105, 5120])
+    np.testing.assert_array_equal(result.mask, [False, False, True, True])
+    np.testing.assert_allclose(result.flux.value, [100.0, 100.0, 0.0, 0.0], atol=1e-9)
+    np.testing.assert_allclose(result.uncertainty.array[-2:], 0.0, atol=1e-9)
+
+    # decreasing dispersion
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=9000, c1=-1.0), (0, npix), u.angstrom
+    )
+    result = ws.resample(spectrum, wlbounds=(8890, 9010), nbins=12)
+    expected = np.zeros(12, dtype=bool)
+    expected[[0, 1, -1]] = True  # data cover 8900.5 to 9000.5 A
+    np.testing.assert_array_equal(result.mask, expected)
+    assert np.all(np.isfinite(result.flux.value))
+
+    # a spectrum extending beyond the pixel range of the solution
+    spectrum = _flat_spectrum(npix + 20)
+    result = ws.resample(spectrum)
+    assert np.all(np.isfinite(result.flux.value))
+    assert result.mask.any() and not result.mask[-npix:].any()
+
+
+def test_resample_does_not_mask_covered_edge_bins(mk_ws_with_transform):
+    """The default grid of a curved solution is fully covered, edge bins included."""
+    spectrum = _flat_spectrum(pix_bounds[1])
+    assert not mk_ws_with_transform.resample(spectrum).mask.any()
+    assert not mk_ws_with_transform.resample(spectrum, nbins=37).mask.any()
 
 
 def test_resample_keeps_explicit_bin_edges():
