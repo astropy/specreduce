@@ -602,6 +602,28 @@ def test_resample_rejects_unsupported_spectra(mk_ws_with_transform):
     assert ws.resample(Spectrum(flux[:1], spectral_axis=[5] * u.pix)).flux.size == 1
 
 
+def test_resample_validates_bin_edges_and_bounds(mk_ws_with_transform):
+    ws = mk_ws_with_transform
+    spectrum = _flat_spectrum(pix_bounds[1])
+    lo, hi = sorted(wav_bounds)
+    edges = np.linspace(lo, hi, 11)
+
+    for bad in ([edges[0]], edges.reshape(1, -1)):
+        with pytest.raises(ValueError, match="1D array with at least two edges"):
+            ws.resample(spectrum, bin_edges=bad)
+    for bad in (edges[[0, 2, 1, 3]], edges[[0, 1, 1, 2]], [edges[0], np.nan, edges[2]]):
+        with pytest.raises(ValueError, match="strictly monotonic"):
+            ws.resample(spectrum, bin_edges=bad)
+    with pytest.raises(ValueError, match="bounds must differ"):
+        ws.resample(spectrum, wlbounds=(lo, lo))
+
+    # descending edges are accepted and give the same ascending result
+    ascending = ws.resample(spectrum, bin_edges=edges)
+    descending = ws.resample(spectrum, bin_edges=edges[::-1])
+    np.testing.assert_array_equal(descending.spectral_axis.value, ascending.spectral_axis.value)
+    np.testing.assert_array_equal(descending.flux.value, ascending.flux.value)
+
+
 def test_resample_keeps_explicit_bin_edges():
     """Non-uniform bin edges must be carried on the output spectral axis as given."""
     npix, dispersion = 100, 2.4

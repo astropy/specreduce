@@ -676,7 +676,8 @@ class WavelengthSolution1D:
         bin_edges
             Explicit bin edges in the wavelength space. Should be an 1D array-like [e_0, e_1,
             ..., e_n] with n = nbins + 1. The bins are created as [[e_0, e_1], [e_1, e_2], ...,
-            [e_n-1, n]]. If provided, ``nbins`` and ``wlbounds`` are ignored.
+            [e_n-1, n]]. The edges must be strictly monotonic; descending edges are
+            reversed. If provided, ``nbins`` and ``wlbounds`` are ignored.
 
         Returns
         -------
@@ -717,13 +718,21 @@ class WavelengthSolution1D:
 
         nbins = npix if nbins is None else nbins
         if bin_edges is not None:
-            bin_edges_wav = np.sort(np.asarray(bin_edges, dtype=float))
+            bin_edges_wav = np.asarray(bin_edges, dtype=float)
+            if bin_edges_wav.ndim != 1 or bin_edges_wav.size < 2:
+                raise ValueError("bin_edges must be a 1D array with at least two edges.")
+            if np.all(np.diff(bin_edges_wav) < 0):
+                bin_edges_wav = bin_edges_wav[::-1]
+            if not np.all(np.diff(bin_edges_wav) > 0):
+                raise ValueError("bin_edges must be strictly monotonic.")
             nbins = bin_edges_wav.size - 1
         else:
             if wlbounds is None:
                 l1, l2 = wl_data
             else:
                 l1, l2 = sorted(wlbounds)
+                if l1 == l2:
+                    raise ValueError("The two wavelength bounds must differ.")
             bin_edges_wav = np.linspace(l1, l2, num=nbins + 1)
 
         # Bin edges in array-index space, where pixel j spans [j, j + 1). The spectral axis
