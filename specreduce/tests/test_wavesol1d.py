@@ -118,8 +118,21 @@ def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
     # wavelength bins must return the total input counts, up to the accuracy of the
     # interpolated wavelength-to-pixel inverse at the outermost bin edges
     f0 = spectrum.flux.value.sum()
-    f1 = (resampled.flux.value * np.diff(resampled.spectral_axis.value)[0]).sum()
+    f1 = (resampled.flux.value * np.diff(resampled.spectral_axis.bin_edges.value)).sum()
     np.testing.assert_allclose(f0, f1, rtol=1e-4)
+
+    # the same holds for a non-uniform grid and a spectrum that is not flat
+    sloped = Spectrum(
+        flux=(100.0 + np.arange(pix_bounds[1])) * u.count, spectral_axis=spectrum.spectral_axis
+    )
+    edges = np.geomspace(*ws.p2w(np.array([-0.5, pix_bounds[1] - 0.5])), num=40)
+    resampled = ws.resample(sloped, bin_edges=edges)
+    widths = np.diff(resampled.spectral_axis.bin_edges.value)
+    assert not np.allclose(widths, widths[0])
+    assert not resampled.mask.any()
+    np.testing.assert_allclose(
+        (resampled.flux.value * widths).sum(), sloped.flux.value.sum(), rtol=1e-4
+    )
 
     resampled = ws.resample(spectrum, wlbounds=wav_bounds)
     resampled = ws.resample(spectrum, bin_edges=np.linspace(*wav_bounds, num=50))
