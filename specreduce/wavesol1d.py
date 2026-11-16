@@ -654,6 +654,9 @@ class WavelengthSolution1D:
         receives only the flux of the part that is covered (zero if there is none), so its
         flux density is underestimated, and it is flagged in the output mask.
 
+        A non-finite input flux or uncertainty value makes the flux or uncertainty of the
+        bins overlapping that pixel NaN, and leaves the other bins unaffected.
+
         Bins that are not aligned with the pixels share pixels with their neighbours, so
         the resampled uncertainties, while correct for each bin, are correlated between
         neighbouring bins. Sums or fits that treat the bins as independent underestimate
@@ -753,32 +756,47 @@ class WavelengthSolution1D:
         x_left, x_right = np.minimum(x[:-1], x[1:]), np.maximum(x[:-1], x[1:])
         i_left, i_right = np.floor(x_left).astype(int), np.floor(x_right).astype(int)
 
-        flux_wl = np.zeros(nbins)
-        ucty_wl = np.zeros(nbins) if has_uncertainty else None
-        mask_wl = uncovered.copy()
-        weights = np.zeros(npix)
+        # A bin gives its two end pixels fractional weights and the pixels between them a
+        # weight of one, so the sum over the interior pixels is a difference of two values of
+        # a cumulative sum, and all the bins can be computed at once.
+        frac_left, frac_right = x_left - i_left, x_right - i_right
+        single_pixel = i_left == i_right
+        i_inner = np.minimum(i_left + 1, i_right)
 
-        for i in range(nbins):
-            i1, i2 = i_left[i], i_right[i]
-            if i1 != i2:
-                weights[:] = 0.0
-                weights[i1 + 1 : i2] = 1.0
-                weights[i1] = 1.0 - (x_left[i] - i1)
-                weights[i2] = x_right[i] - i2
-                sl = slice(i1, i2 + 1)
-                w = weights[sl]
-                flux_wl[i] = (w * flux[sl]).sum()
-                if has_uncertainty:
-                    ucty_wl[i] = (w**2 * ucty[sl]).sum()
-                if has_mask:
-                    mask_wl[i] |= (mask[sl] & (w > 0)).any()
-            else:
-                fracw = x_right[i] - x_left[i]
-                flux_wl[i] = fracw * flux[i1]
-                if has_uncertainty:
-                    ucty_wl[i] = fracw**2 * ucty[i1]
-                if has_mask:
-                    mask_wl[i] |= mask[i1] & (fracw > 0)
+        def overlaps(flagged: NDArray) -> NDArray:
+            """Bins that receive a non-zero weight from at least one flagged pixel."""
+            count = np.concatenate([[0], np.cumsum(flagged)])
+            return (
+                (count[i_right] - count[i_inner] > 0)
+                | (flagged[i_left] & (x_right > x_left))
+                | (flagged[i_right] & (frac_right > 0))
+            )
+
+        def weighted_sum(values: NDArray, power: int) -> NDArray:
+            """Sum of ``weight**power * values`` over the pixels of each bin."""
+            # A non-finite pixel would spread to all the following bins through the
+            # cumulative sum, so it is left out of the sums and the bins overlapping it are
+            # set to NaN afterwards.
+            non_finite = ~np.isfinite(values)
+            has_non_finite = non_finite.any()
+            if has_non_finite:
+                values = np.where(non_finite, 0.0, values)
+            total = np.concatenate([[0.0], np.cumsum(values)])
+            binned = np.where(
+                single_pixel,
+                (x_right - x_left) ** power * values[i_left],
+                (1.0 - frac_left) ** power * values[i_left]
+                + frac_right**power * values[i_right]
+                + total[i_right]
+                - total[i_inner],
+            )
+            if has_non_finite:
+                binned[overlaps(non_finite)] = np.nan
+            return binned
+
+        flux_wl = weighted_sum(flux, 1)
+        ucty_wl = weighted_sum(ucty, 2) if has_uncertainty else None
+        mask_wl = uncovered | overlaps(mask) if has_mask else uncovered
 
         bin_widths_wav = np.diff(bin_edges_wav)
         flux_wl = flux_wl / bin_widths_wav * spectrum.flux.unit / self.unit

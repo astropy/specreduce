@@ -65,6 +65,11 @@ Bug Fixes
   are reversed), and the two ``wlbounds`` must differ; a ``ValueError`` is raised
   otherwise. [#319]
 
+- ``WavelengthSolution1D.resample()`` now computes all the bins at once instead of
+  looping over them, which makes it one to two orders of magnitude faster. A non-finite
+  input pixel now affects only the bins that overlap it; previously it also turned a
+  neighbouring bin into NaN when a bin edge fell exactly on a pixel boundary. [#319]
+
 - The spectrum returned by ``WavelengthSolution1D.resample()`` now carries the bin edges
   actually used on its spectral axis, so ``spectral_axis.bin_edges`` is exact for
   non-uniform ``bin_edges`` grids instead of being inferred from the bin centres. [#319]

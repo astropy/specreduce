@@ -637,6 +637,97 @@ def test_resample_validates_bin_edges_and_bounds(mk_ws_with_transform):
     np.testing.assert_array_equal(descending.flux.value, ascending.flux.value)
 
 
+def _reference_resample(flux, var, mask, x_edges, widths):
+    """Bin with a dense matrix of pixel-bin overlaps, where pixel j spans [j, j + 1)."""
+    j = np.arange(flux.size)
+    x_left, x_right = x_edges[:-1, None], x_edges[1:, None]
+    w = np.clip(np.minimum(x_right, j + 1) - np.maximum(x_left, j), 0.0, None)
+    used = w > 0
+    with np.errstate(invalid="ignore"):
+        flux_wl = np.where(used, w * flux, 0.0).sum(1) / widths
+        var_wl = np.where(used, w**2 * var, 0.0).sum(1) / widths**2
+    return flux_wl, var_wl, (used & mask).any(1)
+
+
+@pytest.mark.parametrize("bins_per_pixel", [0.3, 1.0, 4.7])
+def test_resample_matches_reference(bins_per_pixel):
+    """Flux, variance and mask must agree with a direct sum over the pixel-bin overlaps."""
+    rng = np.random.default_rng(42)
+    npix, c0, dispersion = 200, 5000.0, 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=c0, c1=dispersion), (0, npix), u.angstrom
+    )
+    flux = rng.uniform(50, 150, npix)
+    var = rng.uniform(1, 4, npix)
+    mask = rng.random(npix) < 0.05
+    flux[[20, 21, 120]] = np.nan
+    var[150] = np.nan
+    spectrum = Spectrum(
+        flux=flux * u.count,
+        spectral_axis=np.arange(npix) * u.pix,
+        uncertainty=VarianceUncertainty(var),
+        mask=mask,
+    )
+
+    # irregular bins that stay within the data, with some edges on pixel boundaries
+    x_edges = np.sort(rng.uniform(0, npix, int(bins_per_pixel * npix)))
+    x_edges[::7] = np.round(x_edges[::7])
+    x_edges = np.unique(np.concatenate([[0.0], x_edges, [npix]]))
+    edges = c0 + dispersion * (x_edges - 0.5)
+
+    result = ws.resample(spectrum, bin_edges=edges)
+    ref_flux, ref_var, ref_mask = _reference_resample(flux, var, mask, x_edges, np.diff(edges))
+    assert np.isnan(ref_flux).any() and np.isnan(ref_var).any()
+
+    # the pixel edges are recovered only to rounding accuracy, so an edge placed on a pixel
+    # boundary may reach into the neighbouring pixel by a negligible amount
+    def assert_equal_where_significant(actual, expected, bad_pixels):
+        differs = actual != expected
+        if differs.any():
+            j = np.arange(npix)
+            w = np.minimum(x_edges[1:, None], j + 1) - np.maximum(x_edges[:-1, None], j)
+            sliver = ((np.abs(w) < 1e-9) & bad_pixels).any(1)
+            assert sliver[differs].all()
+
+    assert_equal_where_significant(np.isnan(result.flux.value), np.isnan(ref_flux), np.isnan(flux))
+    assert_equal_where_significant(
+        np.isnan(result.uncertainty.array), np.isnan(ref_var), np.isnan(var)
+    )
+    assert_equal_where_significant(result.mask, ref_mask, mask)
+    ok = np.isfinite(result.flux.value) & np.isfinite(ref_flux)
+    np.testing.assert_allclose(result.flux.value[ok], ref_flux[ok], rtol=1e-8)
+    ok = np.isfinite(result.uncertainty.array) & np.isfinite(ref_var)
+    np.testing.assert_allclose(result.uncertainty.array[ok], ref_var[ok], rtol=1e-8)
+
+
+def test_resample_keeps_non_finite_pixels_local():
+    """A non-finite pixel affects only the bins that overlap it."""
+    npix = 50
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=2.0), (0, npix), u.angstrom
+    )
+    spectrum = _flat_spectrum(npix)
+    spectrum.flux[[10, 11, 30]] = np.nan
+    spectrum.flux[40] = np.inf
+
+    # one bin per pixel, so every bin edge falls on a pixel boundary
+    result = ws.resample(spectrum)
+    np.testing.assert_array_equal(np.flatnonzero(np.isnan(result.flux.value)), [10, 11, 30, 40])
+    assert np.all(np.isfinite(result.uncertainty.array))
+    np.testing.assert_allclose(np.delete(result.flux.value, [10, 11, 30, 40]), 50.0)
+
+    # two pixels per bin
+    result = ws.resample(spectrum, nbins=npix // 2)
+    np.testing.assert_array_equal(np.flatnonzero(np.isnan(result.flux.value)), [5, 15, 20])
+
+    # a non-finite uncertainty does not affect the flux
+    spectrum = _flat_spectrum(npix)
+    spectrum.uncertainty.array[25] = np.nan
+    result = ws.resample(spectrum)
+    assert np.all(np.isfinite(result.flux.value))
+    np.testing.assert_array_equal(np.flatnonzero(np.isnan(result.uncertainty.array)), [25])
+
+
 def test_resample_keeps_explicit_bin_edges():
     """Non-uniform bin edges must be carried on the output spectral axis as given."""
     npix, dispersion = 100, 2.4
