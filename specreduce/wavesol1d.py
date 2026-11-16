@@ -675,10 +675,11 @@ class WavelengthSolution1D:
             entire flux array is used.
 
         bin_edges
-            Explicit bin edges in the wavelength space. Should be an 1D array-like [e_0, e_1,
-            ..., e_n] with n = nbins + 1. The bins are created as [[e_0, e_1], [e_1, e_2], ...,
-            [e_n-1, n]]. The edges must be strictly monotonic; descending edges are
-            reversed. If provided, ``nbins`` and ``wlbounds`` are ignored.
+            Explicit bin edges in the wavelength space, given as a 1D array-like
+            ``[e_0, e_1, ..., e_n]`` that defines the ``n`` bins ``[e_0, e_1], [e_1, e_2], ...,
+            [e_n-1, e_n]``. The edges must be strictly monotonic; descending edges are
+            reversed, and a `ValueError` is raised otherwise. If provided, ``nbins`` and
+            ``wlbounds`` are ignored.
 
         Returns
         -------
