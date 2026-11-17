@@ -19,7 +19,11 @@ __all__ = ["find_arc_lines", "match_lines_wcs"]
 
 
 def _estimate_baseline(
-    flux: np.ndarray, window: int | None = None, sigma: float = 3.0, maxiters: int = 5
+    flux: np.ndarray,
+    window: int | None = None,
+    sigma: float = 3.0,
+    maxiters: int = 5,
+    mask: np.ndarray | None = None,
 ) -> np.ndarray:
     """Estimate the baseline (pedestal) flux of an arc spectrum with a sigma-clipped median.
 
@@ -40,6 +44,9 @@ def _estimate_baseline(
         `~astropy.stats.sigma_clipped_stats`.
     maxiters
         Maximum number of clipping iterations.
+    mask
+        Boolean mask with the same shape as ``flux``, where ``True`` marks the pixels
+        to exclude from the estimate. A mask that covers the whole spectrum is ignored.
 
     Returns
     -------
@@ -48,7 +55,24 @@ def _estimate_baseline(
     """
     flux = np.asarray(flux, dtype=float)
     n = flux.size
-    global_median = sigma_clipped_stats(flux, sigma=sigma, maxiters=maxiters)[1]
+    if mask is not None:
+        mask = np.asarray(mask, dtype=bool)
+        if mask.shape != flux.shape:
+            raise ValueError("The baseline mask must have the same shape as the flux.")
+        if mask.all():
+            mask = None
+
+    def clipped_median(section: slice) -> float:
+        # sigma_clipped_stats returns a masked constant if no pixels are left
+        median = sigma_clipped_stats(
+            flux[section],
+            mask=None if mask is None else mask[section],
+            sigma=sigma,
+            maxiters=maxiters,
+        )[1]
+        return float(np.ma.filled(median, np.nan))
+
+    global_median = clipped_median(slice(None))
 
     if window is None:
         return np.full(n, global_median)
@@ -64,12 +88,7 @@ def _estimate_baseline(
 
     edges = np.linspace(0, n, nchunks + 1).astype(int)
     centres = 0.5 * (edges[:-1] + edges[1:] - 1)
-    medians = np.array(
-        [
-            sigma_clipped_stats(flux[lo:hi], sigma=sigma, maxiters=maxiters)[1]
-            for lo, hi in zip(edges[:-1], edges[1:])
-        ]
-    )
+    medians = np.array([clipped_median(slice(lo, hi)) for lo, hi in zip(edges[:-1], edges[1:])])
     ok = np.isfinite(medians)
     if ok.sum() < 2:
         return np.full(n, global_median)
@@ -122,6 +141,8 @@ def find_arc_lines(
         and subtract it before the line detection. The threshold routine compares the flux
         against zero, so a spectrum with a pedestal above ``noise_factor × uncertainty``
         cannot be searched without this.
+        Pixels flagged in the spectrum mask are excluded
+        from the baseline estimate.
 
     baseline_window
         Width in pixels of the chunks used for a running baseline estimate. If ``None``,
@@ -146,7 +167,9 @@ def find_arc_lines(
         spectrum.uncertainty = StdDevUncertainty(np.sqrt(np.abs(spectrum.flux.value)))
 
     if subtract_baseline:
-        baseline = _estimate_baseline(spectrum.flux.value, window=baseline_window)
+        baseline = _estimate_baseline(
+            spectrum.flux.value, window=baseline_window, mask=spectrum.mask
+        )
         spectrum = Spectrum(
             (spectrum.flux.value - baseline) * spectrum.flux.unit,
             spectral_axis=spectrum.spectral_axis,

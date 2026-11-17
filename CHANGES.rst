@@ -33,9 +33,10 @@ New Features
 - Added ``subtract_baseline`` and ``baseline_window`` options to
   ``line_matching.find_arc_lines`` and ``TiltCorrection.find_arc_lines`` that estimate
   the baseline flux of the spectrum with a sigma-clipped median (globally, or in running
-  windows) and remove it before the line detection. Baseline subtraction is on by
-  default, so ``TiltCorrection.find_arc_lines`` no longer requires background-subtracted
-  arc frames to detect any lines. [#320]
+  windows) and remove it before the line detection. Pixels flagged in the spectrum mask
+  are excluded from the estimate. Baseline subtraction is on by default, so
+  ``TiltCorrection.find_arc_lines`` no longer requires background-subtracted arc frames
+  to detect any lines. [#320]
 
 API Changes
 ^^^^^^^^^^^

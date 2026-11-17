@@ -11,6 +11,7 @@ from specutils.fitting import fit_generic_continuum
 from specreduce.calibration_data import load_pypeit_calibration_lines
 from specutils import Spectrum
 from specreduce.extract import BoxcarExtract
+from specreduce import line_matching
 from specreduce.line_matching import match_lines_wcs, find_arc_lines, _estimate_baseline
 from specreduce.tracing import FlatTrace
 from specreduce.utils.synth_data import SynthImage
@@ -155,6 +156,52 @@ def test_estimate_baseline_windowed():
     np.testing.assert_allclose(baseline[100:-100], ramp[100:-100], atol=3.0)
     # The global estimate cannot follow the ramp.
     assert np.abs(_estimate_baseline(spec.flux.value) - ramp).max() > 30.0
+
+
+def test_estimate_baseline_excludes_masked_pixels():
+    """Masked pixels must not enter the estimate, even where they dominate a chunk."""
+    rng = np.random.default_rng(0)
+    flux = rng.normal(50.0, 1.0, 400)
+    mask = np.zeros(400, dtype=bool)
+    mask[100:170] = True
+    flux[mask] = 3000.0
+
+    # The bad block fills most of the second chunk, which sigma clipping cannot reject.
+    assert _estimate_baseline(flux, window=100)[150] > 1000.0
+    np.testing.assert_allclose(_estimate_baseline(flux, window=100, mask=mask), 50.0, atol=1.0)
+    np.testing.assert_allclose(_estimate_baseline(flux, mask=mask), 50.0, atol=0.3)
+
+    # A fully masked chunk is bridged from its neighbours.
+    mask[100:200] = True
+    np.testing.assert_allclose(_estimate_baseline(flux, window=100, mask=mask), 50.0, atol=1.0)
+
+    # A mask covering everything is ignored instead of leaving nothing to estimate from.
+    everything = np.ones(400, dtype=bool)
+    np.testing.assert_array_equal(
+        _estimate_baseline(flux, mask=everything), _estimate_baseline(flux)
+    )
+
+    with pytest.raises(ValueError, match="same shape"):
+        _estimate_baseline(flux, mask=mask[:-1])
+
+
+def test_find_arc_lines_baseline_uses_spectrum_mask(mocker):
+    """The spectrum mask must reach the baseline estimate."""
+    centers = [100, 250, 400, 550, 700, 850]
+    spec = _mk_pedestal_spectrum(50.0, centers)
+    mask = np.zeros(spec.flux.size, dtype=bool)
+    mask[420:500] = True
+    masked_spec = Spectrum(
+        spec.flux, spectral_axis=spec.spectral_axis, uncertainty=spec.uncertainty, mask=mask
+    )
+    spy = mocker.spy(line_matching, "_estimate_baseline")
+
+    lines = find_arc_lines(masked_spec, fwhm=4, noise_factor=5, baseline_window=100)
+    np.testing.assert_array_equal(spy.call_args.kwargs["mask"], mask)
+    assert len(lines) == len(centers)
+
+    find_arc_lines(spec, fwhm=4, noise_factor=5)
+    assert spy.call_args.kwargs["mask"] is None
 
 
 @pytest.mark.parametrize("window", [0, -5, 2.5])
