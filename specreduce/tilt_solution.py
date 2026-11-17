@@ -303,6 +303,11 @@ class TiltSolution:
             bin that received a contribution from a masked input pixel, and the metadata is a
             copy of the input metadata. The WCS is not propagated.
 
+            A non-finite input pixel sets the flux and uncertainty of the bins that overlap
+            it to NaN and leaves the other bins of the row intact. Whether these bins are
+            also masked depends on ``mask_treatment``: they are for the treatments that add
+            non-finite pixels to the mask (``apply``, ``propagate``, ``apply_nan_only``).
+
         Notes
         -----
         Each output bin is a linear combination of detector pixels,
@@ -338,8 +343,22 @@ class TiltSolution:
 
         resampled_flux = np.zeros((ny, nbins))
         resampled_variance = np.zeros((ny, nbins)) if has_uncertainty else None
-        resampled_mask = np.zeros((ny, nbins), dtype=bool)
         weights = np.zeros((ny, nx))
+
+        # Non-finite pixels are set to zero for the summations and written back as NaN to
+        # the bins they overlap, so that a bad pixel affects only those bins instead of
+        # the whole row. The non-finite pixels are propagated to the bins together with the
+        # input mask, as a second flag layer that is needed only if such pixels exist.
+        bad = ~np.isfinite(flux)
+        if has_uncertainty:
+            bad |= ~np.isfinite(variance)
+        has_bad = bad.any()
+        if has_bad:
+            flux = np.where(bad, 0.0, flux)
+            if has_uncertainty:
+                variance = np.where(bad, 0.0, variance)
+        flags = np.array([mask, bad] if has_bad else [mask])
+        resampled_flags = np.zeros((flags.shape[0], ny, nbins), dtype=bool)
 
         # Calculate the derivative of the tilt-corrected space -> detector space transformation with
         # respect to the detector coordinate (dx_rec / dx_det). This is needed for flux
@@ -348,8 +367,11 @@ class TiltSolution:
 
         # Calculate a normalization factor 'n' for flux conservation. This factor accounts for the
         # change in pixel size due to the distortion, and ensures that the total flux in each row
-        # is conserved after tilt-correction
-        n = flux.sum(1) / (dtdx * flux).sum(1)
+        # is conserved after tilt-correction. It is estimated from the unmasked, finite pixels
+        # only, and set to unity for rows where it is undefined (no good pixels or zero flux).
+        flux_good = np.where(mask | bad, 0.0, flux)
+        denominator = (dtdx * flux_good).sum(1)
+        n = np.divide(flux_good.sum(1), denominator, out=np.ones(ny), where=denominator != 0)
 
         ixs = np.tile(np.arange(flux.shape[1]), (flux.shape[0], 1))
         ys = np.arange(flux.shape[0])
@@ -368,7 +390,7 @@ class TiltSolution:
             if m.any():
                 k = (bin_edges_det[:, i + 1] - bin_edges_det[:, i]) * dtdx[ys, i1]
                 resampled_flux[:, i] = k * flux[ys, i1]
-                resampled_mask[:, i] = mask[ys, i1]
+                resampled_flags[:, :, i] = flags[:, ys, i1]
                 if has_uncertainty:
                     resampled_variance[:, i] = k**2 * variance[ys, i1]
 
@@ -385,7 +407,7 @@ class TiltSolution:
                 w[ys, i2 - imin] = bin_edge_w[:, i + 1]
                 k = dtdx[~m, imin:imax] * w[~m]
                 resampled_flux[~m, i] = (flux[~m, imin:imax] * k).sum(1)
-                resampled_mask[~m, i] = (mask[~m, imin:imax] & (w[~m] > 0)).any(1)
+                resampled_flags[:, ~m, i] = (flags[:, ~m, imin:imax] & (w[~m] > 0)).any(-1)
                 if has_uncertainty:
                     resampled_variance[~m, i] = (variance[~m, imin:imax] * k**2).sum(1)
 
@@ -393,6 +415,12 @@ class TiltSolution:
         resampled_flux *= n[:, None]
         if has_uncertainty:
             resampled_variance *= n[:, None] ** 2
+
+        resampled_mask = resampled_flags[0]
+        if has_bad:
+            resampled_flux[resampled_flags[1]] = np.nan
+            if has_uncertainty:
+                resampled_variance[resampled_flags[1]] = np.nan
 
         if self.disp_axis == 0:
             resampled_flux = resampled_flux.T

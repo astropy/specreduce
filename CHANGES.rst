@@ -66,6 +66,12 @@ Bug Fixes
   masked input pixel, and copies the input metadata to the resampled ``NDData``.
   Previously all three were dropped. [#320]
 
+- ``TiltSolution.resample`` now confines a non-finite input pixel to the output bins that
+  overlap it. Previously a single non-finite pixel turned its whole row to NaN through the
+  per-row flux-conservation factor, without the row being masked. The factor is now
+  estimated from the unmasked, finite pixels only, and rows without any flux no longer
+  resample to NaN. [#320]
+
 Other changes
 ^^^^^^^^^^^^^
 

@@ -340,3 +340,65 @@ def test_resample_disp_axis_0(mk_default_tc, mk_arc_frames):
     # With disp_axis=0, output should be transposed
     assert result.data.shape[0] == ny  # nbins along axis 0
     assert result.data.shape[1] == ny  # cdisp along axis 1
+
+
+def _curved_ts(ny, nx):
+    solution = Shift(0) & Shift(0) | Polynomial2D(2, c0_0=0.3, c1_0=1.0, c0_1=0.02, c0_2=0.001)
+    return TiltSolution(solution, disp_axis=1, image_shape=(ny, nx))
+
+
+@pytest.mark.parametrize(
+    "mask_treatment, flagged",
+    [("apply", True), ("apply_nan_only", True), ("nan_fill", False), ("ignore", False)],
+)
+def test_resample_keeps_non_finite_pixels_local(mask_treatment, flagged):
+    ny, nx = 20, 30
+    rng = np.random.default_rng(0)
+    data = rng.uniform(5.0, 10.0, (ny, nx))
+    variance = rng.uniform(1.0, 2.0, (ny, nx))
+    ts = _curved_ts(ny, nx)
+    reference = ts.resample(NDData(data * u.ct, uncertainty=VarianceUncertainty(variance)))
+
+    bad = data.copy()
+    bad[7, 12] = np.nan
+    image = NDData(bad * u.ct, uncertainty=VarianceUncertainty(variance))
+    result = ts.resample(image, mask_treatment=mask_treatment)
+
+    # only the bins overlapping the bad pixel are lost, in both flux and uncertainty
+    lost = np.isnan(result.data)
+    assert 1 <= lost[7].sum() <= 3
+    assert not np.delete(lost, 7, axis=0).any()
+    np.testing.assert_array_equal(np.isnan(result.uncertainty.array), lost)
+    np.testing.assert_array_equal(result.mask, lost if flagged else np.zeros_like(lost))
+
+    # the remaining bins of the row keep their values up to the change in the
+    # flux-conservation factor, which no longer sees the bad pixel
+    np.testing.assert_allclose(result.data[~lost], reference.data[~lost], rtol=1e-3)
+    other_rows = np.arange(ny) != 7
+    np.testing.assert_allclose(result.data[other_rows], reference.data[other_rows])
+
+
+def test_resample_non_finite_variance_marks_bin():
+    ny, nx = 6, 12
+    data = np.full((ny, nx), 3.0)
+    variance = np.ones((ny, nx))
+    variance[2, 5] = np.inf
+    image = NDData(data * u.ct, uncertainty=VarianceUncertainty(variance))
+    result = _linear_ts(ny, nx).resample(image, mask_treatment="ignore")
+    lost = np.isnan(result.data)
+    assert lost.sum() == 1 and lost[2, 5]
+    np.testing.assert_array_equal(np.isnan(result.uncertainty.array), lost)
+
+
+def test_resample_handles_rows_without_flux():
+    ny, nx = 6, 12
+    data = np.full((ny, nx), 3.0)
+    data[1] = 0.0
+    data[4] = np.nan
+    image = NDData(data * u.ct, uncertainty=VarianceUncertainty(np.ones((ny, nx))))
+    result = _curved_ts(ny, nx).resample(image, mask_treatment="apply")
+    np.testing.assert_array_equal(result.data[1], 0.0)
+    assert np.isfinite(result.uncertainty.array[1]).all()
+    assert np.isnan(result.data[4]).all() and result.mask[4].all()
+    assert np.isfinite(result.data[[0, 2, 3, 5]]).all()
+    assert not result.mask[[0, 1, 2, 3, 5]].any()
