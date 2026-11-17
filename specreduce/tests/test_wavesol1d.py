@@ -5,7 +5,7 @@ import pytest
 from astropy.io import fits
 from astropy.modeling import models, fitting
 from astropy.modeling.polynomial import Polynomial1D
-from astropy.nddata import StdDevUncertainty
+from astropy.nddata import StdDevUncertainty, VarianceUncertainty
 from gwcs import coordinate_frames, wcs
 from astropy.utils.exceptions import AstropyUserWarning
 from astropy.wcs import WCS as astropy_WCS
@@ -114,10 +114,25 @@ def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
     assert len(resampled.flux) == 50
     assert resampled.flux.unit == u.count / u.angstrom
 
-    pix_edges = np.arange(spectrum.spectral_axis.size + 1) - 0.5
-    f0 = (spectrum.flux.value * np.diff(ws._p2w(pix_edges))).sum()
-    f1 = (resampled.flux.value * np.diff(resampled.spectral_axis.value)[0]).sum()
-    np.testing.assert_approx_equal(f0, f1, 5)
+    # the input is in counts per pixel, so integrating the output density over the
+    # wavelength bins must return the total input counts, up to the accuracy of the
+    # interpolated wavelength-to-pixel inverse at the outermost bin edges
+    f0 = spectrum.flux.value.sum()
+    f1 = (resampled.flux.value * np.diff(resampled.spectral_axis.bin_edges.value)).sum()
+    np.testing.assert_allclose(f0, f1, rtol=1e-4)
+
+    # the same holds for a non-uniform grid and a spectrum that is not flat
+    sloped = Spectrum(
+        flux=(100.0 + np.arange(pix_bounds[1])) * u.count, spectral_axis=spectrum.spectral_axis
+    )
+    edges = np.geomspace(*ws.p2w(np.array([-0.5, pix_bounds[1] - 0.5])), num=40)
+    resampled = ws.resample(sloped, bin_edges=edges)
+    widths = np.diff(resampled.spectral_axis.bin_edges.value)
+    assert not np.allclose(widths, widths[0])
+    assert not resampled.mask.any()
+    np.testing.assert_allclose(
+        (resampled.flux.value * widths).sum(), sloped.flux.value.sum(), rtol=1e-4
+    )
 
     resampled = ws.resample(spectrum, wlbounds=wav_bounds)
     resampled = ws.resample(spectrum, bin_edges=np.linspace(*wav_bounds, num=50))
@@ -125,7 +140,7 @@ def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
     # Resample a spectrum without uncertainty
     spectrum.uncertainty = None
     resampled = ws.resample(spectrum, nbins=50)
-    assert resampled.uncertainty is not None
+    assert resampled.uncertainty is None
 
     ws = mk_ws_without_transform
     with pytest.raises(ValueError, match="Wavelength solution not set."):
@@ -134,6 +149,8 @@ def test_resample(mk_spectrum, mk_ws_with_transform, mk_ws_without_transform):
     ws = mk_ws_with_transform
     with pytest.raises(ValueError, match="Number of bins must be non-zero and positive"):
         ws.resample(mk_spectrum, nbins=-5)
+    with pytest.raises(ValueError, match="Number of bins must be non-zero and positive"):
+        ws.resample(mk_spectrum, nbins=0)
 
 
 def test_pix_to_wav(mk_ws_with_transform):
@@ -421,3 +438,345 @@ def test_from_asdf_raises_on_unsupported_transform(tmp_path):
     asdf.AsdfFile({"wavelength_solution": {"gwcs": w, "wave_air": False}}).write_to(path)
     with pytest.raises(ValueError, match="shift followed by a polynomial"):
         WavelengthSolution1D.from_asdf(path)
+
+
+def test_resample_propagates_variance(mk_ws_with_transform):
+    ws = mk_ws_with_transform
+    npix = pix_bounds[1]
+    sigma = 3.0
+    spectrum = Spectrum(
+        flux=np.ones(npix) * u.count,
+        spectral_axis=np.arange(npix) * u.pix,
+        uncertainty=StdDevUncertainty(np.full(npix, sigma)),
+    )
+    result = ws.resample(spectrum, nbins=10)
+    var = result.uncertainty.represent_as(VarianceUncertainty).array
+    dl = np.diff(result.spectral_axis.value)[0]
+
+    # The output is sum(w * f) / dl, so the variance of an interior bin is
+    # sum(w**2 * sigma**2) / dl**2 over the contributing pixels.
+    ibin = 5
+    edges = result.spectral_axis.value[ibin] + np.array([-0.5, 0.5]) * dl
+    x_edges = ws.wav_to_pix(edges) + 0.5
+    i1, i2 = np.floor(x_edges).astype(int)
+    w = np.zeros(npix)
+    w[i1 + 1 : i2] = 1.0
+    w[i1] = 1.0 - (x_edges[0] - i1)
+    w[i2] = x_edges[1] - i2
+    expected = (w**2 * sigma**2).sum() / dl**2
+    np.testing.assert_allclose(var[ibin], expected, rtol=1e-6)
+
+
+def _flat_spectrum(npix, flux=100.0, sigma=4.0, first_pixel=0):
+    return Spectrum(
+        flux=np.full(npix, flux) * u.count,
+        spectral_axis=(first_pixel + np.arange(npix)) * u.pix,
+        uncertainty=StdDevUncertainty(np.full(npix, sigma)),
+    )
+
+
+def test_resample_handles_offset_spectral_axis():
+    """A spectrum whose spectral axis does not start at pixel zero must be binned correctly."""
+    npix, first, dispersion = 100, 300, 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=dispersion),
+        (0, first + npix),
+        u.angstrom,
+    )
+    flux = 100.0 + np.arange(npix)  # a slope, so misindexing is visible
+    spectrum = _flat_spectrum(npix, first_pixel=first)
+    spectrum.flux[:] = flux * u.count
+
+    result = ws.resample(spectrum)
+    np.testing.assert_allclose(result.flux.value, flux / dispersion, rtol=1e-9)
+    np.testing.assert_allclose(result.spectral_axis.value[0], ws.p2w(first), rtol=1e-12)
+    np.testing.assert_allclose(result.uncertainty.array, 4.0 / dispersion, rtol=1e-9)
+
+
+def test_resample_handles_decreasing_dispersion():
+    """Wavelength decreasing with pixel number gives an ascending, flux-conserving result."""
+    npix, dispersion = 100, 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=9000, c1=-dispersion), (0, npix), u.angstrom
+    )
+    spectrum = _flat_spectrum(npix)
+    spectrum.flux[:] = (100.0 + np.arange(npix)) * u.count
+
+    result = ws.resample(spectrum)
+    assert np.all(np.diff(result.spectral_axis.value) > 0)
+    # pixel 0 is the reddest, so it lands in the last bin
+    np.testing.assert_allclose(result.flux.value, spectrum.flux.value[::-1] / dispersion, rtol=1e-9)
+    np.testing.assert_allclose(result.uncertainty.array, 4.0 / dispersion, rtol=1e-9)
+
+    result = ws.resample(spectrum, nbins=npix // 4)
+    dlam = np.diff(result.spectral_axis.value)[0]
+    np.testing.assert_allclose(
+        (result.flux.value * dlam).sum(), spectrum.flux.value.sum(), rtol=1e-9
+    )
+
+
+def test_resample_propagates_mask_and_meta():
+    npix, dispersion = 100, 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=dispersion), (0, npix), u.angstrom
+    )
+    spectrum = _flat_spectrum(npix)
+    # without an input mask, a fully covered grid gives an all-clear mask
+    result = ws.resample(spectrum)
+    assert result.mask.dtype == bool
+    assert not result.mask.any()
+
+    mask = np.zeros(npix, dtype=bool)
+    mask[40] = True
+    meta = {"OBJECT": "target", "HISTORY": ["extracted"]}
+    spectrum = Spectrum(
+        flux=spectrum.flux, spectral_axis=spectrum.spectral_axis, mask=mask, meta=meta
+    )
+
+    # one bin per pixel: exactly the masked pixel's bin is flagged
+    result = ws.resample(spectrum)
+    np.testing.assert_array_equal(result.mask, mask)
+
+    # bins half a pixel out of phase with the pixels: the two overlapping bins are flagged,
+    # and so is the last bin, which reaches half a pixel beyond the data
+    edges = ws.p2w(np.arange(npix + 1))  # pixel centres act as bin edges
+    result = ws.resample(spectrum, bin_edges=edges)
+    expected = np.zeros(npix, dtype=bool)
+    expected[39:41] = True
+    expected[-1] = True
+    np.testing.assert_array_equal(result.mask, expected)
+
+    assert result.meta == meta
+    assert result.meta is not meta
+    result.meta["HISTORY"].append("resampled")
+    assert meta["HISTORY"] == ["extracted"]
+
+
+def test_resample_masks_bins_outside_coverage():
+    """Bins reaching beyond the input pixels or the solution are flagged, not an error."""
+    npix = 100
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=1.0), (0, npix), u.angstrom
+    )
+    spectrum = _flat_spectrum(npix)  # covers 4999.5 to 5099.5 A
+
+    # far beyond the invertible range of the solution at the blue end
+    result = ws.resample(spectrum, wlbounds=(4990, 5100), nbins=11)
+    expected = np.zeros(11, dtype=bool)
+    expected[[0, -1]] = True  # [4990, 5000] and [5090, 5100] overhang the data
+    np.testing.assert_array_equal(result.mask, expected)
+    assert np.all(np.isfinite(result.flux.value))
+    np.testing.assert_allclose(result.flux.value[~result.mask], 100.0)
+    assert np.all(result.flux.value[result.mask] < 100.0)
+
+    # and at the red end, with a bin that has no coverage at all
+    result = ws.resample(spectrum, bin_edges=[5080, 5090, 5099.5, 5105, 5120])
+    np.testing.assert_array_equal(result.mask, [False, False, True, True])
+    np.testing.assert_allclose(result.flux.value, [100.0, 100.0, 0.0, 0.0], atol=1e-9)
+    np.testing.assert_allclose(result.uncertainty.array[-2:], 0.0, atol=1e-9)
+
+    # decreasing dispersion
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=9000, c1=-1.0), (0, npix), u.angstrom
+    )
+    result = ws.resample(spectrum, wlbounds=(8890, 9010), nbins=12)
+    expected = np.zeros(12, dtype=bool)
+    expected[[0, 1, -1]] = True  # data cover 8900.5 to 9000.5 A
+    np.testing.assert_array_equal(result.mask, expected)
+    assert np.all(np.isfinite(result.flux.value))
+
+    # a spectrum extending beyond the pixel range of the solution
+    spectrum = _flat_spectrum(npix + 20)
+    result = ws.resample(spectrum)
+    assert np.all(np.isfinite(result.flux.value))
+    assert result.mask.any() and not result.mask[-npix:].any()
+
+
+def test_resample_does_not_mask_covered_edge_bins(mk_ws_with_transform):
+    """The default grid of a curved solution is fully covered, edge bins included."""
+    spectrum = _flat_spectrum(pix_bounds[1])
+    assert not mk_ws_with_transform.resample(spectrum).mask.any()
+    assert not mk_ws_with_transform.resample(spectrum, nbins=37).mask.any()
+
+
+def test_resample_rejects_unsupported_spectra(mk_ws_with_transform):
+    ws = mk_ws_with_transform
+    flux = np.ones(100) * u.count
+
+    with pytest.raises(ValueError, match="only supports 1D"):
+        ws.resample(Spectrum(np.ones((3, 100)) * u.count, spectral_axis=np.arange(100) * u.pix))
+    with pytest.raises(ValueError, match="must be in pixels"):
+        ws.resample(Spectrum(flux, spectral_axis=np.linspace(5000, 5099, 100) * u.angstrom))
+    with pytest.raises(ValueError, match="unit spacing"):
+        ws.resample(Spectrum(flux, spectral_axis=2 * np.arange(100) * u.pix))
+
+    # the default pixel axis and a single-pixel spectrum are valid
+    assert ws.resample(Spectrum(flux)).flux.size == 100
+    assert ws.resample(Spectrum(flux[:1], spectral_axis=[5] * u.pix)).flux.size == 1
+
+
+def test_resample_validates_bin_edges_and_bounds(mk_ws_with_transform):
+    ws = mk_ws_with_transform
+    spectrum = _flat_spectrum(pix_bounds[1])
+    lo, hi = sorted(wav_bounds)
+    edges = np.linspace(lo, hi, 11)
+
+    for bad in ([edges[0]], edges.reshape(1, -1)):
+        with pytest.raises(ValueError, match="1D array with at least two edges"):
+            ws.resample(spectrum, bin_edges=bad)
+    for bad in (edges[[0, 2, 1, 3]], edges[[0, 1, 1, 2]], [edges[0], np.nan, edges[2]]):
+        with pytest.raises(ValueError, match="strictly monotonic"):
+            ws.resample(spectrum, bin_edges=bad)
+    with pytest.raises(ValueError, match="bounds must differ"):
+        ws.resample(spectrum, wlbounds=(lo, lo))
+
+    # descending edges are accepted and give the same ascending result
+    ascending = ws.resample(spectrum, bin_edges=edges)
+    descending = ws.resample(spectrum, bin_edges=edges[::-1])
+    np.testing.assert_array_equal(descending.spectral_axis.value, ascending.spectral_axis.value)
+    np.testing.assert_array_equal(descending.flux.value, ascending.flux.value)
+
+
+def _reference_resample(flux, var, mask, x_edges, widths):
+    """Bin with a dense matrix of pixel-bin overlaps, where pixel j spans [j, j + 1)."""
+    j = np.arange(flux.size)
+    x_left, x_right = x_edges[:-1, None], x_edges[1:, None]
+    w = np.clip(np.minimum(x_right, j + 1) - np.maximum(x_left, j), 0.0, None)
+    used = w > 0
+    with np.errstate(invalid="ignore"):
+        flux_wl = np.where(used, w * flux, 0.0).sum(1) / widths
+        var_wl = np.where(used, w**2 * var, 0.0).sum(1) / widths**2
+    return flux_wl, var_wl, (used & mask).any(1)
+
+
+@pytest.mark.parametrize("bins_per_pixel", [0.3, 1.0, 4.7])
+def test_resample_matches_reference(bins_per_pixel):
+    """Flux, variance and mask must agree with a direct sum over the pixel-bin overlaps."""
+    rng = np.random.default_rng(42)
+    npix, c0, dispersion = 200, 5000.0, 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=c0, c1=dispersion), (0, npix), u.angstrom
+    )
+    flux = rng.uniform(50, 150, npix)
+    var = rng.uniform(1, 4, npix)
+    mask = rng.random(npix) < 0.05
+    flux[[20, 21, 120]] = np.nan
+    var[150] = np.nan
+    spectrum = Spectrum(
+        flux=flux * u.count,
+        spectral_axis=np.arange(npix) * u.pix,
+        uncertainty=VarianceUncertainty(var),
+        mask=mask,
+    )
+
+    # irregular bins that stay within the data, with some edges on pixel boundaries
+    x_edges = np.sort(rng.uniform(0, npix, int(bins_per_pixel * npix)))
+    x_edges[::7] = np.round(x_edges[::7])
+    x_edges = np.unique(np.concatenate([[0.0], x_edges, [npix]]))
+    edges = c0 + dispersion * (x_edges - 0.5)
+
+    result = ws.resample(spectrum, bin_edges=edges)
+    ref_flux, ref_var, ref_mask = _reference_resample(flux, var, mask, x_edges, np.diff(edges))
+    assert np.isnan(ref_flux).any() and np.isnan(ref_var).any()
+
+    # the pixel edges are recovered only to rounding accuracy, so an edge placed on a pixel
+    # boundary may reach into the neighbouring pixel by a negligible amount
+    def assert_equal_where_significant(actual, expected, bad_pixels):
+        differs = actual != expected
+        if differs.any():
+            j = np.arange(npix)
+            w = np.minimum(x_edges[1:, None], j + 1) - np.maximum(x_edges[:-1, None], j)
+            sliver = ((np.abs(w) < 1e-9) & bad_pixels).any(1)
+            assert sliver[differs].all()
+
+    assert_equal_where_significant(np.isnan(result.flux.value), np.isnan(ref_flux), np.isnan(flux))
+    assert_equal_where_significant(
+        np.isnan(result.uncertainty.array), np.isnan(ref_var), np.isnan(var)
+    )
+    assert_equal_where_significant(result.mask, ref_mask, mask)
+    ok = np.isfinite(result.flux.value) & np.isfinite(ref_flux)
+    np.testing.assert_allclose(result.flux.value[ok], ref_flux[ok], rtol=1e-8)
+    ok = np.isfinite(result.uncertainty.array) & np.isfinite(ref_var)
+    np.testing.assert_allclose(result.uncertainty.array[ok], ref_var[ok], rtol=1e-8)
+
+
+def test_resample_keeps_non_finite_pixels_local():
+    """A non-finite pixel affects only the bins that overlap it."""
+    npix = 50
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=2.0), (0, npix), u.angstrom
+    )
+    spectrum = _flat_spectrum(npix)
+    spectrum.flux[[10, 11, 30]] = np.nan
+    spectrum.flux[40] = np.inf
+
+    # one bin per pixel, so every bin edge falls on a pixel boundary
+    result = ws.resample(spectrum)
+    np.testing.assert_array_equal(np.flatnonzero(np.isnan(result.flux.value)), [10, 11, 30, 40])
+    assert np.all(np.isfinite(result.uncertainty.array))
+    np.testing.assert_allclose(np.delete(result.flux.value, [10, 11, 30, 40]), 50.0)
+
+    # two pixels per bin
+    result = ws.resample(spectrum, nbins=npix // 2)
+    np.testing.assert_array_equal(np.flatnonzero(np.isnan(result.flux.value)), [5, 15, 20])
+
+    # a non-finite uncertainty does not affect the flux
+    spectrum = _flat_spectrum(npix)
+    spectrum.uncertainty.array[25] = np.nan
+    result = ws.resample(spectrum)
+    assert np.all(np.isfinite(result.flux.value))
+    np.testing.assert_array_equal(np.flatnonzero(np.isnan(result.uncertainty.array)), [25])
+
+
+def test_resample_keeps_explicit_bin_edges():
+    """Non-uniform bin edges must be carried on the output spectral axis as given."""
+    npix, dispersion = 100, 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=dispersion), (0, npix), u.angstrom
+    )
+    spectrum = _flat_spectrum(npix)
+    lo, hi = ws.p2w(np.array([-0.5, npix - 0.5]))
+    edges = lo + (hi - lo) * np.linspace(0, 1, 9) ** 2  # widths growing along the axis
+
+    result = ws.resample(spectrum, bin_edges=edges)
+    np.testing.assert_allclose(result.spectral_axis.bin_edges.value, edges, rtol=1e-12)
+    np.testing.assert_allclose(
+        result.spectral_axis.value, 0.5 * (edges[:-1] + edges[1:]), rtol=1e-12
+    )
+    # integrating over the true bin widths conserves the counts
+    widths = np.diff(result.spectral_axis.bin_edges.value)
+    np.testing.assert_allclose(
+        (result.flux.value * widths).sum(), spectrum.flux.value.sum(), rtol=1e-9
+    )
+
+
+def test_resample_returns_flux_density_per_wavelength():
+    """
+    A flat spectrum in counts per pixel becomes counts per wavelength unit divided by
+    the local dispersion, and the integral over the bins conserves the total counts.
+    """
+    npix, flux, sigma = 100, 100.0, 4.0
+    spectrum = Spectrum(
+        flux=np.full(npix, flux) * u.count,
+        spectral_axis=np.arange(npix) * u.pix,
+        uncertainty=StdDevUncertainty(np.full(npix, sigma)),
+    )
+
+    # linear dispersion: with nbins == npix every bin is exactly one pixel wide
+    dispersion = 2.4
+    ws = WavelengthSolution1D(
+        models.Shift(0) | models.Polynomial1D(1, c0=5000, c1=dispersion), (0, npix), u.angstrom
+    )
+    result = ws.resample(spectrum)
+    assert result.flux.unit == u.count / u.angstrom
+    np.testing.assert_allclose(result.flux.value, flux / dispersion, rtol=1e-9)
+    np.testing.assert_allclose(result.uncertainty.array, sigma / dispersion, rtol=1e-9)
+
+    # non-linear dispersion: the density follows 1 / dldx and the counts are conserved
+    p2w = models.Shift(0) | models.Polynomial1D(2, c0=5000, c1=1.0, c2=0.02)
+    ws = WavelengthSolution1D(p2w, (0, npix), u.angstrom)
+    result = ws.resample(spectrum, nbins=npix)
+    bin_widths = np.diff(np.linspace(*p2w(np.array([-0.5, npix - 0.5])), npix + 1))
+    np.testing.assert_allclose((result.flux.value * bin_widths).sum(), flux * npix, rtol=1e-4)
+    dldx_at_centers = _diff_poly1d(p2w[1])(ws.wav_to_pix(result.spectral_axis.value))
+    np.testing.assert_allclose(result.flux.value, flux / dldx_at_centers, rtol=2e-2)

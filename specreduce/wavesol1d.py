@@ -1,8 +1,8 @@
 import warnings
+from copy import deepcopy
 from functools import cached_property
 from pathlib import Path
 from typing import Callable
-from copy import deepcopy
 
 import asdf
 import astropy.units as u
@@ -18,7 +18,7 @@ from numpy.typing import ArrayLike, NDArray
 from scipy import optimize
 from scipy.interpolate import interp1d
 
-from specutils import Spectrum
+from specutils import Spectrum, SpectralAxis
 
 
 __all__ = ["WavelengthSolution1D"]
@@ -636,9 +636,31 @@ class WavelengthSolution1D:
     ) -> Spectrum:
         """Bin the given pixel-space 1D spectrum to a wavelength space conserving the flux.
 
-        This method bins a pixel-space spectrum to a wavelength space using the computed
-        pixel-to-wavelength and wavelength-to-pixel transformations and their derivatives with
-        respect to the spectral axis. The binning is exact and conserves the integrated flux.
+        The input flux is taken to be integrated per pixel (e.g. counts per pixel, as
+        produced by the extraction methods). Each wavelength bin receives the flux of the
+        pixels it overlaps, weighted by the overlapping fraction of each pixel, and the total
+        is divided by the bin width, so the output is a flux density per wavelength unit.
+        The bin edges are stored on the output spectral axis, so the integrated flux can be
+        recovered as ``(flux * np.diff(spectral_axis.bin_edges)).sum()`` for any bin grid.
+        Flux is conserved up to the accuracy of the interpolated wavelength-to-pixel
+        inverse, which is exact for linear solutions. The variance is propagated
+        with the squared weights, assuming independent pixel noise. The spectral axis of the
+        input must be in pixels with unit spacing but need not start at zero, and the
+        wavelength may increase or decrease with pixel number; the output is always
+        ascending in wavelength.
+
+        The requested bins may extend beyond the input spectrum or beyond the range of the
+        wavelength solution. A bin that is not completely covered by the input pixels
+        receives only the flux of the part that is covered (zero if there is none), so its
+        flux density is underestimated, and it is flagged in the output mask.
+
+        A non-finite input flux or uncertainty value makes the flux or uncertainty of the
+        bins overlapping that pixel NaN, and leaves the other bins unaffected.
+
+        Bins that are not aligned with the pixels share pixels with their neighbours, so
+        the resampled uncertainties, while correct for each bin, are correlated between
+        neighbouring bins. Sums or fits that treat the bins as independent underestimate
+        the uncertainty; resampling to a grid finer than the pixels makes this worse.
 
         Parameters
         ----------
@@ -656,69 +678,134 @@ class WavelengthSolution1D:
             entire flux array is used.
 
         bin_edges
-            Explicit bin edges in the wavelength space. Should be an 1D array-like [e_0, e_1,
-            ..., e_n] with n = nbins + 1. The bins are created as [[e_0, e_1], [e_1, e_2], ...,
-            [e_n-1, n]]. If provided, ``nbins`` and ``wlbounds`` are ignored.
+            Explicit bin edges in the wavelength space, given as a 1D array-like
+            ``[e_0, e_1, ..., e_n]`` that defines the ``n`` bins ``[e_0, e_1], [e_1, e_2], ...,
+            [e_n-1, e_n]``. The edges must be strictly monotonic; descending edges are
+            reversed, and a `ValueError` is raised otherwise. If provided, ``nbins`` and
+            ``wlbounds`` are ignored.
 
         Returns
         -------
-            1D spectrum binned to the specified wavelength bins.
+            1D spectrum binned to the specified wavelength bins, with the flux in units of
+            the input flux unit per wavelength unit and a spectral axis that carries the bin
+            edges actually used. The uncertainty, if the input has one,
+            is returned in the same uncertainty class as the input; the mask is always
+            set and flags every bin that is not completely covered by the input pixels or
+            that received a contribution from a masked input pixel; and the metadata is a
+            copy of the input metadata.
         """
-        if nbins is not None and nbins < 0:
+        if nbins is not None and nbins <= 0:
             raise ValueError("Number of bins must be non-zero and positive.")
 
         if self._p2w is None:
             raise ValueError("Wavelength solution not set.")
 
+        if spectrum.flux.ndim != 1:
+            raise ValueError("resample only supports 1D spectra.")
+        if spectrum.spectral_axis.unit != u.pix:
+            raise ValueError("The spectral axis of the input spectrum must be in pixels.")
+
         flux = spectrum.flux.value
         pixels = spectrum.spectral_axis.value
+        npix = flux.size
+        if npix > 1 and not np.allclose(np.diff(pixels), 1.0):
+            raise ValueError("The spectral axis of the input spectrum must have unit spacing.")
 
-        if spectrum.uncertainty is not None:
+        has_uncertainty = spectrum.uncertainty is not None
+        if has_uncertainty:
             ucty = spectrum.uncertainty.represent_as(VarianceUncertainty).array
             ucty_type = type(spectrum.uncertainty)
-        else:
-            ucty = np.zeros_like(flux)
-            ucty_type = VarianceUncertainty
-        npix = flux.size
-        nbins = npix if nbins is None else nbins
-        if wlbounds is None:
-            l1, l2 = self.p2w(pixels[[0, -1]] + np.array([-0.5, 0.5]))
-        else:
-            l1, l2 = wlbounds
+        has_mask = spectrum.mask is not None
+        mask = np.asarray(spectrum.mask, dtype=bool) if has_mask else None
 
+        # Wavelength range covered by the pixels of the input spectrum.
+        wl_data = np.sort(self.p2w(pixels[[0, -1]] + np.array([-0.5, 0.5])))
+
+        nbins = npix if nbins is None else nbins
         if bin_edges is not None:
-            bin_edges_wav = np.asarray(bin_edges)
+            bin_edges_wav = np.asarray(bin_edges, dtype=float)
+            if bin_edges_wav.ndim != 1 or bin_edges_wav.size < 2:
+                raise ValueError("bin_edges must be a 1D array with at least two edges.")
+            if np.all(np.diff(bin_edges_wav) < 0):
+                bin_edges_wav = bin_edges_wav[::-1]
+            if not np.all(np.diff(bin_edges_wav) > 0):
+                raise ValueError("bin_edges must be strictly monotonic.")
             nbins = bin_edges_wav.size - 1
         else:
+            if wlbounds is None:
+                l1, l2 = wl_data
+            else:
+                l1, l2 = sorted(wlbounds)
+                if l1 == l2:
+                    raise ValueError("The two wavelength bounds must differ.")
             bin_edges_wav = np.linspace(l1, l2, num=nbins + 1)
 
-        bin_edges_pix = np.clip(self.w2p(bin_edges_wav) + 0.5, 0, npix - 1e-12)
-        bin_edge_ix = np.floor(bin_edges_pix).astype(int)
-        bin_edge_w = bin_edges_pix - bin_edge_ix
-        bin_centers_wav = 0.5 * (bin_edges_wav[:-1] + bin_edges_wav[1:])
-        flux_wl = np.zeros(nbins)
-        ucty_wl = np.zeros(nbins)
-        weights = np.zeros(npix)
+        # Bin edges in array-index space, where pixel j spans [j, j + 1). The spectral axis
+        # need not start at zero, and the wavelength may decrease with pixel number, in
+        # which case the left and right edges of a bin swap places in pixel space.
+        # ``w2p`` returns NaN outside the wavelength range over which the solution can be
+        # inverted, so the bin edges are clamped to that range first. Bins reaching beyond it,
+        # or beyond the pixels of the input spectrum, receive only part of their flux (or
+        # none) and are flagged in the output mask. The coverage is tested in wavelength
+        # space, where the default bin edges match the data limits exactly.
+        wl_solution = np.sort(self.w2p.x[[0, -1]])
+        wl_lo, wl_hi = max(wl_data[0], wl_solution[0]), min(wl_data[1], wl_solution[1])
+        uncovered = (bin_edges_wav[:-1] < wl_lo) | (bin_edges_wav[1:] > wl_hi)
+        x = self.w2p(np.clip(bin_edges_wav, *wl_solution)) + 0.5 - pixels[0]
+        x = np.clip(x, 0, npix - 1e-12)
+        x_left, x_right = np.minimum(x[:-1], x[1:]), np.maximum(x[:-1], x[1:])
+        i_left, i_right = np.floor(x_left).astype(int), np.floor(x_right).astype(int)
 
-        dldx = np.diff(self.p2w(np.arange(pixels[0], pixels[-1] + 2) - 0.5))
+        # A bin gives its two end pixels fractional weights and the pixels between them a
+        # weight of one, so the sum over the interior pixels is a difference of two values of
+        # a cumulative sum, and all the bins can be computed at once.
+        frac_left, frac_right = x_left - i_left, x_right - i_right
+        single_pixel = i_left == i_right
+        i_inner = np.minimum(i_left + 1, i_right)
 
-        for i in range(nbins):
-            i1, i2 = bin_edge_ix[i : i + 2]
-            weights[:] = 0.0
-            if i1 != i2:
-                weights[i1 + 1 : i2] = 1.0
-                weights[i1] = 1 - bin_edge_w[i]
-                weights[i2] = bin_edge_w[i + 1]
-                sl = slice(i1, i2 + 1)
-                w = weights[sl]
-                flux_wl[i] = (w * flux[sl] * dldx[sl]).sum()
-                ucty_wl[i] = (w**2 * ucty[sl] * dldx[sl]).sum()
-            else:
-                fracw = bin_edges_pix[i + 1] - bin_edges_pix[i]
-                flux_wl[i] = fracw * flux[i1] * dldx[i1]
-                ucty_wl[i] = fracw**2 * ucty[i1] * dldx[i1]
+        def overlaps(flagged: NDArray) -> NDArray:
+            """Bins that receive a non-zero weight from at least one flagged pixel."""
+            count = np.concatenate([[0], np.cumsum(flagged)])
+            return (
+                (count[i_right] - count[i_inner] > 0)
+                | (flagged[i_left] & (x_right > x_left))
+                | (flagged[i_right] & (frac_right > 0))
+            )
+
+        def weighted_sum(values: NDArray, power: int) -> NDArray:
+            """Sum of ``weight**power * values`` over the pixels of each bin."""
+            # A non-finite pixel would spread to all the following bins through the
+            # cumulative sum, so it is left out of the sums and the bins overlapping it are
+            # set to NaN afterwards.
+            non_finite = ~np.isfinite(values)
+            has_non_finite = non_finite.any()
+            if has_non_finite:
+                values = np.where(non_finite, 0.0, values)
+            total = np.concatenate([[0.0], np.cumsum(values)])
+            binned = np.where(
+                single_pixel,
+                (x_right - x_left) ** power * values[i_left],
+                (1.0 - frac_left) ** power * values[i_left]
+                + frac_right**power * values[i_right]
+                + total[i_right]
+                - total[i_inner],
+            )
+            if has_non_finite:
+                binned[overlaps(non_finite)] = np.nan
+            return binned
+
+        flux_wl = weighted_sum(flux, 1)
+        ucty_wl = weighted_sum(ucty, 2) if has_uncertainty else None
+        mask_wl = uncovered | overlaps(mask) if has_mask else uncovered
 
         bin_widths_wav = np.diff(bin_edges_wav)
         flux_wl = flux_wl / bin_widths_wav * spectrum.flux.unit / self.unit
-        ucty_wl = VarianceUncertainty(ucty_wl / bin_widths_wav**2).represent_as(ucty_type)
-        return Spectrum(flux_wl, bin_centers_wav * self.unit, uncertainty=ucty_wl)
+        if has_uncertainty:
+            ucty_wl = VarianceUncertainty(ucty_wl / bin_widths_wav**2).represent_as(ucty_type)
+        return Spectrum(
+            flux_wl,
+            SpectralAxis(bin_edges_wav * self.unit, bin_specification="edges"),
+            uncertainty=ucty_wl,
+            mask=mask_wl,
+            meta=deepcopy(spectrum.meta),
+        )

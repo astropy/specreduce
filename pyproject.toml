@@ -28,7 +28,7 @@ docs = [
     "numpy<=2.5",
     "sphinx-astropy[confv3]>=1.11",
     "sphinx-copybutton",
-    "sphinx-design",
+    "sphinx-design>=0.8",
     "matplotlib>=3.7",
     "photutils>=1.11",
     "synphot",

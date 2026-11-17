@@ -51,72 +51,76 @@ tools can be combined to create complete spectroscopic workflows.
     .. grid-item-card::
         :text-align: center
 
-        **Getting Started**
-        ^^^^^^^^^^^^^^^^^^^
+        .. card-header::
+
+            **Getting Started**
 
         New to Specreduce? Check out the getting started guides.
 
-        +++
+        .. card-footer::
 
-        .. button-ref:: getting_started/index
-            :expand:
-            :color: primary
-            :click-parent:
+            .. button-ref:: getting_started/index
+                :expand:
+                :color: primary
+                :click-parent:
 
-            To the getting started guides
+                To the getting started guides
 
     .. grid-item-card::
         :text-align: center
 
-        **User Guide**
-        ^^^^^^^^^^^^^^
+        .. card-header::
+
+            **User Guide**
 
         The user guide provides in-depth information on the key concepts
         of Specreduce with useful background information and explanation.
 
-        +++
+        .. card-footer::
 
-        .. button-ref:: user_guide
-            :expand:
-            :color: primary
-            :click-parent:
+            .. button-ref:: user_guide
+                :expand:
+                :color: primary
+                :click-parent:
 
-            To the user guide
+                To the user guide
 
     .. grid-item-card::
         :text-align: center
 
-        **API Reference**
-        ^^^^^^^^^^^^^^^^^
+        .. card-header::
+
+            **API Reference**
 
         The API reference contains a detailed description of the
         functions, modules, and objects included in Specreduce. It
         assumes that you have an understanding of the key concepts.
 
-        +++
+        .. card-footer::
 
-        .. button-ref:: api
-            :expand:
-            :color: primary
-            :click-parent:
-
-            To the API reference
-
-    .. grid-item-card::
-            :text-align: center
-
-            **Contributor's Guide**
-            ^^^^^^^^^^^^^^^^^^^^^^^
-
-            Want to contribute to Specreduce? Found a bug? The contributing guidelines will
-            show you how to improve specreduce.
-
-            +++
-
-            .. button-ref:: contributing
+            .. button-ref:: api
                 :expand:
                 :color: primary
                 :click-parent:
 
-                To the contributor's guide
+                To the API reference
+
+    .. grid-item-card::
+            :text-align: center
+
+            .. card-header::
+
+                **Contributor's Guide**
+
+            Want to contribute to Specreduce? Found a bug? The contributing guidelines will
+            show you how to improve specreduce.
+
+            .. card-footer::
+
+                .. button-ref:: contributing
+                    :expand:
+                    :color: primary
+                    :click-parent:
+
+                    To the contributor's guide
 
