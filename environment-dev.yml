@@ -13,7 +13,7 @@ dependencies:
   - tox
   - sphinx-astropy
   - sphinx-copybutton
-  - sphinx-design
+  - sphinx-design>=0.8
   - nbsphinx
   - pydata-sphinx-theme
   - synphot
