@@ -33,9 +33,9 @@ New Features
 - Added ``subtract_baseline`` and ``baseline_window`` options to
   ``line_matching.find_arc_lines`` and ``TiltCorrection.find_arc_lines`` that estimate
   the baseline flux of the spectrum with a sigma-clipped median (globally, or in running
-  windows) and remove it before the line detection. Baseline subtraction is on by default
-  in ``TiltCorrection.find_arc_lines``, which previously required background-subtracted
-  arc frames to detect any lines. [#XXX]
+  windows) and remove it before the line detection. Baseline subtraction is on by
+  default, so ``TiltCorrection.find_arc_lines`` no longer requires background-subtracted
+  arc frames to detect any lines. [#320]
 
 API Changes
 ^^^^^^^^^^^
@@ -45,6 +45,12 @@ API Changes
   on instantiation, and its removal has been rescheduled from v2.0 to v1.11.
   Use ``specreduce.wavecal1d.WavelengthCalibration1D`` instead. [#316]
 
+- ``line_matching.find_arc_lines`` now subtracts a sigma-clipped median baseline from
+  the spectrum before the line detection by default. This also applies to
+  ``WavelengthCalibration1D.find_lines``, which gained ``subtract_baseline`` and
+  ``baseline_window`` options to control it. Pass ``subtract_baseline=False`` to
+  restore the previous behaviour. [#320]
+
 Bug Fixes
 ^^^^^^^^^
 
@@ -53,12 +59,12 @@ Bug Fixes
   whose fitted centroid is not finite or falls outside the frame along the dispersion
   axis. Previously a sample past the frame raised an ``IndexError``, a negative sample
   silently wrapped around to the opposite edge of the frame, and a failed line fit could
-  crash the nearest-neighbour matching. [#XXX]
+  crash the nearest-neighbour matching. [#320]
 
 - ``TiltSolution.resample`` now propagates the input uncertainty, returned in the same
   uncertainty class as the input, marks output bins that received a contribution from a
   masked input pixel, and copies the input metadata to the resampled ``NDData``.
-  Previously all three were dropped. [#XXX]
+  Previously all three were dropped. [#320]
 
 Other changes
 ^^^^^^^^^^^^^

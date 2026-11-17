@@ -117,6 +117,13 @@ def test_find_lines(mocker, mk_arc):
     assert wc._obs_lines is not None
     assert len(wc._obs_lines) == 1
 
+    # the baseline is subtracted by default, and the options reach the line finder
+    assert mock_find_arc_lines.call_args.kwargs["subtract_baseline"] is True
+    assert mock_find_arc_lines.call_args.kwargs["baseline_window"] is None
+    wc.find_lines(fwhm=2.0, noise_factor=1.5, subtract_baseline=False, baseline_window=64)
+    assert mock_find_arc_lines.call_args.kwargs["subtract_baseline"] is False
+    assert mock_find_arc_lines.call_args.kwargs["baseline_window"] == 64
+
     wc = WavelengthCalibration1D()
     with pytest.raises(ValueError, match="Must provide arc spectra to find lines."):
         wc.find_lines(fwhm=2.0, noise_factor=1.5)

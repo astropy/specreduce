@@ -298,7 +298,13 @@ class WavelengthCalibration1D:
         """Initialize the KDTree instances for the current set of catalog line locations."""
         self._trees = [KDTree(lst.compressed()[:, None]) for lst in self.catalog_line_locations]
 
-    def find_lines(self, fwhm: float, noise_factor: float = 1.0) -> None:
+    def find_lines(
+        self,
+        fwhm: float,
+        noise_factor: float = 1.0,
+        subtract_baseline: bool = True,
+        baseline_window: int | None = None,
+    ) -> None:
         """Find lines in the provided arc spectra.
 
         Determines the spectral lines within each spectrum of the arc spectra based on the
@@ -313,13 +319,29 @@ class WavelengthCalibration1D:
         noise_factor
             The factor to multiply the uncertainty by to determine the noise threshold
             in the `~specutils.fitting.find_lines_threshold` routine.
+
+        subtract_baseline
+            Estimate the baseline flux of each arc spectrum with a sigma-clipped median
+            and subtract it before the line detection. Set to ``False`` to search the
+            spectra as given.
+
+        baseline_window
+            Width in pixels of the chunks used for a running baseline estimate that
+            can follow a slowly varying background. If ``None``, a single global
+            median is subtracted from each spectrum.
         """
         if self.arc_spectra is None:
             raise ValueError("Must provide arc spectra to find lines.")
 
         line_lists = []
         for i, arc in enumerate(self.arc_spectra):
-            lines = find_arc_lines(arc, fwhm, noise_factor=noise_factor)
+            lines = find_arc_lines(
+                arc,
+                fwhm,
+                noise_factor=noise_factor,
+                subtract_baseline=subtract_baseline,
+                baseline_window=baseline_window,
+            )
             ix = np.round(lines["centroid"].value).astype(int)
             if np.any((ix < 0) | (ix >= arc.shape[0])):
                 raise ValueError(
