@@ -315,6 +315,12 @@ class TiltSolution:
         Jacobian of the transformation and ``n`` the per-row flux-conservation factor.
         The variance is propagated as ``Var = n**2 * sum_j k_j**2 var_j``, assuming
         independent pixel noise and treating ``n`` and the Jacobian as deterministic.
+
+        The factor ``n`` is estimated from the data, as the ratio of the summed flux to the
+        summed Jacobian-weighted flux over the unmasked, finite pixels of each row. It is
+        therefore unreliable for rows whose total flux is close to zero, such as in
+        background-subtracted frames: the ratio can become arbitrarily large or change
+        sign, and it scales both the resampled flux and its uncertainty.
         """
 
         # The metadata and the presence of an uncertainty are read from the input itself:
