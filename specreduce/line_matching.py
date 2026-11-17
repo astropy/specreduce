@@ -163,8 +163,16 @@ def find_arc_lines(
         raise ValueError("fwhm must have the same units as spectrum.spectral_axis.")
 
     if spectrum.uncertainty is None:
+        # Assume Poisson noise, but not less than the measured scatter of the baseline.
+        # The square root alone vanishes for the pixels of a background-subtracted
+        # spectrum that happen to lie close to zero, which then pass any threshold.
+        flux = spectrum.flux.value
+        scatter = sigma_clipped_stats(flux, mask=spectrum.mask)[2]
+        scatter = float(np.ma.filled(scatter, 0.0))
         spectrum = deepcopy(spectrum)
-        spectrum.uncertainty = StdDevUncertainty(np.sqrt(np.abs(spectrum.flux.value)))
+        spectrum.uncertainty = StdDevUncertainty(
+            np.maximum(np.sqrt(np.abs(flux)), scatter if np.isfinite(scatter) else 0.0)
+        )
 
     if subtract_baseline:
         baseline = _estimate_baseline(

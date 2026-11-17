@@ -230,6 +230,24 @@ def test_find_arc_lines_subtract_baseline():
     assert np.median(spec.flux.value) > 40.0
 
 
+def test_find_arc_lines_without_uncertainty_on_subtracted_spectrum():
+    """Pixels that happen to lie near zero must not be detected as lines.
+
+    Without an uncertainty the noise is taken to be Poissonian, which vanishes for the
+    near-zero pixels of a background-subtracted spectrum. Removing a slightly negative
+    baseline then lifted those pixels above the detection threshold.
+    """
+    centers = [100, 250, 400, 550, 700, 850]
+    spec = _mk_pedestal_spectrum(-0.5, centers)
+    spec = Spectrum(spec.flux, spectral_axis=spec.spectral_axis)
+    assert spec.uncertainty is None
+
+    for subtract_baseline in (True, False):
+        lines = find_arc_lines(spec, fwhm=4, noise_factor=5, subtract_baseline=subtract_baseline)
+        assert len(lines) == len(centers)
+        np.testing.assert_allclose(np.sort(lines["centroid"].value), centers, atol=0.1)
+
+
 def test_find_arc_lines_subtract_baseline_windowed():
     """A ramped pedestal needs the windowed baseline to recover every line."""
     centers = [100, 250, 400, 550, 700, 850]

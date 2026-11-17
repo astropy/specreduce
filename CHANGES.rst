@@ -62,6 +62,10 @@ Bug Fixes
   silently wrapped around to the opposite edge of the frame, and a failed line fit could
   crash the nearest-neighbour matching. [#320]
 
+- ``line_matching.find_arc_lines`` no longer detects spurious lines in background-subtracted
+  spectra given without an uncertainty. The assumed Poisson noise vanishes for pixels close
+  to zero, so it is now limited from below by the sigma-clipped scatter of the flux. [#320]
+
 - ``TiltSolution.resample`` now propagates the input uncertainty, returned in the same
   uncertainty class as the input, marks output bins that received a contribution from a
   masked input pixel, and copies the input metadata to the resampled ``NDData``.
