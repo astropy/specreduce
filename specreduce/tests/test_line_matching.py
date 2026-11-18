@@ -10,6 +10,7 @@ from specutils.fitting import fit_generic_continuum
 from specreduce.calibration_data import load_pypeit_calibration_lines
 from specutils import Spectrum
 from specreduce.extract import BoxcarExtract
+from specreduce import line_matching
 from specreduce.line_matching import match_lines_wcs, find_arc_lines
 from specreduce.tracing import FlatTrace
 from specreduce.utils.synth_data import SynthImage
@@ -167,6 +168,52 @@ def test_find_arc_lines_estimates_noise_without_uncertainty(synthetic_arc, scale
 
     assert len(lines) == len(centers)
     np.testing.assert_allclose(np.sort(lines["centroid"].value), centers, atol=0.5)
+
+
+@pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
+@pytest.mark.filterwarnings("ignore:Spectrum is not below the threshold")
+def test_find_arc_lines_noise_estimate_ignores_masked_pixels(synthetic_arc, mocker):
+    """The noise must be estimated from the unmasked pixels of the spectrum only."""
+    spectral_axis, flux, _, _ = synthetic_arc
+    mask = np.zeros(flux.size, dtype=bool)
+    mask[250:300] = True
+    spy = mocker.spy(line_matching, "measure_noise")
+
+    find_arc_lines(Spectrum(flux=flux, spectral_axis=spectral_axis, mask=mask), fwhm=5)
+
+    data = spy.call_args.args[0]
+    assert np.ma.isMaskedArray(data)
+    np.testing.assert_array_equal(data.mask, mask)
+
+
+@pytest.mark.filterwarnings("ignore:The fit may be unsuccessful")
+@pytest.mark.filterwarnings("ignore:Spectrum is not below the threshold")
+@pytest.mark.filterwarnings("ignore:invalid value encountered in divide")
+def test_find_arc_lines_low_count_spectrum_without_uncertainty():
+    """
+    Integer data with less than a count per pixel has a zero median absolute deviation;
+    the noise estimate must not vanish and turn every positive pixel into a line.
+    """
+    # The specutils continuum check divides the zero median by the zero MAD of the flux.
+    rng = np.random.default_rng(3)
+    x = np.arange(1000.0)
+    centers = np.array([150.0, 400.0, 620.0, 850.0])
+    expected = 0.2 + sum(40.0 * np.exp(-0.5 * ((x - c) / 2.0) ** 2) for c in centers)
+    spectrum = Spectrum(flux=rng.poisson(expected).astype(float) * u.ct, spectral_axis=x * u.pix)
+
+    lines = find_arc_lines(spectrum, fwhm=4.7)
+
+    # A noisy peak can be detected twice, so compare the sets of positions.
+    distances = np.abs(lines["centroid"].value[:, None] - centers)
+    assert (distances.min(axis=1) < 0.5).all()
+    assert (distances.min(axis=0) < 0.5).all()
+
+
+@pytest.mark.parametrize("value", [np.nan, 100.0], ids=["all_nan", "constant"])
+def test_find_arc_lines_raises_if_noise_cannot_be_estimated(value):
+    spectrum = Spectrum(flux=np.full(200, value) * u.ct, spectral_axis=np.arange(200) * u.pix)
+    with pytest.raises(ValueError, match="Could not estimate the noise"):
+        find_arc_lines(spectrum, fwhm=5)
 
 
 @pytest.mark.remote_data

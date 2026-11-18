@@ -1,6 +1,6 @@
 import numpy as np
 from astropy import units as u
-from astropy.stats import mad_std, sigma_clipped_stats
+from astropy.stats import sigma_clipped_stats
 
 from specreduce.core import parse_image
 from specreduce.tracing import Trace, FlatTrace
@@ -18,18 +18,19 @@ def measure_noise(
     """
     Estimate the per-pixel noise standard deviation of a spectrum from the data itself.
 
-    The estimate is the sigma-clipped median absolute deviation of the second difference
-    of the flux along the dispersion axis, ``2 f[i] - f[i-2] - f[i+2]``, scaled to the
-    standard deviation of a single pixel. Differencing removes any smooth continuum or
+    The estimate is the sigma-clipped standard deviation of the second difference of the
+    flux along the dispersion axis, ``2 f[i] - f[i-2] - f[i+2]``, scaled to the standard
+    deviation of a single pixel. Differencing removes any smooth continuum or
     residual background, so the estimate does not depend on the spectrum being
     background-subtracted, while the iterative sigma clipping removes the pixels
     dominated by emission or absorption lines before the scatter is measured.
 
     The second difference of white noise has a variance of six times the per-pixel
-    variance, so the clipped ``mad_std`` of the differences is divided by the square
-    root of six. This is the same differencing used by the DER_SNR algorithm
-    (Stoehr et al. 2008), with the plain median replaced by a sigma-clipped robust
-    standard deviation to reduce the bias from dense line lists.
+    variance, so the clipped standard deviation of the differences is divided by the
+    square root of six. This is the same differencing used by the DER_SNR algorithm
+    (Stoehr et al. 2008), with the plain median replaced by a standard deviation that is
+    sigma-clipped around the median using the median absolute deviation, to reduce the
+    bias from dense line lists.
 
     Parameters
     ----------
@@ -50,7 +51,8 @@ def measure_noise(
     float, ndarray, or Quantity
         The estimated noise standard deviation. A scalar for 1D input, otherwise an
         array with ``axis`` removed. If ``data`` is a `~astropy.units.Quantity`, the
-        result carries the same unit.
+        result carries the same unit. The estimate is NaN where there are no valid
+        differences, and zero where the valid differences are all equal.
 
     Notes
     -----
@@ -58,6 +60,13 @@ def measure_noise(
     For spectra that have been smoothed or resampled onto a finer grid, the
     differencing suppresses part of the correlated noise and the result is biased
     low by up to a few tens of percent.
+
+    The median absolute deviation is zero when more than half of the differences are
+    identical, as for integer data with less than about one count per pixel or for
+    spectra padded with a constant. The estimate then falls back to the standard
+    deviation after a single clipping pass, which is biased high by the lines that
+    survive the clipping. Padded or otherwise invalid pixels should be masked rather
+    than left to this fallback.
     """
     unit = None
     if isinstance(data, u.Quantity):
@@ -78,10 +87,29 @@ def measure_noise(
     # warning about invalid input.
     invalid = ~np.isfinite(diff2)
     diff2 = np.where(invalid, 0.0, diff2)
-    _, _, clipped_std = sigma_clipped_stats(
-        diff2, mask=invalid, sigma=sigma, maxiters=maxiters, stdfunc=mad_std, axis=-1
-    )
-    noise = clipped_std / np.sqrt(6.0)
+
+    def clipped_std(stdfunc: str, maxiters: int | None) -> np.ndarray:
+        # The standard deviation function is given by name: with a callable, astropy
+        # does not clip masked input along an axis. A row without any valid
+        # differences yields a masked value, which is returned as NaN.
+        std = sigma_clipped_stats(
+            diff2, mask=invalid, sigma=sigma, maxiters=maxiters, stdfunc=stdfunc, axis=-1
+        )[2]
+        return np.asarray(np.ma.filled(std, np.nan), dtype=float)
+
+    noise = clipped_std("mad_std", maxiters)
+
+    # The median absolute deviation is zero when more than half of the differences are
+    # identical (low-count integer data, zero-padded spectra). Iterating the clipping
+    # would then converge on the repeated value, so use a single clipping pass around
+    # the plain standard deviation instead.
+    degenerate = noise == 0.0
+    if degenerate.any():
+        noise = np.where(degenerate, clipped_std("std", 1), noise)
+
+    noise = noise / np.sqrt(6.0)
+    if noise.ndim == 0:
+        noise = float(noise)
 
     if unit is not None:
         noise = noise * unit
@@ -97,26 +125,26 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
     or the average profile across several pixel values (or range of pixel values)
     along the dispersion axis.
 
-    If a single number is specified for `pixel`, then the profile at that pixel
+    If a single number is specified for ``pixel``, then the profile at that pixel
     (i.e wavelength) will be returned. If several pixels are specified in a list or
-    array, then they will be averaged (median or average, set by `statistic` which
-    defaults to median). Alternatively, `pixel_range` can be specified as a tuple
+    array, then they will be averaged (median or average, set by ``statistic`` which
+    defaults to median). Alternatively, ``pixel_range`` can be specified as a tuple
     of integers specifying the minimum and maximum pixel range to average the
-    profile. `pixel` and `pixel_range` cannot be set simultaneously, and the default
-    is `pixel_range`=(min_image, max_image) to return an average profile across the
+    profile. ``pixel`` and ``pixel_range`` cannot be set simultaneously, and the default
+    is ``pixel_range=(min_image, max_image)`` to return an average profile across the
     entire wavelength range of the image.
 
     The window in the cross dispersion axis for measuring the profile at
-    the pixel(s) specified is determined by `width` and `trace`. If a trace is
+    the pixel(s) specified is determined by ``width`` and ``trace``. If a trace is
     provided (either as a Trace object, or as a number specifying the location
     on the cross-dispersion axis of a FlatTrace object) that will determine the
-    center of the profile on the cross-dispersion axis. Otherwise, if `trace`
+    center of the profile on the cross-dispersion axis. Otherwise, if ``trace``
     is None, the center of the image will be the center of the returned profile
     (i.e., the center row assuming a horizontal trace).
 
-    If `width` is none, a window size of half the image in the cross-dispersion
+    If ``width`` is none, a window size of half the image in the cross-dispersion
     axis will be used to measure the cross dispersion profile. Otherwise, an
-    integer value can be set for `width` which will determine the size of the
+    integer value can be set for ``width`` which will determine the size of the
     window around the trace used to measure the profile (this window moves with
     the trace if trace is not flat).
 
@@ -138,19 +166,19 @@ def measure_cross_dispersion_profile(image, trace=None, crossdisp_axis=0,
         cross-dispersion axis will be used. [default: None]
     pixel: int, list of int, or None
         Pixel value(s) along the dispersion axis to return cross-dispersion profile.
-        If several specified in list, then the average (method set by `statistic`)
-        profile will be calculated. If None, and `pixel_range` is set, then
-        `pixel_range` will be used. [default: None]
+        If several specified in list, then the average (method set by ``statistic``)
+        profile will be calculated. If None, and ``pixel_range`` is set, then
+        ``pixel_range`` will be used. [default: None]
     pixel_range: tuple of int or None
         Tuple of (min, max) defining the pixel range (along dispersion axis) to
         calculate average cross-dispersion profile, up to and not inclusive of max.
-        If None, and `pixel` is not None, `pixel` will be used. If None and `pixel`
+        If None, and ``pixel`` is not None, ``pixel`` will be used. If None and ``pixel``
         is also None, this will be interpreted as using the entire dispersion axis
         to generate an average profile for the whole image. [default: None]
     statistic: 'median' or 'average'
-        If `pixel` specifies multiple pixels, or `pixel_range` is specified, an
-        average profile will be returned. This can be either `median` (default)
-        or `average` (mean). This is ignored if only one pixel is specified.
+        If ``pixel`` specifies multiple pixels, or ``pixel_range`` is specified, an
+        average profile will be returned. This can be either ``median`` (default)
+        or ``average`` (mean). This is ignored if only one pixel is specified.
         [default: median]
     align_along_trace: bool
         Relevant only for non-flat traces. If True, "roll" each column so that

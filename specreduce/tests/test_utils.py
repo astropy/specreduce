@@ -220,6 +220,58 @@ class TestMeasureNoise:
         flux[100:110] = np.nan
         assert measure_noise(flux) == pytest.approx(3.0, rel=0.05)
 
+    @pytest.mark.parametrize("invalid", ["nan", "masked"])
+    def test_invalid_pixels_do_not_disable_line_clipping(self, invalid):
+        # A NaN or masked pixel must not switch off the clipping of the strong lines.
+        rng = np.random.default_rng(6)
+        x = np.arange(1000.0)
+        flux = self._arc(rng, x, [150.0, 400.0, 620.0, 850.0], [500.0] * 4)
+        flux += rng.normal(0.0, 2.0, x.size)
+        reference = measure_noise(flux)
+        assert reference == pytest.approx(2.0, rel=0.1)
+        if invalid == "nan":
+            flux[300] = np.nan
+        else:
+            flux = np.ma.masked_array(flux, mask=np.zeros(x.size, dtype=bool))
+            flux.mask[300:303] = True
+        assert measure_noise(flux) == pytest.approx(reference, rel=0.02)
+
+    def test_masked_outliers_are_excluded(self):
+        rng = np.random.default_rng(7)
+        flux = rng.normal(0.0, 3.0, 2000)
+        mask = np.zeros(flux.size, dtype=bool)
+        mask[:1800] = True
+        flux[mask] = rng.normal(0.0, 300.0, 1800)
+        assert measure_noise(flux) > 100.0
+        assert measure_noise(np.ma.masked_array(flux, mask=mask)) == pytest.approx(3.0, rel=0.1)
+
+    def test_low_count_integer_data(self):
+        # More than half of the second differences are zero, so the MAD is zero.
+        rng = np.random.default_rng(8)
+        x = np.arange(1000.0)
+        lines = self._arc(rng, x, [150.0, 400.0, 620.0, 850.0], [40.0] * 4)
+        flux = rng.poisson(0.2 + lines).astype(float)
+        noise = measure_noise(flux)
+        assert np.sqrt(0.2) < noise < 3 * np.sqrt(0.2)
+
+    def test_zero_padded_spectrum(self):
+        rng = np.random.default_rng(9)
+        flux = rng.normal(0.0, 2.0, 1000)
+        flux[400:] = 0.0
+        assert 0.5 * 2.0 < measure_noise(flux) < 2.0 * 2.0
+
+    def test_degenerate_rows(self):
+        rng = np.random.default_rng(10)
+        flux = np.zeros((3, 100))
+        flux[0] = np.nan
+        flux[1] = rng.normal(0.0, 2.0, 100)
+        flux[2] = 7.0
+        noise = measure_noise(flux)
+        assert np.isnan(noise[0])
+        assert noise[1] == pytest.approx(2.0, rel=0.3)
+        assert noise[2] == 0.0
+        assert np.isnan(measure_noise(np.full(100, np.nan)))
+
     def test_too_short_input_raises(self):
         with pytest.raises(ValueError, match="at least 5"):
             measure_noise(np.zeros(4))

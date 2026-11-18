@@ -32,9 +32,10 @@ New Features
 
 - Added ``specreduce.utils.measure_noise``, a robust estimator of the per-pixel
   noise standard deviation of a 1D spectrum or of each row of a 2D spectral
-  image. It measures the sigma-clipped ``mad_std`` of the second difference of
-  the flux along the dispersion axis, so it is insensitive to a smooth continuum
-  or residual background and to emission lines. [#XXX]
+  image. It measures the sigma-clipped standard deviation of the second difference
+  of the flux along the dispersion axis, so it is insensitive to a smooth continuum
+  or residual background and to emission lines. Non-finite and masked pixels are
+  ignored. [#321]
 
 API Changes
 ^^^^^^^^^^^
@@ -52,14 +53,16 @@ Bug Fixes
   ``InverseVariance``). Non-standard-deviation uncertainties are converted to
   ``StdDevUncertainty`` on a copy of the spectrum before the line finding, which
   previously failed with a unit conversion error for variance-type uncertainties.
-  [#XXX]
+  [#321]
 
 - ``line_matching.find_arc_lines`` now estimates the noise of a spectrum without
   an uncertainty using ``measure_noise`` instead of the square root of the absolute
   flux. The old fallback amounted to a fixed detection threshold of
   ``noise_factor**2`` flux units regardless of the actual noise, which missed
   all lines in faint spectra and reported noise spikes as lines in noisy or
-  background-subtracted ones. [#XXX]
+  background-subtracted ones. Pixels flagged in the spectrum mask are excluded from
+  the estimate, and a ``ValueError`` is raised if the noise cannot be estimated
+  (constant spectrum, or no finite unmasked pixels). [#321]
 
 Other changes
 ^^^^^^^^^^^^^

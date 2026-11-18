@@ -37,7 +37,7 @@ def find_arc_lines(
         (`~astropy.nddata.StdDevUncertainty`, `~astropy.nddata.VarianceUncertainty`, or
         `~astropy.nddata.InverseVariance`); it is converted to a standard deviation
         before the line finding. If the spectrum has no uncertainty, a constant per-pixel
-        noise is estimated from the data with `~specreduce.utils.utils.measure_noise`.
+        noise is estimated from the unmasked pixels with `~specreduce.utils.measure_noise`.
 
     fwhm
         Estimated full-width half-maximum of the lines in pixels.
@@ -53,6 +53,12 @@ def find_arc_lines(
     -------
     QTable
         A table of detected arc lines and their properties: centroid, fwhm, and amplitude.
+
+    Raises
+    ------
+    ValueError
+        If the spectrum has no uncertainty and its noise cannot be estimated from the
+        flux, as for a constant spectrum or one without finite unmasked pixels.
     """
     # If fwhm is a float, convert it to a Quantity with the same unit as the spectral axis
     # of the input spectrum.
@@ -68,8 +74,16 @@ def find_arc_lines(
     # convert it to a standard deviation. Either way, work on a copy so that the input
     # spectrum is left untouched.
     if spectrum.uncertainty is None:
+        flux = spectrum.flux.value
+        if spectrum.mask is not None:
+            flux = np.ma.masked_array(flux, mask=spectrum.mask)
+        noise = measure_noise(flux)
+        if not (np.isfinite(noise) and noise > 0):
+            raise ValueError(
+                "Could not estimate the noise of the spectrum from its flux "
+                f"(estimate: {noise}). Give the spectrum an uncertainty."
+            )
         spectrum = deepcopy(spectrum)
-        noise = measure_noise(spectrum.flux.value)
         spectrum.uncertainty = StdDevUncertainty(np.full(spectrum.flux.shape, noise))
     elif not isinstance(spectrum.uncertainty, StdDevUncertainty):
         spectrum = deepcopy(spectrum)
