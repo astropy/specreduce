@@ -258,24 +258,27 @@ class TiltSolution:
 
         Resample a 2D spectrum from the detector space to a tilt-corrected space where the
         wavelength is constant along the cross-dispersion axis. The grid edges are based on the
-        specified number of bins, bounds, or bin edges. The resampling is exact and conserves
-        flux (as long as the tilt-corrected space covers the whole detector space.)
+        specified number of bins, bounds, or bin edges. The image is expected to hold counts
+        (or another quantity that adds up over pixels) rather than a flux density: each
+        output bin receives the counts that fell on the part of the detector row it maps to,
+        so the counts of every bin are conserved exactly.
 
         Parameters
         ----------
         flux
-            2D spectrum as an NDData instance. The dispersion and cross-dispersion axis alignment
-            should be the same as in the arc frames.
+            2D spectrum as an NDData instance, in counts per pixel. The dispersion and
+            cross-dispersion axis alignment should be the same as in the arc frames.
         nbins
             Number of bins in the tilt-corrected space. If None, the number of bins will be set
-            to the number of columns in the ``flux`` input image.
+            to the number of columns in the ``flux`` input image. Must not be given together
+            with ``bin_edges``.
         bounds
             Tuple specifying the start and end coordinates for the tilt-corrected space along the
             x-axis. If None, the bounds default to (0, number of columns in ``flux``).
         bin_edges
-            Explicitly provided edges of the bins in the tilt-corrected space. If None, bin
-            edges are automatically calculated as a uniform grid based on ``nbins`` and
-            ``bounds``.
+            Explicitly provided, strictly increasing edges of the bins in the tilt-corrected
+            space; ``n + 1`` edges define ``n`` bins. If None, bin edges are automatically
+            calculated as a uniform grid based on ``nbins`` and ``bounds``.
         mask_treatment
              Specifies how to handle masked or non-finite values in the input image.
              The accepted values are:
@@ -308,19 +311,28 @@ class TiltSolution:
             also masked depends on ``mask_treatment``: they are for the treatments that add
             non-finite pixels to the mask (``apply``, ``propagate``, ``apply_nan_only``).
 
+        Raises
+        ------
+        ValueError
+            If both ``nbins`` and ``bin_edges`` are given, or if ``bin_edges`` is not a
+            one-dimensional, strictly increasing sequence of at least two values.
+
         Notes
         -----
-        Each output bin is a linear combination of detector pixels,
-        ``F = n * sum_j k_j f_j`` with ``k_j`` the fractional pixel overlap times the
-        Jacobian of the transformation and ``n`` the per-row flux-conservation factor.
-        The variance is propagated as ``Var = n**2 * sum_j k_j**2 var_j``, assuming
-        independent pixel noise and treating ``n`` and the Jacobian as deterministic.
+        The edges of each bin are mapped to the detector row, and the bin is the sum of the
+        detector pixels between them, ``F = sum_j k_j f_j``, with ``k_j`` the fraction of
+        pixel ``j`` that lies inside the bin. The counts are assumed to be spread evenly
+        within a pixel. The sum of a row over all bins equals the sum of the detector row
+        when the bins cover the whole row; the parts of a bin that fall outside the
+        detector contribute nothing.
 
-        The factor ``n`` is estimated from the data, as the ratio of the summed flux to the
-        summed Jacobian-weighted flux over the unmasked, finite pixels of each row. It is
-        therefore unreliable for rows whose total flux is close to zero, such as in
-        background-subtracted frames: the ratio can become arbitrarily large or change
-        sign, and it scales both the resampled flux and its uncertainty.
+        Because the bins hold counts, their values scale with the width of the bins on the
+        detector: where the transformation stretches or compresses the dispersion axis, a
+        uniformly illuminated image does not resample to a uniform one.
+
+        The variance is propagated as ``Var = sum_j k_j**2 var_j``, assuming independent
+        pixel noise. Bins that share a detector pixel are correlated, which the returned
+        per-bin uncertainty does not describe.
         """
 
         # The metadata and the presence of an uncertainty are read from the input itself:
@@ -339,10 +351,20 @@ class TiltSolution:
 
         ny, nx = flux.data.shape
         ypix = np.arange(ny)
-        nbins = nx if nbins is None else nbins
-        l1, l2 = bounds if bounds is not None else (0, nx)
+        if bin_edges is not None:
+            if nbins is not None:
+                raise ValueError("Give either nbins or bin_edges, not both.")
+            bin_edges_rec = np.asarray(bin_edges, dtype=float)
+            if bin_edges_rec.ndim != 1 or bin_edges_rec.size < 2:
+                raise ValueError("bin_edges must be a 1D sequence of at least two values.")
+            if not (np.diff(bin_edges_rec) > 0).all():
+                raise ValueError("bin_edges must be strictly increasing.")
+            nbins = bin_edges_rec.size - 1
+        else:
+            nbins = nx if nbins is None else nbins
+            l1, l2 = bounds if bounds is not None else (0, nx)
+            bin_edges_rec = np.linspace(l1, l2, num=nbins + 1)
 
-        bin_edges_rec = bin_edges if bin_edges is not None else np.linspace(l1, l2, num=nbins + 1)
         bin_edges_det = np.clip(self._c2d(*np.meshgrid(bin_edges_rec, ypix)), 0, nx - 1e-12)
         bin_edge_ix = np.floor(bin_edges_det).astype(int)
         bin_edge_w = bin_edges_det - bin_edge_ix
@@ -366,19 +388,6 @@ class TiltSolution:
         flags = np.array([mask, bad] if has_bad else [mask])
         resampled_flags = np.zeros((flags.shape[0], ny, nbins), dtype=bool)
 
-        # Calculate the derivative of the tilt-corrected space -> detector space transformation with
-        # respect to the detector coordinate (dx_rec / dx_det). This is needed for flux
-        # conservation, as it represents how the pixel width changes.
-        dtdx = self.c2d_derivative(*np.meshgrid(np.arange(nx), np.arange(ny)))
-
-        # Calculate a normalization factor 'n' for flux conservation. This factor accounts for the
-        # change in pixel size due to the distortion, and ensures that the total flux in each row
-        # is conserved after tilt-correction. It is estimated from the unmasked, finite pixels
-        # only, and set to unity for rows where it is undefined (no good pixels or zero flux).
-        flux_good = np.where(mask | bad, 0.0, flux)
-        denominator = (dtdx * flux_good).sum(1)
-        n = np.divide(flux_good.sum(1), denominator, out=np.ones(ny), where=denominator != 0)
-
         ixs = np.tile(np.arange(flux.shape[1]), (flux.shape[0], 1))
         ys = np.arange(flux.shape[0])
 
@@ -391,18 +400,18 @@ class TiltSolution:
             m = i1 == i2
 
             # For rows where the tilt-corrected bin falls within a single detector pixel,
-            # the tilt-corrected flux is the detector flux in that pixel, scaled by the width of the
-            # tilt-corrected bin in detector coordinates and the derivative dtdx.
+            # the bin receives the fraction of the pixel that it covers, which is the width
+            # of the bin in detector coordinates.
             if m.any():
-                k = (bin_edges_det[:, i + 1] - bin_edges_det[:, i]) * dtdx[ys, i1]
+                k = bin_edges_det[:, i + 1] - bin_edges_det[:, i]
                 resampled_flux[:, i] = k * flux[ys, i1]
                 resampled_flags[:, :, i] = flags[:, ys, i1]
                 if has_uncertainty:
                     resampled_variance[:, i] = k**2 * variance[ys, i1]
 
-            # For rows where the tilt-corrected bin spans multiple detector pixels, calculate the
-            # tilt-corrected flux as a weighted sum of the detector flux, multiplied by dtdx,
-            # within the span [imin, imax].
+            # For rows where the tilt-corrected bin spans multiple detector pixels, the bin is
+            # the sum of the detector pixels within the span [imin, imax], weighted by the
+            # fraction of each pixel that lies inside the bin.
             if not m.all():
                 imin, imax = i1.min(), i2.max() + 1
                 ixc = ixs[:, imin:imax]
@@ -411,16 +420,11 @@ class TiltSolution:
                 w[(ixc > i1[:, None]) & (ixc < i2[:, None])] = 1
                 w[ys, i1 - imin] = 1.0 - bin_edge_w[:, i]
                 w[ys, i2 - imin] = bin_edge_w[:, i + 1]
-                k = dtdx[~m, imin:imax] * w[~m]
+                k = w[~m]
                 resampled_flux[~m, i] = (flux[~m, imin:imax] * k).sum(1)
                 resampled_flags[:, ~m, i] = (flags[:, ~m, imin:imax] & (w[~m] > 0)).any(-1)
                 if has_uncertainty:
                     resampled_variance[~m, i] = (variance[~m, imin:imax] * k**2).sum(1)
-
-        # Apply the normalization factor to conserve flux
-        resampled_flux *= n[:, None]
-        if has_uncertainty:
-            resampled_variance *= n[:, None] ** 2
 
         resampled_mask = resampled_flags[0]
         if has_bad:

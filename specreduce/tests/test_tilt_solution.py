@@ -371,11 +371,11 @@ def test_resample_keeps_non_finite_pixels_local(mask_treatment, flagged):
     np.testing.assert_array_equal(np.isnan(result.uncertainty.array), lost)
     np.testing.assert_array_equal(result.mask, lost if flagged else np.zeros_like(lost))
 
-    # the remaining bins of the row keep their values up to the change in the
-    # flux-conservation factor, which no longer sees the bad pixel
-    np.testing.assert_allclose(result.data[~lost], reference.data[~lost], rtol=1e-3)
-    other_rows = np.arange(ny) != 7
-    np.testing.assert_allclose(result.data[other_rows], reference.data[other_rows])
+    # all the other bins are unaffected
+    np.testing.assert_array_equal(result.data[~lost], reference.data[~lost])
+    np.testing.assert_array_equal(
+        result.uncertainty.array[~lost], reference.uncertainty.array[~lost]
+    )
 
 
 def test_resample_non_finite_variance_marks_bin():
@@ -402,3 +402,96 @@ def test_resample_handles_rows_without_flux():
     assert np.isnan(result.data[4]).all() and result.mask[4].all()
     assert np.isfinite(result.data[[0, 2, 3, 5]]).all()
     assert not result.mask[[0, 1, 2, 3, 5]].any()
+
+
+def _stretched_ts(ny, nx, c2=2e-4, c11=1e-3):
+    """Detector x = t + c2 t**2 + c11 t y: the bin width on the detector varies with t and y."""
+    solution = Shift(0) & Shift(0) | Polynomial2D(2, c0_0=0.0, c1_0=1.0, c2_0=c2, c1_1=c11)
+    return TiltSolution(solution, disp_axis=1, image_shape=(ny, nx))
+
+
+def _reference_resample(ts, data, edges):
+    """Counts per bin from the cumulative counts of each detector row."""
+    ny, nx = data.shape
+    out = np.zeros((ny, edges.size - 1))
+    for y in range(ny):
+        x = np.clip(ts.c2d(edges, np.full(edges.size, float(y))), 0, nx)
+        cumulative = np.concatenate([[0.0], np.cumsum(data[y])])
+        out[y] = np.diff(np.interp(x, np.arange(nx + 1), cumulative))
+    return out
+
+
+def test_resample_conserves_counts_with_varying_bin_width():
+    ny, nx = 8, 200
+    ts = _stretched_ts(ny, nx)
+    edges = np.linspace(0, nx, nx + 1)
+    rng = np.random.default_rng(0)
+    # zero-mean rows: nothing may depend on the row total
+    data = rng.normal(0.0, 5.0, (ny, nx))
+    result = ts.resample(NDData(data * u.ct))
+    np.testing.assert_allclose(result.data, _reference_resample(ts, data, edges), atol=1e-9)
+
+    # the rectified range [0, nx] maps beyond the detector, so each row is fully covered
+    assert (ts.c2d(float(nx), np.arange(ny)) >= nx).all()
+    np.testing.assert_allclose(result.data.sum(1), data.sum(1), atol=1e-9)
+
+
+def test_resample_uniform_image_follows_bin_widths():
+    ny, nx = 8, 200
+    ts = _stretched_ts(ny, nx)
+    edges_det = np.clip(ts.c2d(*np.meshgrid(np.linspace(0, nx, nx + 1), np.arange(ny))), 0, nx)
+    widths = np.diff(edges_det, axis=1)
+    assert widths.max() > 1.05
+    data = np.full((ny, nx), 3.0)
+    image = NDData(data * u.ct, uncertainty=VarianceUncertainty(np.ones((ny, nx))))
+    result = ts.resample(image)
+    np.testing.assert_allclose(result.data, 3.0 * widths, atol=1e-9)
+    # a bin covers at most parts of three pixels here, so its variance lies between
+    # that of an even split and that of a single pixel
+    variance = result.uncertainty.array
+    inside = widths > 0
+    assert (variance[inside] <= widths[inside] ** 2 + 1e-9).all()
+    assert (variance[inside] >= widths[inside] ** 2 / 3 - 1e-9).all()
+
+
+def test_resample_conserves_line_flux_locally():
+    ny, nx = 4, 300
+    ts = _stretched_ts(ny, nx, c11=0.0)
+    x = np.arange(nx) + 0.5
+    edges_det = ts.c2d(np.linspace(0, nx, nx + 1), np.zeros(nx + 1))
+    for center in (40.0, 150.0, 260.0):
+        line = 50.0 * np.exp(-0.5 * ((x - center) / 2.0) ** 2)
+        result = ts.resample(NDData(np.tile(100.0 + line, (ny, 1)) * u.ct))
+        background = ts.resample(NDData(np.full((ny, nx), 100.0) * u.ct))
+        on_line = (edges_det[1:] > center - 15) & (edges_det[:-1] < center + 15)
+        recovered = (result.data - background.data)[:, on_line].sum(1)
+        np.testing.assert_allclose(recovered, line.sum(), rtol=1e-6)
+
+
+def test_resample_bin_edges_define_the_number_of_bins():
+    ny, nx = 4, 40
+    data = np.random.default_rng(1).uniform(1.0, 2.0, (ny, nx))
+    ts = _linear_ts(ny, nx)
+    for n in (10, 40, 55):
+        result = ts.resample(NDData(data * u.ct), bin_edges=np.linspace(0, nx, n + 1))
+        assert result.data.shape == (ny, n)
+        np.testing.assert_allclose(result.data.sum(1), data.sum(1))
+    # four pixels per bin
+    result = ts.resample(NDData(data * u.ct), bin_edges=np.linspace(0, nx, 11))
+    np.testing.assert_allclose(result.data, data.reshape(ny, 10, 4).sum(-1))
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        (dict(nbins=10, bin_edges=np.linspace(0, 40, 11)), "either nbins or bin_edges"),
+        (dict(bin_edges=np.linspace(40, 0, 11)), "strictly increasing"),
+        (dict(bin_edges=[0.0, 10.0, 10.0, 20.0]), "strictly increasing"),
+        (dict(bin_edges=[5.0]), "at least two"),
+        (dict(bin_edges=np.zeros((2, 5))), "at least two"),
+    ],
+)
+def test_resample_invalid_bin_edges(kwargs, match):
+    image = NDData(np.ones((4, 40)) * u.ct)
+    with pytest.raises(ValueError, match=match):
+        _linear_ts(4, 40).resample(image, **kwargs)

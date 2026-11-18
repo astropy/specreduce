@@ -250,8 +250,9 @@ flux-conserving resampling independently of the calibration workflow.
 
 *   **Flux-conserving resampling**: Use
     :meth:`~specreduce.tilt_solution.TiltSolution.resample` to tilt-correct a 2D spectral
-    image. The resampling is exact and conserves flux as long as the tilt-corrected space
-    covers the full detector extent:
+    image. The image is expected to hold counts: each bin of the tilt-corrected image
+    receives the counts that fell on the part of the detector row it maps to, so the
+    counts of every bin are conserved:
 
     .. code-block:: python
 
@@ -267,8 +268,13 @@ flux-conserving resampling independently of the calibration workflow.
         # Custom bounds
         corrected = ts.resample(science_frame, bounds=(100, 900))
 
-        # Explicit bin edges
+        # Explicit bin edges (501 edges define 500 bins)
         corrected = ts.resample(science_frame, bin_edges=np.linspace(50, 950, 501))
+
+    Because the bins hold counts, their values scale with the width of the bins on the
+    detector. Where the tilt solution stretches or compresses the dispersion axis, a
+    uniformly illuminated frame is therefore not uniform after the resampling, and the
+    level can vary slightly along the cross-dispersion axis.
 
     The ``resample`` method accepts a ``mask_treatment`` parameter with the same options as
     the :class:`~specreduce.tilt_correction.TiltCorrection` constructor. The returned

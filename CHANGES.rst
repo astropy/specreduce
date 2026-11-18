@@ -72,10 +72,16 @@ Bug Fixes
   Previously all three were dropped. [#320]
 
 - ``TiltSolution.resample`` now confines a non-finite input pixel to the output bins that
-  overlap it. Previously a single non-finite pixel turned its whole row to NaN through the
-  per-row flux-conservation factor, without the row being masked. The factor is now
-  estimated from the unmasked, finite pixels only, and rows without any flux no longer
-  resample to NaN. [#320]
+  overlap it. Previously a single non-finite pixel turned its whole row to NaN, without
+  the row being masked. [#320]
+
+- ``TiltSolution.resample`` now sums the counts of the detector pixels that each bin
+  covers, without any further weighting, so the counts of every bin are conserved. [#320]
+
+- ``TiltSolution.resample`` now takes the number of bins from ``bin_edges`` when it is
+  given. Previously the number of bins defaulted to the image width, which raised an
+  error or silently dropped bins. Giving both ``nbins`` and ``bin_edges``, or bin edges
+  that are not strictly increasing, now raises a ``ValueError``. [#320]
 
 Other changes
 ^^^^^^^^^^^^^
