@@ -386,7 +386,9 @@ class FitTrace(Trace):
             profile = g1d_init + offset_init
 
             fitter = fitting.DogBoxLSQFitter()
-            popt_tot = fitter(profile, yy, ztot)
+            # exclude masked elements manually; DogBoxLSQFitter (and the
+            # underlying scipy fitter) does not accept masked array inputs
+            popt_tot = fitter(profile, yy[~ztot.mask], ztot.compressed())
 
         # restrict fit to window (if one exists)
         ilum2 = (
