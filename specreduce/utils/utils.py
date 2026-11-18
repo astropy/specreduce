@@ -82,32 +82,42 @@ def measure_noise(
     values = np.moveaxis(values, axis, -1)
     diff2 = 2.0 * values[..., 2:-2] - values[..., :-4] - values[..., 4:]
 
-    # Non-finite differences (from NaN or masked pixels) are excluded through an explicit
-    # mask. The placeholder value is never used, but must be finite to keep astropy from
-    # warning about invalid input.
+    # Work on a 2D stack of rows. Non-finite differences (from NaN or masked pixels) are
+    # excluded through an explicit mask; the placeholder value is never used, but must
+    # be finite to keep astropy from warning about invalid input.
+    shape = diff2.shape[:-1]
+    diff2 = diff2.reshape(-1, diff2.shape[-1])
     invalid = ~np.isfinite(diff2)
     diff2 = np.where(invalid, 0.0, diff2)
 
-    def clipped_std(stdfunc: str, maxiters: int | None) -> np.ndarray:
+    def clipped_std(rows: np.ndarray, stdfunc: str, maxiters: int | None) -> np.ndarray:
         # The standard deviation function is given by name: with a callable, astropy
-        # does not clip masked input along an axis. A row without any valid
-        # differences yields a masked value, which is returned as NaN.
-        std = sigma_clipped_stats(
-            diff2, mask=invalid, sigma=sigma, maxiters=maxiters, stdfunc=stdfunc, axis=-1
+        # does not clip masked input along an axis.
+        return sigma_clipped_stats(
+            diff2[rows],
+            mask=invalid[rows],
+            sigma=sigma,
+            maxiters=maxiters,
+            stdfunc=stdfunc,
+            axis=-1,
         )[2]
-        return np.asarray(np.ma.filled(std, np.nan), dtype=float)
 
-    noise = clipped_std("mad_std", maxiters)
+    # Rows without any valid difference are left as NaN and never passed to astropy,
+    # whose behaviour for fully masked rows depends on the version.
+    noise = np.full(diff2.shape[0], np.nan)
+    rows = np.flatnonzero(~invalid.all(axis=-1))
+    if rows.size > 0:
+        noise[rows] = clipped_std(rows, "mad_std", maxiters)
 
     # The median absolute deviation is zero when more than half of the differences are
     # identical (low-count integer data, zero-padded spectra). Iterating the clipping
     # would then converge on the repeated value, so use a single clipping pass around
     # the plain standard deviation instead.
-    degenerate = noise == 0.0
-    if degenerate.any():
-        noise = np.where(degenerate, clipped_std("std", 1), noise)
+    rows = np.flatnonzero(noise == 0.0)
+    if rows.size > 0:
+        noise[rows] = clipped_std(rows, "std", 1)
 
-    noise = noise / np.sqrt(6.0)
+    noise = noise.reshape(shape) / np.sqrt(6.0)
     if noise.ndim == 0:
         noise = float(noise)
 
