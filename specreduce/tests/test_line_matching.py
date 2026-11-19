@@ -5,12 +5,14 @@ import astropy.units as u
 from astropy.wcs import WCS
 from astropy.modeling import models
 from astropy.nddata import StdDevUncertainty
+from astropy.utils.exceptions import AstropyUserWarning
 from specutils.fitting import fit_generic_continuum
 
 from specreduce.calibration_data import load_pypeit_calibration_lines
 from specutils import Spectrum
 from specreduce.extract import BoxcarExtract
-from specreduce.line_matching import match_lines_wcs, find_arc_lines
+from specreduce import line_matching
+from specreduce.line_matching import match_lines_wcs, find_arc_lines, _estimate_baseline
 from specreduce.tracing import FlatTrace
 from specreduce.utils.synth_data import SynthImage
 
@@ -116,3 +118,144 @@ def test_match_lines_wcs(mk_test_data):
         tolerance=5
     )
     assert len(matched_lines) > 1
+
+
+def _mk_pedestal_spectrum(
+    pedestal, line_centers, amplitude=200.0, fwhm=4.0, npix=1000, seed=1
+):
+    """Synthetic 1D arc spectrum: Gaussian lines on top of a (possibly varying) pedestal."""
+    rng = np.random.default_rng(seed)
+    x = np.arange(npix)
+    sigma = fwhm * 0.4247
+    flux = np.broadcast_to(np.asarray(pedestal, dtype=float), (npix,)).copy()
+    for c in line_centers:
+        flux += amplitude * np.exp(-0.5 * ((x - c) / sigma) ** 2)
+    flux += rng.normal(0.0, 1.0, npix)
+    return Spectrum(
+        flux * u.DN,
+        spectral_axis=x * u.pix,
+        uncertainty=StdDevUncertainty(np.ones(npix)),
+    )
+
+
+def test_estimate_baseline_global():
+    """A global sigma-clipped median should recover a flat pedestal under bright lines."""
+    spec = _mk_pedestal_spectrum(50.0, [100, 300, 500, 700, 900])
+    baseline = _estimate_baseline(spec.flux.value)
+    assert baseline.shape == spec.flux.shape
+    np.testing.assert_allclose(baseline, 50.0, atol=1.0)
+
+
+def test_estimate_baseline_windowed():
+    """A windowed estimate should follow a slowly varying pedestal."""
+    npix = 1000
+    ramp = np.linspace(20.0, 120.0, npix)
+    spec = _mk_pedestal_spectrum(ramp, [100, 300, 500, 700, 900], npix=npix)
+    baseline = _estimate_baseline(spec.flux.value, window=100)
+    # Away from the edges (where the interpolation is constant) the estimate tracks the ramp.
+    np.testing.assert_allclose(baseline[100:-100], ramp[100:-100], atol=3.0)
+    # The global estimate cannot follow the ramp.
+    assert np.abs(_estimate_baseline(spec.flux.value) - ramp).max() > 30.0
+
+
+def test_estimate_baseline_excludes_masked_pixels():
+    """Masked pixels must not enter the estimate, even where they dominate a chunk."""
+    rng = np.random.default_rng(0)
+    flux = rng.normal(50.0, 1.0, 400)
+    mask = np.zeros(400, dtype=bool)
+    mask[100:170] = True
+    flux[mask] = 3000.0
+
+    # The bad block fills most of the second chunk, which sigma clipping cannot reject.
+    assert _estimate_baseline(flux, window=100)[150] > 1000.0
+    np.testing.assert_allclose(_estimate_baseline(flux, window=100, mask=mask), 50.0, atol=1.0)
+    np.testing.assert_allclose(_estimate_baseline(flux, mask=mask), 50.0, atol=0.3)
+
+    # A fully masked chunk is bridged from its neighbours.
+    mask[100:200] = True
+    np.testing.assert_allclose(_estimate_baseline(flux, window=100, mask=mask), 50.0, atol=1.0)
+
+    # A mask covering everything is ignored instead of leaving nothing to estimate from.
+    everything = np.ones(400, dtype=bool)
+    np.testing.assert_array_equal(
+        _estimate_baseline(flux, mask=everything), _estimate_baseline(flux)
+    )
+
+    with pytest.raises(ValueError, match="same shape"):
+        _estimate_baseline(flux, mask=mask[:-1])
+
+
+def test_find_arc_lines_baseline_uses_spectrum_mask(mocker):
+    """The spectrum mask must reach the baseline estimate."""
+    centers = [100, 250, 400, 550, 700, 850]
+    spec = _mk_pedestal_spectrum(50.0, centers)
+    mask = np.zeros(spec.flux.size, dtype=bool)
+    mask[420:500] = True
+    masked_spec = Spectrum(
+        spec.flux, spectral_axis=spec.spectral_axis, uncertainty=spec.uncertainty, mask=mask
+    )
+    spy = mocker.spy(line_matching, "_estimate_baseline")
+
+    lines = find_arc_lines(masked_spec, fwhm=4, noise_factor=5, baseline_window=100)
+    np.testing.assert_array_equal(spy.call_args.kwargs["mask"], mask)
+    assert len(lines) == len(centers)
+
+    find_arc_lines(spec, fwhm=4, noise_factor=5)
+    assert spy.call_args.kwargs["mask"] is None
+
+
+@pytest.mark.parametrize("window", [0, -5, 2.5])
+def test_estimate_baseline_invalid_window(window):
+    with pytest.raises(ValueError, match="window"):
+        _estimate_baseline(np.ones(100), window=window)
+
+
+def test_find_arc_lines_subtract_baseline():
+    """A pedestal above the detection threshold hides every line unless it is subtracted."""
+    centers = [100, 250, 400, 550, 700, 850]
+    spec = _mk_pedestal_spectrum(50.0, centers)
+
+    # Threshold is noise_factor * sigma = 5 < 50, so the whole spectrum is one "line"
+    # and specutils warns that the spectrum is not below the threshold.
+    with pytest.warns(AstropyUserWarning, match="not below the threshold"):
+        lines = find_arc_lines(spec, fwhm=4, noise_factor=5, subtract_baseline=False)
+    assert len(lines) <= 1
+
+    lines = find_arc_lines(spec, fwhm=4, noise_factor=5, subtract_baseline=True)
+    assert len(lines) == len(centers)
+    np.testing.assert_allclose(np.sort(lines["centroid"].value), centers, atol=0.1)
+    # Amplitudes are measured above the baseline, not from zero.
+    np.testing.assert_allclose(lines["amplitude"].value, 200.0, rtol=0.05)
+    # The input spectrum is left untouched.
+    assert np.median(spec.flux.value) > 40.0
+
+
+def test_find_arc_lines_without_uncertainty_on_subtracted_spectrum():
+    """Pixels that happen to lie near zero must not be detected as lines.
+
+    Without an uncertainty the noise is taken to be Poissonian, which vanishes for the
+    near-zero pixels of a background-subtracted spectrum. Removing a slightly negative
+    baseline then lifted those pixels above the detection threshold.
+    """
+    centers = [100, 250, 400, 550, 700, 850]
+    spec = _mk_pedestal_spectrum(-0.5, centers)
+    spec = Spectrum(spec.flux, spectral_axis=spec.spectral_axis)
+    assert spec.uncertainty is None
+
+    for subtract_baseline in (True, False):
+        lines = find_arc_lines(spec, fwhm=4, noise_factor=5, subtract_baseline=subtract_baseline)
+        assert len(lines) == len(centers)
+        np.testing.assert_allclose(np.sort(lines["centroid"].value), centers, atol=0.1)
+
+
+def test_find_arc_lines_subtract_baseline_windowed():
+    """A ramped pedestal needs the windowed baseline to recover every line."""
+    centers = [100, 250, 400, 550, 700, 850]
+    ramp = np.linspace(20.0, 120.0, 1000)
+    spec = _mk_pedestal_spectrum(ramp, centers)
+
+    lines = find_arc_lines(
+        spec, fwhm=4, noise_factor=5, subtract_baseline=True, baseline_window=100
+    )
+    assert len(lines) == len(centers)
+    np.testing.assert_allclose(np.sort(lines["centroid"].value), centers, atol=0.1)

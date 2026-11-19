@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.modeling import models, fitting
 from astropy.nddata import StdDevUncertainty, NDData
+from astropy.table import QTable
 from numpy import ndarray, repeat, tile
 from scipy.optimize import minimize
 from scipy.spatial import KDTree
@@ -141,12 +142,29 @@ class TiltCorrection:
 
         self.solution: TiltSolution | None = None
 
-    def find_arc_lines(self, fwhm: float, noise_factor: float = 5.0) -> None:
+    def _lines_inside_frame(self, lines: QTable) -> QTable:
+        """Drop detected lines whose centroid is not finite or falls off the frame."""
+        x = lines["centroid"].value
+        return lines[np.isfinite(x) & (x >= 0) & (x < self._nx)]
+
+    def find_arc_lines(
+        self,
+        fwhm: float,
+        noise_factor: float = 5.0,
+        subtract_baseline: bool = True,
+        baseline_window: int | None = None,
+    ) -> None:
         """Find arc lines from the provided arc frames for all cross-dispersion samples.
 
         This method locates spectral arc lines from the provided arc frames, calculates
         their centroids, and organizes them into reference lists and sample arrays
         for further analysis.
+
+        The arc frames are used as they are, so by default the baseline (background)
+        flux of each row is estimated with a sigma-clipped median and removed before
+        the line detection. The detection thresholds the flux against
+        ``noise_factor × uncertainty``, so a pedestal above that level would otherwise
+        swallow all the lines.
 
         Parameters
         ----------
@@ -155,7 +173,32 @@ class TiltCorrection:
             by the line-finding algorithm.
         noise_factor
             A multiplier for noise thresholding in the line-finding process.
+        subtract_baseline
+            Estimate and subtract the baseline flux of each row before the line
+            detection. Set to ``False`` for arc frames that are already
+            background-subtracted.
+        baseline_window
+            Width in pixels of the chunks used for a running baseline estimate that
+            can follow a slowly varying background. If ``None``, a single global
+            median is subtracted from each row.
+
+        Detected lines whose fitted centroid falls outside the image frame along the
+        dispersion axis (or is not finite) are discarded, as they come from failed fits.
+
+        Raises
+        ------
+        ValueError
+            If the reference row or any cross-dispersion sample lies outside the
+            image frame.
         """
+        rows = np.append(self.cd_samples, self.ref_pixel[0])
+        outside = rows[(rows < 0) | (rows >= self._ny)]
+        if outside.size > 0:
+            raise ValueError(
+                f"Cross-dispersion samples {outside.tolist()} lie outside the image frame; "
+                f"samples must satisfy 0 <= sample < {self._ny}."
+            )
+
         self._arc_spectra = []
         self._samples_rec_x = []
         self._lines_ref = []
@@ -174,7 +217,14 @@ class TiltCorrection:
                     d.data[self.ref_pixel[0]] * d.unit,
                     uncertainty=d.uncertainty[self.ref_pixel[0]].represent_as(StdDevUncertainty),
                 )
-                lines = find_arc_lines(spectrum, fwhm, noise_factor=noise_factor)
+                lines = find_arc_lines(
+                    spectrum,
+                    fwhm,
+                    noise_factor=noise_factor,
+                    subtract_baseline=subtract_baseline,
+                    baseline_window=baseline_window,
+                )
+                lines = self._lines_inside_frame(lines)
                 self._lines_ref.append(lines["centroid"].value)
 
                 # Find the line centroids for the sample rows
@@ -183,7 +233,14 @@ class TiltCorrection:
                         d.data[s] * d.unit,
                         uncertainty=d.uncertainty[s].represent_as(StdDevUncertainty),
                     )
-                    lines = find_arc_lines(spectrum, fwhm, noise_factor=noise_factor)
+                    lines = find_arc_lines(
+                        spectrum,
+                        fwhm,
+                        noise_factor=noise_factor,
+                        subtract_baseline=subtract_baseline,
+                        baseline_window=baseline_window,
+                    )
+                    lines = self._lines_inside_frame(lines)
                     samples_x[i].append(lines["centroid"].value)
                     samples_y[i].append(np.full(len(lines), s))
                     self._arc_spectra[i].append(spectrum)

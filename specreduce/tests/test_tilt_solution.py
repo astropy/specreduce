@@ -1,8 +1,24 @@
+import astropy.units as u
 import numpy as np
 import pytest
+from astropy.io import fits
 from astropy.modeling import models
+from astropy.modeling.models import Shift, Polynomial2D
+from astropy.nddata import (
+    NDData,
+    CCDData,
+    StdDevUncertainty,
+    VarianceUncertainty,
+    InverseVariance,
+)
 
 from specreduce.tilt_solution import TiltSolution, diff_poly2d_x
+
+
+def _linear_ts(ny, nx, shift=0.0, disp_axis=1):
+    """A fit-free tilt solution: detector x = rectified x + shift, for every row."""
+    solution = Shift(0) & Shift(0) | Polynomial2D(1, c0_0=shift, c1_0=1.0)
+    return TiltSolution(solution, disp_axis=disp_axis, image_shape=(ny, nx))
 
 
 def test_diff_poly2d_x_valid_derivative():
@@ -116,7 +132,124 @@ def test_resample(mk_default_tc, mk_arc_frames):
     tc = mk_default_tc
     tc.find_arc_lines(3.0, 5.0)
     tc.fit(4)
-    tc.solution.resample(arcs[0])
+    result = tc.solution.resample(arcs[0])
+    assert isinstance(result.uncertainty, StdDevUncertainty)
+    assert result.uncertainty.array.shape == result.data.shape
+
+
+@pytest.mark.parametrize(
+    "uncertainty_cls", [StdDevUncertainty, VarianceUncertainty, InverseVariance]
+)
+def test_resample_preserves_uncertainty_type(uncertainty_cls):
+    ny, nx = 4, 12
+    data = np.full((ny, nx), 10.0)
+    image = NDData(data * u.ct, uncertainty=uncertainty_cls(np.full((ny, nx), 4.0)))
+    result = _linear_ts(ny, nx).resample(image)
+    assert isinstance(result.uncertainty, uncertainty_cls)
+    assert result.uncertainty.array.shape == result.data.shape
+
+
+def test_resample_uncertainty_identity():
+    ny, nx = 4, 12
+    data = np.full((ny, nx), 10.0)
+    variance = np.arange(1.0, ny * nx + 1).reshape(ny, nx)
+    image = NDData(data * u.ct, uncertainty=VarianceUncertainty(variance))
+    result = _linear_ts(ny, nx).resample(image)
+    np.testing.assert_allclose(result.data, data)
+    np.testing.assert_allclose(result.uncertainty.array, variance)
+    assert result.uncertainty.unit == u.ct**2
+
+
+def test_resample_uncertainty_half_pixel_shift():
+    """
+    Each rectified bin takes half of two neighboring detector pixels, so the
+    variance is 0.25 + 0.25 of the input variance, not 0.5 + 0.5. The last bin
+    covers half of the last pixel only.
+    """
+    ny, nx = 3, 10
+    data = np.full((ny, nx), 10.0)
+    image = NDData(data * u.ct, uncertainty=StdDevUncertainty(np.full((ny, nx), 3.0)))
+    result = _linear_ts(ny, nx, shift=0.5).resample(image)
+    np.testing.assert_allclose(result.data[:, :-1], 10.0)
+    np.testing.assert_allclose(result.data[:, -1], 5.0)
+    np.testing.assert_allclose(result.uncertainty.array[:, :-1], np.sqrt(4.5), rtol=1e-9)
+    np.testing.assert_allclose(result.uncertainty.array[:, -1], 1.5, rtol=1e-9)
+
+
+@pytest.mark.parametrize(
+    "image",
+    [
+        NDData(np.full((4, 12), 10.0) * u.ct),
+        np.full((4, 12), 10.0),
+        np.full((4, 12), 10.0) * u.ct,
+    ],
+)
+def test_resample_without_uncertainty_returns_none(image):
+    result = _linear_ts(4, 12).resample(image)
+    assert result.uncertainty is None
+
+
+def test_resample_copies_meta():
+    ny, nx = 4, 12
+    data = np.full((ny, nx), 10.0)
+    ts = _linear_ts(ny, nx)
+
+    meta = {"OBJECT": "target", "HISTORY": ["step 1"]}
+    result = ts.resample(NDData(data * u.ct, meta=meta))
+    assert result.meta == meta
+    assert result.meta is not meta
+    result.meta["OBJECT"] = "changed"
+    result.meta["HISTORY"].append("step 2")
+    assert meta == {"OBJECT": "target", "HISTORY": ["step 1"]}
+
+    header = fits.Header([("OBJECT", "target"), ("EXPTIME", 30.0)])
+    result = ts.resample(CCDData(data, unit="ct", meta=header))
+    assert isinstance(result.meta, fits.Header)
+    assert result.meta["OBJECT"] == "target" and result.meta["EXPTIME"] == 30.0
+    result.meta["OBJECT"] = "changed"
+    assert header["OBJECT"] == "target"
+
+    assert len(ts.resample(NDData(data * u.ct)).meta) == 0
+
+
+def test_resample_propagates_mask():
+    ny, nx = 4, 12
+    data = np.full((ny, nx), 10.0)
+    mask = np.zeros((ny, nx), dtype=bool)
+    mask[2, 3] = True
+
+    result = _linear_ts(ny, nx).resample(NDData(data * u.ct, mask=mask), mask_treatment="apply")
+    assert result.mask.dtype == bool
+    np.testing.assert_array_equal(result.mask, mask)
+
+    # a half-pixel shift spreads the masked pixel over the two bins that overlap it
+    result = _linear_ts(ny, nx, shift=0.5).resample(
+        NDData(data * u.ct, mask=mask), mask_treatment="apply"
+    )
+    expected = np.zeros((ny, nx), dtype=bool)
+    expected[2, 2:4] = True
+    np.testing.assert_array_equal(result.mask, expected)
+
+    # fill treatments drop the mask before resampling
+    result = _linear_ts(ny, nx).resample(NDData(data * u.ct, mask=mask), mask_treatment="zero_fill")
+    assert not result.mask.any()
+
+
+def test_resample_disp_axis_0_propagates_arrays():
+    n = 8
+    data = np.arange(1.0, n * n + 1).reshape(n, n)
+    variance = 2.0 * data
+    mask = np.zeros((n, n), dtype=bool)
+    mask[1, 5] = True
+    image = NDData(data * u.ct, uncertainty=VarianceUncertainty(variance), mask=mask)
+
+    result = _linear_ts(n, n, disp_axis=0).resample(image)
+    np.testing.assert_allclose(result.data, data.T)
+    np.testing.assert_allclose(result.uncertainty.array, variance.T)
+    np.testing.assert_array_equal(result.mask, mask.T)
+
+    result = _linear_ts(n, n, disp_axis=0).resample(image, nbins=2 * n)
+    assert result.data.shape == result.uncertainty.array.shape == result.mask.shape == (2 * n, n)
 
 
 @pytest.mark.remote_data
@@ -195,14 +328,170 @@ def test_resample_disp_axis_0(mk_default_tc, mk_arc_frames):
     tc.fit(4)
 
     # Use a square crop so _parse_image works with disp_axis=0
-    from astropy.nddata import NDData
-    import astropy.units as u
     ny = arcs[0].data.shape[0]
-    square = NDData(arcs[0].data[:, :ny] * u.ct)
+    square = NDData(
+        arcs[0].data[:, :ny] * u.ct, uncertainty=StdDevUncertainty(np.full((ny, ny), 5.0))
+    )
 
     ts = tc.solution
     ts.disp_axis = 0
     result = ts.resample(square, nbins=ny)
+    assert result.uncertainty.array.shape == result.data.shape
     # With disp_axis=0, output should be transposed
     assert result.data.shape[0] == ny  # nbins along axis 0
     assert result.data.shape[1] == ny  # cdisp along axis 1
+
+
+def _curved_ts(ny, nx):
+    solution = Shift(0) & Shift(0) | Polynomial2D(2, c0_0=0.3, c1_0=1.0, c0_1=0.02, c0_2=0.001)
+    return TiltSolution(solution, disp_axis=1, image_shape=(ny, nx))
+
+
+@pytest.mark.parametrize(
+    "mask_treatment, flagged",
+    [("apply", True), ("apply_nan_only", True), ("nan_fill", False), ("ignore", False)],
+)
+def test_resample_keeps_non_finite_pixels_local(mask_treatment, flagged):
+    ny, nx = 20, 30
+    rng = np.random.default_rng(0)
+    data = rng.uniform(5.0, 10.0, (ny, nx))
+    variance = rng.uniform(1.0, 2.0, (ny, nx))
+    ts = _curved_ts(ny, nx)
+    reference = ts.resample(NDData(data * u.ct, uncertainty=VarianceUncertainty(variance)))
+
+    bad = data.copy()
+    bad[7, 12] = np.nan
+    image = NDData(bad * u.ct, uncertainty=VarianceUncertainty(variance))
+    result = ts.resample(image, mask_treatment=mask_treatment)
+
+    # only the bins overlapping the bad pixel are lost, in both flux and uncertainty
+    lost = np.isnan(result.data)
+    assert 1 <= lost[7].sum() <= 3
+    assert not np.delete(lost, 7, axis=0).any()
+    np.testing.assert_array_equal(np.isnan(result.uncertainty.array), lost)
+    np.testing.assert_array_equal(result.mask, lost if flagged else np.zeros_like(lost))
+
+    # all the other bins are unaffected
+    np.testing.assert_array_equal(result.data[~lost], reference.data[~lost])
+    np.testing.assert_array_equal(
+        result.uncertainty.array[~lost], reference.uncertainty.array[~lost]
+    )
+
+
+def test_resample_non_finite_variance_marks_bin():
+    ny, nx = 6, 12
+    data = np.full((ny, nx), 3.0)
+    variance = np.ones((ny, nx))
+    variance[2, 5] = np.inf
+    image = NDData(data * u.ct, uncertainty=VarianceUncertainty(variance))
+    result = _linear_ts(ny, nx).resample(image, mask_treatment="ignore")
+    lost = np.isnan(result.data)
+    assert lost.sum() == 1 and lost[2, 5]
+    np.testing.assert_array_equal(np.isnan(result.uncertainty.array), lost)
+
+
+def test_resample_handles_rows_without_flux():
+    ny, nx = 6, 12
+    data = np.full((ny, nx), 3.0)
+    data[1] = 0.0
+    data[4] = np.nan
+    image = NDData(data * u.ct, uncertainty=VarianceUncertainty(np.ones((ny, nx))))
+    result = _curved_ts(ny, nx).resample(image, mask_treatment="apply")
+    np.testing.assert_array_equal(result.data[1], 0.0)
+    assert np.isfinite(result.uncertainty.array[1]).all()
+    assert np.isnan(result.data[4]).all() and result.mask[4].all()
+    assert np.isfinite(result.data[[0, 2, 3, 5]]).all()
+    assert not result.mask[[0, 1, 2, 3, 5]].any()
+
+
+def _stretched_ts(ny, nx, c2=2e-4, c11=1e-3):
+    """Detector x = t + c2 t**2 + c11 t y: the bin width on the detector varies with t and y."""
+    solution = Shift(0) & Shift(0) | Polynomial2D(2, c0_0=0.0, c1_0=1.0, c2_0=c2, c1_1=c11)
+    return TiltSolution(solution, disp_axis=1, image_shape=(ny, nx))
+
+
+def _reference_resample(ts, data, edges):
+    """Counts per bin from the cumulative counts of each detector row."""
+    ny, nx = data.shape
+    out = np.zeros((ny, edges.size - 1))
+    for y in range(ny):
+        x = np.clip(ts.c2d(edges, np.full(edges.size, float(y))), 0, nx)
+        cumulative = np.concatenate([[0.0], np.cumsum(data[y])])
+        out[y] = np.diff(np.interp(x, np.arange(nx + 1), cumulative))
+    return out
+
+
+def test_resample_conserves_counts_with_varying_bin_width():
+    ny, nx = 8, 200
+    ts = _stretched_ts(ny, nx)
+    edges = np.linspace(0, nx, nx + 1)
+    rng = np.random.default_rng(0)
+    # zero-mean rows: nothing may depend on the row total
+    data = rng.normal(0.0, 5.0, (ny, nx))
+    result = ts.resample(NDData(data * u.ct))
+    np.testing.assert_allclose(result.data, _reference_resample(ts, data, edges), atol=1e-9)
+
+    # the rectified range [0, nx] maps beyond the detector, so each row is fully covered
+    assert (ts.c2d(float(nx), np.arange(ny)) >= nx).all()
+    np.testing.assert_allclose(result.data.sum(1), data.sum(1), atol=1e-9)
+
+
+def test_resample_uniform_image_follows_bin_widths():
+    ny, nx = 8, 200
+    ts = _stretched_ts(ny, nx)
+    edges_det = np.clip(ts.c2d(*np.meshgrid(np.linspace(0, nx, nx + 1), np.arange(ny))), 0, nx)
+    widths = np.diff(edges_det, axis=1)
+    assert widths.max() > 1.05
+    data = np.full((ny, nx), 3.0)
+    image = NDData(data * u.ct, uncertainty=VarianceUncertainty(np.ones((ny, nx))))
+    result = ts.resample(image)
+    np.testing.assert_allclose(result.data, 3.0 * widths, atol=1e-9)
+    # a bin covers at most parts of three pixels here, so its variance lies between
+    # that of an even split and that of a single pixel
+    variance = result.uncertainty.array
+    inside = widths > 0
+    assert (variance[inside] <= widths[inside] ** 2 + 1e-9).all()
+    assert (variance[inside] >= widths[inside] ** 2 / 3 - 1e-9).all()
+
+
+def test_resample_conserves_line_flux_locally():
+    ny, nx = 4, 300
+    ts = _stretched_ts(ny, nx, c11=0.0)
+    x = np.arange(nx) + 0.5
+    edges_det = ts.c2d(np.linspace(0, nx, nx + 1), np.zeros(nx + 1))
+    for center in (40.0, 150.0, 260.0):
+        line = 50.0 * np.exp(-0.5 * ((x - center) / 2.0) ** 2)
+        result = ts.resample(NDData(np.tile(100.0 + line, (ny, 1)) * u.ct))
+        background = ts.resample(NDData(np.full((ny, nx), 100.0) * u.ct))
+        on_line = (edges_det[1:] > center - 15) & (edges_det[:-1] < center + 15)
+        recovered = (result.data - background.data)[:, on_line].sum(1)
+        np.testing.assert_allclose(recovered, line.sum(), rtol=1e-6)
+
+
+def test_resample_bin_edges_define_the_number_of_bins():
+    ny, nx = 4, 40
+    data = np.random.default_rng(1).uniform(1.0, 2.0, (ny, nx))
+    ts = _linear_ts(ny, nx)
+    for n in (10, 40, 55):
+        result = ts.resample(NDData(data * u.ct), bin_edges=np.linspace(0, nx, n + 1))
+        assert result.data.shape == (ny, n)
+        np.testing.assert_allclose(result.data.sum(1), data.sum(1))
+    # four pixels per bin
+    result = ts.resample(NDData(data * u.ct), bin_edges=np.linspace(0, nx, 11))
+    np.testing.assert_allclose(result.data, data.reshape(ny, 10, 4).sum(-1))
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        (dict(nbins=10, bin_edges=np.linspace(0, 40, 11)), "either nbins or bin_edges"),
+        (dict(bin_edges=np.linspace(40, 0, 11)), "strictly increasing"),
+        (dict(bin_edges=[0.0, 10.0, 10.0, 20.0]), "strictly increasing"),
+        (dict(bin_edges=[5.0]), "at least two"),
+        (dict(bin_edges=np.zeros((2, 5))), "at least two"),
+    ],
+)
+def test_resample_invalid_bin_edges(kwargs, match):
+    image = NDData(np.ones((4, 40)) * u.ct)
+    with pytest.raises(ValueError, match=match):
+        _linear_ts(4, 40).resample(image, **kwargs)

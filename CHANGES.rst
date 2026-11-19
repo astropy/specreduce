@@ -30,6 +30,14 @@ New Features
   (``AWAV-GRA``) and vacuum (``WAVE-GRI``) spectral axis types in FITS WCS
   export. [#316]
 
+- Added ``subtract_baseline`` and ``baseline_window`` options to
+  ``line_matching.find_arc_lines`` and ``TiltCorrection.find_arc_lines`` that estimate
+  the baseline flux of the spectrum with a sigma-clipped median (globally, or in running
+  windows) and remove it before the line detection. Pixels flagged in the spectrum mask
+  are excluded from the estimate. Baseline subtraction is on by default, so
+  ``TiltCorrection.find_arc_lines`` no longer requires background-subtracted arc frames
+  to detect any lines. [#320]
+
 API Changes
 ^^^^^^^^^^^
 
@@ -37,6 +45,43 @@ API Changes
   class (deprecated since v1.7.0) now emits an ``AstropyDeprecationWarning``
   on instantiation, and its removal has been rescheduled from v2.0 to v1.11.
   Use ``specreduce.wavecal1d.WavelengthCalibration1D`` instead. [#316]
+
+- ``line_matching.find_arc_lines`` now subtracts a sigma-clipped median baseline from
+  the spectrum before the line detection by default. This also applies to
+  ``WavelengthCalibration1D.find_lines``, which gained ``subtract_baseline`` and
+  ``baseline_window`` options to control it. Pass ``subtract_baseline=False`` to
+  restore the previous behaviour. [#320]
+
+Bug Fixes
+^^^^^^^^^
+
+- ``TiltCorrection.find_arc_lines`` now raises a ``ValueError`` when the reference row or
+  any cross-dispersion sample lies outside the image frame, and discards detected lines
+  whose fitted centroid is not finite or falls outside the frame along the dispersion
+  axis. Previously a sample past the frame raised an ``IndexError``, a negative sample
+  silently wrapped around to the opposite edge of the frame, and a failed line fit could
+  crash the nearest-neighbour matching. [#320]
+
+- ``line_matching.find_arc_lines`` no longer detects spurious lines in background-subtracted
+  spectra given without an uncertainty. The assumed Poisson noise vanishes for pixels close
+  to zero, so it is now limited from below by the sigma-clipped scatter of the flux. [#320]
+
+- ``TiltSolution.resample`` now propagates the input uncertainty, returned in the same
+  uncertainty class as the input, marks output bins that received a contribution from a
+  masked input pixel, and copies the input metadata to the resampled ``NDData``.
+  Previously all three were dropped. [#320]
+
+- ``TiltSolution.resample`` now confines a non-finite input pixel to the output bins that
+  overlap it. Previously a single non-finite pixel turned its whole row to NaN, without
+  the row being masked. [#320]
+
+- ``TiltSolution.resample`` now sums the counts of the detector pixels that each bin
+  covers, without any further weighting, so the counts of every bin are conserved. [#320]
+
+- ``TiltSolution.resample`` now takes the number of bins from ``bin_edges`` when it is
+  given. Previously the number of bins defaulted to the image width, which raised an
+  error or silently dropped bins. Giving both ``nbins`` and ``bin_edges``, or bin edges
+  that are not strictly increasing, now raises a ``ValueError``. [#320]
 
 Other changes
 ^^^^^^^^^^^^^

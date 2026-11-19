@@ -112,6 +112,11 @@ If you initialized the class with ``arc_spectra``, you need to detect the lines 
 
     wc.find_lines(fwhm=3.5, noise_factor=5)
 
+By default, the baseline flux of each arc spectrum is estimated with a sigma-clipped median
+and subtracted before the line detection, because the detection compares the flux against
+zero. Set ``subtract_baseline=False`` to search the spectra as given, or give
+``baseline_window`` a width in pixels to let the baseline follow a slowly varying background.
+
 This populates the `~specreduce.wavecal1d.WavelengthCalibration1D.observed_line_locations`
 attribute.
 
