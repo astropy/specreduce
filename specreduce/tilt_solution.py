@@ -1,7 +1,10 @@
 import warnings
+from copy import deepcopy
 from functools import cached_property
+from pathlib import Path
 from typing import Sequence, Literal
 
+import asdf
 import astropy.units as u
 import gwcs
 import numpy as np
@@ -74,6 +77,11 @@ class TiltSolution:
         self._d2c: None | Model = None
         self._image_shape = image_shape
         self.disp_axis = disp_axis
+
+    @property
+    def image_shape(self) -> tuple[int, int] | None:
+        """The detector image shape as ``(ny, nx)``, or `None` if not known."""
+        return self._image_shape
 
     @property
     def c2d(self):
@@ -229,13 +237,96 @@ class TiltSolution:
     def from_gwcs(
         wcs: "gwcs.wcs.WCS", disp_axis: int = 1, image_shape: tuple[int, int] | None = None
     ):
-        """Create a TiltSolution from a GWCS object."""
+        """Create a TiltSolution from a GWCS object.
+
+        Parameters
+        ----------
+        wcs
+            A GWCS object as exported by the :attr:`gwcs` property, mapping the rectified
+            frame to the detector frame with two shifts followed by a 2D polynomial.
+        disp_axis
+            The index of the image's dispersion axis.
+        image_shape
+            The detector image shape as ``(ny, nx)``. If `None`, the shape is read from the
+            bounding box of the GWCS when it has one, which spans ``(0, nx)`` along the
+            dispersion axis and ``(0, ny)`` along the cross-dispersion axis.
+
+        Raises
+        ------
+        ValueError
+            If the forward transform is not two shifts followed by a 2D polynomial.
+        """
         m = wcs.forward_transform
         if not (
             isinstance(m[1], Shift) and isinstance(m[2], Shift) and isinstance(m[3], Polynomial2D)
         ):
             raise ValueError("The GWCS object must contain a 2D polynomial transformation.")
+        if image_shape is None and wcs.bounding_box is not None:
+            (_, nx), (_, ny) = wcs.bounding_box.bounding_box()
+            image_shape = (int(ny), int(nx))
         return TiltSolution(m[1:-1], disp_axis=disp_axis, image_shape=image_shape)
+
+    def to_asdf(self, path: str | Path, **kwargs) -> None:
+        """Serialize the tilt solution into an ASDF file.
+
+        Stores the rectified-to-detector transformation as a GWCS object under the
+        'tilt_solution' key of the ASDF tree, together with the dispersion axis index. The
+        transformation is written as an analytic model, so the solution read back is
+        identical to the one written, and the file can be opened by any ASDF-aware tool
+        without specreduce.
+
+        Parameters
+        ----------
+        path
+            File to write to, given either as a path or as a writable file object.
+        **kwargs
+            Additional keyword arguments passed to `asdf.AsdfFile.write_to`.
+
+        Notes
+        -----
+        The image shape, when known, travels as the bounding box of the exported GWCS,
+        spanning ``(0, nx)`` along the dispersion axis and ``(0, ny)`` along the
+        cross-dispersion axis. The bounding box is set on the exported object only: the
+        :attr:`gwcs` property is deliberately left unbounded, because a bounded GWCS
+        returns NaN outside its box instead of extrapolating.
+        """
+        w = deepcopy(self.gwcs)
+        if self._image_shape is not None:
+            ny, nx = self._image_shape
+            w.bounding_box = ((0, nx), (0, ny))
+        tree = {"tilt_solution": {"gwcs": w, "disp_axis": int(self.disp_axis)}}
+        asdf.AsdfFile(tree).write_to(path, **kwargs)
+
+    @classmethod
+    def from_asdf(cls, path: str | Path) -> "TiltSolution":
+        """Create a tilt solution from an ASDF file written by :meth:`to_asdf`.
+
+        Parameters
+        ----------
+        path
+            File to read from, given either as a path or as a readable file object.
+
+        Returns
+        -------
+        The tilt solution stored in the file. Its image shape is `None` if the stored
+        GWCS carries no bounding box.
+
+        Raises
+        ------
+        ValueError
+            If the file holds no tilt solution written by :meth:`to_asdf`, or if the stored
+            transformation is not two shifts followed by a 2D polynomial.
+        """
+        with asdf.open(path, lazy_load=False) as af:
+            try:
+                node = af["tilt_solution"]
+                w = node["gwcs"]
+                disp_axis = node["disp_axis"]
+            except (KeyError, TypeError):
+                raise ValueError(
+                    "The ASDF file contains no tilt solution written by TiltSolution.to_asdf."
+                )
+            return cls.from_gwcs(w, disp_axis=int(disp_axis))
 
     def resample(
         self,

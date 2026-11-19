@@ -8,8 +8,8 @@ User Guide
     trace
     background
     extraction
-    wavelength_calibration/wavelength_calibration
     tilt_correction/tilt_correction
+    wavelength_calibration/wavelength_calibration
 
 
 .. toctree::
