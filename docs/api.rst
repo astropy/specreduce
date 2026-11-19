@@ -9,6 +9,9 @@ API Reference
 .. automodapi:: specreduce.core
     :no-inheritance-diagram:
 
+.. automodapi:: specreduce.utils
+    :no-inheritance-diagram:
+
 .. automodapi:: specreduce.utils.synth_data
     :no-inheritance-diagram:
 
